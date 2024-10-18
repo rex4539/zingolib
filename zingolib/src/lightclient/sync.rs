@@ -150,7 +150,10 @@ impl LightClient {
         *self.interrupt_sync.write().await = set_interrupt;
     }
 
-    /// TODO: Add Doc Comment Here!
+    /// a concurrent task
+    /// the mempool includes transactions waiting to be accepted to the chain
+    /// we query it through lightwalletd
+    /// and record any new data, using ConfirmationStatus::Mempool
     pub fn start_mempool_monitor(lc: Arc<LightClient>) {
         if !lc.config.monitor_mempool {
             return;
