@@ -154,6 +154,7 @@ impl LightClient {
     /// the mempool includes transactions waiting to be accepted to the chain
     /// we query it through lightwalletd
     /// and record any new data, using ConfirmationStatus::Mempool
+    #[allow(clippy::result_unit_err)]
     pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), ()> {
         if !lc.config.monitor_mempool {
             return Err(());
