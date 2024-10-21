@@ -1277,7 +1277,8 @@ mod slow {
                  recipient_address: "zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string(),
                  value: first_send_to_sapling,
                  memo: Memo::Empty,
-                 recipient_ua: None
+                 recipient_ua: None,
+                 output_index: None,
              }])
             .build()
             .unwrap();
@@ -1307,6 +1308,7 @@ mod slow {
                 value: first_send_to_transparent,
                 memo: Memo::Empty,
                 recipient_ua: None,
+                output_index: None,
             }])
             .build()
             .unwrap();
@@ -1420,6 +1422,7 @@ mod slow {
                 value: second_send_to_transparent,
                 memo: Memo::Empty,
                 recipient_ua: None,
+                output_index: None,
             }])
             .build()
             .unwrap();
@@ -1457,7 +1460,8 @@ mod slow {
                  recipient_address: "zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string(),
                  value: second_send_to_sapling,
                  memo: Memo::Empty,
-                 recipient_ua: None
+                 recipient_ua: None,
+                 output_index: None,
              }])
             .build()
             .unwrap();
@@ -1499,6 +1503,7 @@ mod slow {
                 value: external_transparent_3,
                 memo: Memo::Empty,
                 recipient_ua: None,
+                output_index: None,
             }])
             .build()
             .unwrap();

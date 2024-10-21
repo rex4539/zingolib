@@ -291,6 +291,8 @@ pub struct OutgoingTxData {
     /// What if it wasn't provided?  How does this relate to
     /// recipient_address?
     pub recipient_ua: Option<String>,
+    /// This output's pool-specific index in its containing transaction
+    pub output_index: Option<u64>,
 }
 impl std::fmt::Display for OutgoingTxData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -370,6 +372,7 @@ impl OutgoingTxData {
             value,
             memo,
             recipient_ua: None,
+            output_index: None,
         })
     }
 
@@ -2046,6 +2049,7 @@ pub(crate) mod mocks {
         value: Option<u64>,
         memo: Option<Memo>,
         recipient_ua: Option<Option<String>>,
+        output_index: Option<Option<u64>>,
     }
 
     impl OutgoingTxDataBuilder {
@@ -2055,6 +2059,7 @@ pub(crate) mod mocks {
                 value: None,
                 memo: None,
                 recipient_ua: None,
+                output_index: None,
             }
         }
 
@@ -2063,6 +2068,7 @@ pub(crate) mod mocks {
         build_method!(value, u64);
         build_method!(memo, Memo);
         build_method!(recipient_ua, Option<String>);
+        build_method!(output_index, Option<u64>);
 
         pub(crate) fn build(&self) -> OutgoingTxData {
             OutgoingTxData {
@@ -2070,6 +2076,7 @@ pub(crate) mod mocks {
                 value: self.value.unwrap(),
                 memo: self.memo.clone().unwrap(),
                 recipient_ua: self.recipient_ua.clone().unwrap(),
+                output_index: self.output_index.unwrap(),
             }
         }
     }
@@ -2081,7 +2088,9 @@ pub(crate) mod mocks {
                 .recipient_address("default_address".to_string())
                 .value(50_000)
                 .memo(Memo::default())
-                .recipient_ua(None);
+                .recipient_ua(None)
+                .output_index(None);
+
             builder
         }
     }
