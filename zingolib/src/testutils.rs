@@ -1338,6 +1338,38 @@ pub mod scenarios {
     }
 
     /// TODO: Add Doc Comment Here!
+    pub async fn funded_transparent_mobileclient(
+        value: u64,
+    ) -> (RegtestManager, ChildProcessHandler) {
+        let regtest_network = crate::config::RegtestNetwork::all_upgrades_active();
+        let mut scenario_builder = setup::ScenarioBuilder::build_configure_launch(
+            Some(PoolType::Transparent),
+            None,
+            Some(20_000),
+            &regtest_network,
+        )
+        .await;
+        let faucet = scenario_builder
+            .client_builder
+            .build_client(HOSPITAL_MUSEUM_SEED.to_string(), 0, false, regtest_network)
+            .await;
+        let recipient = scenario_builder
+            .client_builder
+            .build_client(HOSPITAL_MUSEUM_SEED.to_string(), 0, false, regtest_network)
+            .await;
+        super::lightclient::from_inputs::quick_send(
+            &faucet,
+            vec![(&get_base_address_macro!(recipient, "unified"), value, None)],
+        )
+        .await
+        .unwrap();
+        (
+            scenario_builder.regtest_manager,
+            scenario_builder.child_process_handler.unwrap(),
+        )
+    }
+
+    /// TODO: Add Doc Comment Here!
     pub async fn funded_orchard_sapling_transparent_shielded_mobileclient(
         value: u64,
     ) -> (RegtestManager, ChildProcessHandler) {
