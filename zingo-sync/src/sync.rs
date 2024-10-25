@@ -27,7 +27,7 @@ const BATCH_SIZE: u32 = 10;
 /// Syncs a wallet to the latest state of the blockchain
 pub async fn sync<P, W>(
     client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    chain_parameters: &P,
+    consensus_parameters: &P,
     wallet: &mut W,
 ) -> Result<(), ()>
 where
@@ -43,13 +43,13 @@ where
     let fetcher_handle = tokio::spawn(fetch(
         fetch_request_receiver,
         client,
-        chain_parameters.clone(),
+        consensus_parameters.clone(),
     ));
     handles.push(fetcher_handle);
 
     update_scan_ranges(
         fetch_request_sender.clone(),
-        chain_parameters,
+        consensus_parameters,
         wallet.get_birthday().unwrap(),
         wallet.get_sync_state_mut().unwrap(),
     )
@@ -62,7 +62,7 @@ where
     let mut scanner = Scanner::new(
         scan_results_sender,
         fetch_request_sender,
-        chain_parameters.clone(),
+        consensus_parameters.clone(),
         ufvks,
     );
     scanner.spawn_workers();
@@ -75,6 +75,8 @@ where
         if scanner.is_worker_idle() {
             if let Some(scan_range) = prepare_next_scan_range(wallet.get_sync_state_mut().unwrap())
             {
+                // TODO: Can previous_wallet_block have the same value
+                // for more than one call to get_wallet_block?
                 let previous_wallet_block = wallet
                     .get_wallet_block(scan_range.block_range().start - 1)
                     .ok();
