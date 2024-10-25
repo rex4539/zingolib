@@ -27,7 +27,7 @@ const BATCH_SIZE: u32 = 10;
 /// Syncs a wallet to the latest state of the blockchain
 pub async fn sync<P, W>(
     client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: &P,
+    chain_parameters: &P,
     wallet: &mut W,
 ) -> Result<(), ()>
 where
@@ -40,12 +40,16 @@ where
 
     // create channel for sending fetch requests and launch fetcher task
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
-    let fetcher_handle = tokio::spawn(fetch(fetch_request_receiver, client, parameters.clone()));
+    let fetcher_handle = tokio::spawn(fetch(
+        fetch_request_receiver,
+        client,
+        chain_parameters.clone(),
+    ));
     handles.push(fetcher_handle);
 
     update_scan_ranges(
         fetch_request_sender.clone(),
-        parameters,
+        chain_parameters,
         wallet.get_birthday().unwrap(),
         wallet.get_sync_state_mut().unwrap(),
     )
@@ -58,7 +62,7 @@ where
     let mut scanner = Scanner::new(
         scan_results_sender,
         fetch_request_sender,
-        parameters.clone(),
+        chain_parameters.clone(),
         ufvks,
     );
     scanner.spawn_workers();
