@@ -1701,6 +1701,7 @@ dependencies = [
  "log",
  "orchard",
  "proptest",
+ "rustls",
  "sapling-crypto",
  "serde_json",
  "shardtree",
