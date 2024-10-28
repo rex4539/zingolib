@@ -211,7 +211,7 @@ impl ExampleWalletNetwork {
                     .await
                 }
             },
-            ExampleWalletNetwork::Mainnet(example_mainnet_seed) => match example_mainnet_seed {
+            ExampleWalletNetwork::Mainnet(seed) => match seed {
                 ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP(version) => match version {
                     ExampleVTFCORFBCBPCTCFUPMEGMWBPVersion::V28 => {
                         LightWallet::unsafe_from_buffer_mainnet(include_bytes!(
