@@ -260,7 +260,10 @@ pub mod orchard_note {
             let bytes = [0; 32];
             let sk = SpendingKey::from_bytes(bytes).unwrap();
             let fvk: FullViewingKey = (&sk).into();
-            let recipient = fvk.address_at(0u32, Scope::External);
+            let recipient = fvk.address(
+                orchard::keys::Diversifier::from_bytes([0; 11]),
+                Scope::External,
+            );
 
             self.recipient(recipient)
         }
@@ -323,6 +326,34 @@ pub mod orchard_note {
                 self.random_seed.unwrap(),
             )
             .unwrap()
+        }
+        /// generates a note from a provided
+        /// 'random' value, to allow for
+        // deterministic generation of notes
+        pub fn non_random(nonce: [u8; 32]) -> Self {
+            fn next_valid_thing<T>(mut nonce: [u8; 32], f: impl Fn([u8; 32]) -> Option<T>) -> T {
+                let mut i = 0;
+                loop {
+                    if let Some(output) = f(nonce) {
+                        return output;
+                    } else {
+                        nonce[i % 32] = nonce[i % 32].wrapping_add(1);
+                        i += 1;
+                    }
+                }
+            }
+
+            let rho = next_valid_thing(nonce, |bytes| Option::from(Rho::from_bytes(&bytes)));
+            let rseed = next_valid_thing(nonce, |bytes| {
+                Option::from(RandomSeed::from_bytes(bytes, &rho))
+            });
+
+            Self::new()
+                .default_recipient()
+                .value(NoteValue::from_raw(800_000))
+                .rho(rho)
+                .random_seed(rseed)
+                .clone()
         }
     }
     /// mocks a random orchard note
