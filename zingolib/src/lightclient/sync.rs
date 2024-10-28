@@ -49,6 +49,8 @@ use crate::{
 pub enum StartMempoolMonitorError {
     #[error("Mempool Monitor is disabled.")]
     Disabled,
+    #[error("could not read mempool monitor: {0}")]
+    CouldNotRead(String),
     #[error("Mempool Monitor does not exist.")]
     DoesNotExist,
 }
@@ -169,7 +171,12 @@ impl LightClient {
             return Err(StartMempoolMonitorError::Disabled);
         }
 
-        if lc.mempool_monitor.read().unwrap().is_some() {
+        if lc
+            .mempool_monitor
+            .read()
+            .map_err(|e| StartMempoolMonitorError::CouldNotRead(e.to_string()))?
+            .is_some()
+        {
             return Err(StartMempoolMonitorError::DoesNotExist);
         }
 
