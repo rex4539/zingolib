@@ -4,7 +4,7 @@ use crate::lightclient::LightClient;
 use zcash_client_backend::PoolType;
 
 use crate::testutils::{
-    assertions::{assert_recipient_total_lte_to_proposal_total, assertively_lookup_fee},
+    assertions::{assert_recipient_total_lte_to_proposal_total, lookup_fees_with_proposal_check},
     chain_generics::conduct_chain::ConductChain,
     lightclient::{from_inputs, get_base_address},
 };
@@ -52,7 +52,7 @@ where
 
     // digesting the calculated transaction
     // this step happens after transaction is recorded locally, but before learning anything about whether the server accepted it
-    let recorded_fee = *assertively_lookup_fee(
+    let recorded_fee = *lookup_fees_with_proposal_check(
         sender,
         &proposal,
         &txids,
@@ -74,7 +74,7 @@ where
         // to listen
         tokio::time::sleep(std::time::Duration::from_secs(6)).await;
 
-        assertively_lookup_fee(
+        lookup_fees_with_proposal_check(
             sender,
             &proposal,
             &txids,
@@ -111,7 +111,7 @@ where
     environment.bump_chain().await;
     // chain scan shows the same
     sender.do_sync(false).await.unwrap();
-    assertively_lookup_fee(
+    lookup_fees_with_proposal_check(
         sender,
         &proposal,
         &txids,
@@ -159,7 +159,7 @@ where
         .unwrap();
 
     // digesting the calculated transaction
-    let recorded_fee = *assertively_lookup_fee(
+    let recorded_fee = *lookup_fees_with_proposal_check(
         client,
         &proposal,
         &txids,
@@ -174,7 +174,7 @@ where
     if test_mempool {
         // mempool scan shows the same
         client.do_sync(false).await.unwrap();
-        assertively_lookup_fee(
+        lookup_fees_with_proposal_check(
             client,
             &proposal,
             &txids,
@@ -190,7 +190,7 @@ where
     environment.bump_chain().await;
     // chain scan shows the same
     client.do_sync(false).await.unwrap();
-    assertively_lookup_fee(
+    lookup_fees_with_proposal_check(
         client,
         &proposal,
         &txids,

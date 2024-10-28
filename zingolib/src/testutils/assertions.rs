@@ -8,17 +8,13 @@ use zcash_primitives::transaction::TxId;
 use crate::{lightclient::LightClient, wallet::notes::query::OutputQuery};
 use zingo_status::confirmation_status::ConfirmationStatus;
 
-fn compare_fee_and_status(
-    recorded_status: ConfirmationStatus,
-    expected_status: ConfirmationStatus,
+fn compare_fee_result(
     recorded_fee_result: &Result<u64, crate::wallet::error::FeeError>,
     proposed_fee: u64,
 ) -> Result<u64, ()> {
-    if recorded_status == expected_status {
-        if let Ok(recorded_fee) = recorded_fee_result {
-            if *recorded_fee == proposed_fee {
-                return Ok(*recorded_fee);
-            }
+    if let Ok(recorded_fee) = recorded_fee_result {
+        if *recorded_fee == proposed_fee {
+            return Ok(*recorded_fee);
         }
     }
     Err(())
@@ -49,7 +45,7 @@ pub enum ProposalToTransactionRecordComparisonError {
 ///    transfer
 ///
 /// if any of these checks fail, rather than panic immediately, this function will include an error enum in its output. make sure to expect this.
-pub async fn assertively_lookup_fee<NoteId>(
+pub async fn lookup_fees_with_proposal_check<NoteId>(
     client: &LightClient,
     proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
     txids: &NonEmpty<TxId>,
@@ -70,13 +66,7 @@ pub async fn assertively_lookup_fee<NoteId>(
                 if let Some(record) = records.get(txid) {
                     let recorded_fee_result = records.calculate_transaction_fee(record);
                     let proposed_fee = step.balance().fee_required().into_u64();
-                    compare_fee_and_status(
-                        record.status,
-                        expected_status,
-                        &recorded_fee_result,
-                        proposed_fee,
-                    )
-                    .map_err(|_| {
+                    compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
                         ProposalToTransactionRecordComparisonError::Mismatch(
                             record.status,
                             expected_status,
