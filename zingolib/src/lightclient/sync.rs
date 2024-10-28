@@ -1,4 +1,4 @@
-//! TODO: Add Mod Description Here!
+//! TODO: Add Mod Description HeStartMempoolMonitorError::Disabled!
 
 use futures::future::join_all;
 
@@ -42,6 +42,16 @@ use crate::{
     grpc_connector::GrpcConnector,
     wallet::{now, transaction_context::TransactionContext, utils::get_price},
 };
+
+#[allow(missing_docs)] // error types document themselves
+#[derive(Debug, thiserror::Error)]
+/// likely no errors here. but this makes clippy (and fv) happier
+pub enum StartMempoolMonitorError {
+    #[error("Mempool Monitor is disabled.")]
+    Disabled,
+    #[error("Mempool Monitor does not exist.")]
+    DoesNotExist,
+}
 
 impl LightClient {
     /// TODO: Add Doc Comment Here!
@@ -154,14 +164,13 @@ impl LightClient {
     /// the mempool includes transactions waiting to be accepted to the chain
     /// we query it through lightwalletd
     /// and record any new data, using ConfirmationStatus::Mempool
-    #[allow(clippy::result_unit_err)]
-    pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), ()> {
+    pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), StartMempoolMonitorError> {
         if !lc.config.monitor_mempool {
-            return Err(());
+            return Err(StartMempoolMonitorError::Disabled);
         }
 
         if lc.mempool_monitor.read().unwrap().is_some() {
-            return Err(());
+            return Err(StartMempoolMonitorError::DoesNotExist);
         }
 
         let config = lc.config.clone();
