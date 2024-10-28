@@ -121,27 +121,24 @@ impl TransactionRecord {
         to: D::Recipient,
         output_index: usize,
     ) {
-        match D::WalletNote::get_record_outputs(self)
+        if !D::WalletNote::get_record_outputs(self)
             .iter_mut()
-            .find(|n| n.note() == &note)
+            .any(|n| n.note() == &note)
         {
-            None => {
-                let nd = D::WalletNote::from_parts(
-                    to.diversifier(),
-                    note,
-                    None,
-                    None,
-                    None,
-                    None,
-                    // if this is change, we'll mark it later in check_notes_mark_change
-                    false,
-                    false,
-                    Some(output_index as u32),
-                );
+            let nd = D::WalletNote::from_parts(
+                to.diversifier(),
+                note,
+                None,
+                None,
+                None,
+                None,
+                // if this is change, we'll mark it later in check_notes_mark_change
+                false,
+                false,
+                Some(output_index as u32),
+            );
 
-                D::WalletNote::transaction_metadata_notes_mut(self).push(nd);
-            }
-            Some(_) => {}
+            D::WalletNote::transaction_metadata_notes_mut(self).push(nd);
         }
     }
 
@@ -255,10 +252,8 @@ impl TransactionRecord {
     /// TODO: Add Doc Comment Here!
     // TODO: This is incorrect in the edge case where where we have a send-to-self with
     // no text memo and 0-value fee
-    #[allow(deprecated)]
-    #[deprecated(note = "uses unstable deprecated is_change")]
     pub fn is_outgoing_transaction(&self) -> bool {
-        (!self.outgoing_tx_data.is_empty()) || self.total_value_spent() != 0
+        (!self.outgoing_tx_data.is_empty()) || self.total_value_output_to_explicit_receivers() != 0
     }
 
     /// This means there's at least one note that adds funds
@@ -517,8 +512,8 @@ impl TransactionRecord {
 
         writer.write_all(self.txid.as_ref())?;
 
-        zcash_encoding::Vector::write(&mut writer, &self.sapling_notes, |w, nd| nd.write(w))?;
-        zcash_encoding::Vector::write(&mut writer, &self.orchard_notes, |w, nd| nd.write(w))?;
+        zcash_encoding::Vector::write(&mut writer, &self.sapling_notes, |w, nd| nd.write(w, ()))?;
+        zcash_encoding::Vector::write(&mut writer, &self.orchard_notes, |w, nd| nd.write(w, ()))?;
         zcash_encoding::Vector::write(&mut writer, &self.transparent_outputs, |w, u| u.write(w))?;
 
         for pool in self.value_spent_by_pool() {

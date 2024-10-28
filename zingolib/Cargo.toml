@@ -16,6 +16,7 @@ testvectors = []
 tempfile = ["dep:tempfile"]
 default = ["sync"]
 sync = ['dep:zingo-sync']
+zaino-test = ['test-elevation']
 
 [dependencies]
 zingo-memo = { path = "../zingo-memo" }
@@ -36,6 +37,8 @@ zcash_proofs = { workspace = true }
 zip32.workspace = true
 
 bip0039.workspace = true
+bip32 = { workspace = true, features = ["secp256k1-ffi"] }
+bs58 = { workspace = true, features = ["check"] }
 
 append-only-vec = { workspace = true }
 base58 = { workspace = true }
@@ -81,6 +84,7 @@ thiserror = { workspace = true }
 tokio =  { workspace = true, features = ["full"] }
 tonic = { workspace = true }
 tracing-subscriber = { workspace = true }
+bech32 = "0.11.0"
 
 [dev-dependencies]
 portpicker = { workspace = true }

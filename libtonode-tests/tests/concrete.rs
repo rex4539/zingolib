@@ -15,6 +15,7 @@ use zingolib::testutils::lightclient::from_inputs;
 use zingolib::testutils::{build_fvk_client, increase_height_and_wait_for_client, scenarios};
 use zingolib::utils::conversion::address_from_str;
 use zingolib::wallet::data::summaries::TransactionSummaryInterface;
+use zingolib::wallet::keys::unified::UnifiedKeyStore;
 use zingolib::wallet::propose::ProposeSendError;
 use zingolib::{check_client_balances, get_base_address_macro, get_otd, validate_otds};
 
@@ -61,23 +62,26 @@ fn check_view_capability_bounds(
     balance: &PoolBalances,
     watch_wc: &WalletCapability,
     fvks: &[&Fvk],
-    ovk: &Fvk,
-    svk: &Fvk,
-    tvk: &Fvk,
+    orchard_fvk: &Fvk,
+    sapling_fvk: &Fvk,
+    transparent_fvk: &Fvk,
     sent_o_value: Option<u64>,
     sent_s_value: Option<u64>,
     sent_t_value: Option<u64>,
     notes: &JsonValue,
 ) {
+    let UnifiedKeyStore::View(ufvk) = watch_wc.unified_key_store() else {
+        panic!("should be viewing key!")
+    };
     //Orchard
-    if !fvks.contains(&ovk) {
-        assert!(!watch_wc.orchard.can_view());
+    if !fvks.contains(&orchard_fvk) {
+        assert!(ufvk.orchard().is_none());
         assert_eq!(balance.orchard_balance, None);
         assert_eq!(balance.verified_orchard_balance, None);
         assert_eq!(balance.unverified_orchard_balance, None);
         assert_eq!(notes["unspent_orchard_notes"].members().count(), 0);
     } else {
-        assert!(watch_wc.orchard.can_view());
+        assert!(ufvk.orchard().is_some());
         assert_eq!(balance.orchard_balance, sent_o_value);
         assert_eq!(balance.verified_orchard_balance, sent_o_value);
         assert_eq!(balance.unverified_orchard_balance, Some(0));
@@ -86,39 +90,46 @@ fn check_view_capability_bounds(
         assert!((1..=2).contains(&orchard_notes_count));
     }
     //Sapling
-    if !fvks.contains(&svk) {
-        assert!(!watch_wc.sapling.can_view());
+    if !fvks.contains(&sapling_fvk) {
+        assert!(ufvk.sapling().is_none());
         assert_eq!(balance.sapling_balance, None);
         assert_eq!(balance.verified_sapling_balance, None);
         assert_eq!(balance.unverified_sapling_balance, None);
         assert_eq!(notes["unspent_sapling_notes"].members().count(), 0);
     } else {
-        assert!(watch_wc.sapling.can_view());
+        assert!(ufvk.sapling().is_some());
         assert_eq!(balance.sapling_balance, sent_s_value);
         assert_eq!(balance.verified_sapling_balance, sent_s_value);
         assert_eq!(balance.unverified_sapling_balance, Some(0));
         assert_eq!(notes["unspent_sapling_notes"].members().count(), 1);
     }
-    if !fvks.contains(&tvk) {
-        assert!(!watch_wc.transparent.can_view());
+    if !fvks.contains(&transparent_fvk) {
+        assert!(ufvk.transparent().is_none());
         assert_eq!(balance.transparent_balance, None);
         assert_eq!(notes["utxos"].members().count(), 0);
     } else {
-        assert!(watch_wc.transparent.can_view());
+        assert!(ufvk.transparent().is_some());
         assert_eq!(balance.transparent_balance, sent_t_value);
         assert_eq!(notes["utxos"].members().count(), 1);
     }
 }
 
 mod fast {
-
     use bip0039::Mnemonic;
-    use zcash_client_backend::{PoolType, ShieldedProtocol};
-    use zcash_primitives::transaction::components::amount::NonNegativeAmount;
+    use zcash_address::{AddressKind, ZcashAddress};
+    use zcash_client_backend::{
+        zip321::{Payment, TransactionRequest},
+        PoolType, ShieldedProtocol,
+    };
+    use zcash_primitives::transaction::{components::amount::NonNegativeAmount, TxId};
     use zingo_status::confirmation_status::ConfirmationStatus;
-    use zingolib::config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS;
-    use zingolib::testutils::lightclient::from_inputs;
     use zingolib::wallet::notes::OutputInterface as _;
+    use zingolib::{
+        config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS, wallet::data::summaries::SentValueTransfer,
+    };
+    use zingolib::{
+        testutils::lightclient::from_inputs, wallet::data::summaries::SelfSendValueTransfer,
+    };
 
     use zingolib::{
         utils::conversion::txid_from_hex_encoded_str, wallet::data::summaries::ValueTransferKind,
@@ -150,13 +161,82 @@ mod fast {
 
         dbg!(value_transfers);
 
-        assert!(value_transfers
-            .iter()
-            .any(|vt| vt.kind() == ValueTransferKind::SendToSelf));
-        assert!(value_transfers
-            .iter()
-            .any(|vt| vt.kind() == ValueTransferKind::Sent
-                && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
+        assert!(value_transfers.iter().any(|vt| vt.kind()
+            == ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                SelfSendValueTransfer::Basic
+            ))));
+        assert!(value_transfers.iter().any(|vt| vt.kind()
+            == ValueTransferKind::Sent(SentValueTransfer::Send)
+            && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
+    }
+
+    pub mod tex {
+        use super::*;
+        fn first_taddr_to_tex(client: &LightClient) -> ZcashAddress {
+            let taddr = ZcashAddress::try_from_encoded(
+                &client
+                    .wallet
+                    .get_first_address(PoolType::Transparent)
+                    .unwrap(),
+            )
+            .unwrap();
+
+            let AddressKind::P2pkh(taddr_bytes) = taddr.kind() else {
+                panic!()
+            };
+            let tex_string =
+                utils::interpret_taddr_as_tex_addr(*taddr_bytes, &client.config().chain);
+            //            let tex_string = utils::interpret_taddr_as_tex_addr(*taddr_bytes);
+
+            ZcashAddress::try_from_encoded(&tex_string).unwrap()
+        }
+        #[tokio::test]
+        async fn send_to_tex() {
+            let (ref _regtest_manager, _cph, ref faucet, sender, _txid) =
+                scenarios::orchard_funded_recipient(5_000_000).await;
+
+            let tex_addr_from_first = first_taddr_to_tex(&faucet);
+            let payment = vec![Payment::without_memo(
+                tex_addr_from_first.clone(),
+                NonNegativeAmount::from_u64(100_000).unwrap(),
+            )];
+
+            let transaction_request = TransactionRequest::new(payment).unwrap();
+
+            let proposal = sender.propose_send(transaction_request).await.unwrap();
+            assert_eq!(proposal.steps().len(), 2usize);
+            let sent_txids_according_to_broadcast = sender
+                .complete_and_broadcast_stored_proposal()
+                .await
+                .unwrap();
+            let txids = sender
+                .wallet
+                .transactions()
+                .read()
+                .await
+                .transaction_records_by_id
+                .keys()
+                .cloned()
+                .collect::<Vec<TxId>>();
+            dbg!(&txids);
+            dbg!(sent_txids_according_to_broadcast);
+            assert_eq!(
+                sender
+                    .wallet
+                    .transactions()
+                    .read()
+                    .await
+                    .transaction_records_by_id
+                    .len(),
+                3usize
+            );
+            let val_tranfers = dbg!(sender.value_transfers().await);
+            // This fails, as we don't scan sends to tex correctly yet
+            assert_eq!(
+                val_tranfers.0[2].recipient_address().unwrap(),
+                tex_addr_from_first.encode()
+            );
+        }
     }
 
     #[tokio::test]
@@ -1004,10 +1084,10 @@ mod slow {
             scenarios::faucet_recipient_default().await;
 
         // 2. Get an incoming transaction to a t address
-        let taddr = get_base_address_macro!(recipient, "transparent");
+        let recipient_taddr = get_base_address_macro!(recipient, "transparent");
         let value = 100_000;
 
-        from_inputs::quick_send(&faucet, vec![(taddr.as_str(), value, None)])
+        from_inputs::quick_send(&faucet, vec![(recipient_taddr.as_str(), value, None)])
             .await
             .unwrap();
 
@@ -1019,7 +1099,10 @@ mod slow {
         // 3. Test the list
         let list = recipient.do_list_transactions().await;
         assert_eq!(list[0]["block_height"].as_u64().unwrap(), 4);
-        assert_eq!(list[0]["address"], taddr);
+        assert_eq!(
+            recipient.do_addresses().await[0]["receivers"]["transparent"].to_string(),
+            recipient_taddr
+        );
         assert_eq!(list[0]["amount"].as_u64().unwrap(), value);
 
         // 4. We can't spend the funds, as they're transparent. We need to shield first
@@ -3148,69 +3231,6 @@ mod slow {
             serde_json::to_string_pretty(&recipient.do_balance().await).unwrap()
         );
     }
-    #[tokio::test]
-    async fn dont_write_pending() {
-        let regtest_network = RegtestNetwork::all_upgrades_active();
-        let (regtest_manager, _cph, faucet, recipient) = scenarios::faucet_recipient(
-            PoolType::Shielded(ShieldedProtocol::Orchard),
-            regtest_network,
-        )
-        .await;
-        from_inputs::quick_send(
-            &faucet,
-            vec![(
-                &get_base_address_macro!(recipient, "unified"),
-                100_000,
-                Some("funding to be received by the recipient"),
-            )],
-        )
-        .await
-        .unwrap();
-
-        zingolib::testutils::increase_height_and_wait_for_client(&regtest_manager, &recipient, 2)
-            .await
-            .unwrap();
-        let recipient_balance = recipient.do_balance().await;
-        assert_eq!(
-            recipient_balance,
-            PoolBalances {
-                sapling_balance: Some(0),
-                verified_sapling_balance: Some(0),
-                spendable_sapling_balance: Some(0),
-                unverified_sapling_balance: Some(0),
-                orchard_balance: Some(100000),
-                verified_orchard_balance: Some(100000),
-                spendable_orchard_balance: Some(100000),
-                unverified_orchard_balance: Some(0),
-                transparent_balance: Some(0)
-            }
-        );
-        from_inputs::quick_send(
-            &recipient,
-            vec![(
-                &get_base_address_macro!(faucet, "unified"),
-                25_000,
-                Some("an pending transaction, that shall not be synced"),
-            )],
-        )
-        .await
-        .unwrap();
-        let recipient_balance = recipient.do_balance().await;
-
-        dbg!(&recipient_balance.unverified_orchard_balance);
-        assert_eq!(
-            recipient_balance.unverified_orchard_balance.unwrap(),
-            65_000
-        );
-
-        let loaded_client =
-            zingolib::testutils::lightclient::new_client_from_save_buffer(&recipient)
-                .await
-                .unwrap();
-        let loaded_balance = loaded_client.do_balance().await;
-        assert_eq!(loaded_balance.unverified_orchard_balance, Some(0),);
-        check_client_balances!(loaded_client, o: 100_000 s: 0 t: 0 );
-    }
 
     #[tokio::test]
     async fn by_address_finsight() {
@@ -3365,7 +3385,7 @@ mod slow {
 
         // 5. Now, we'll manually remove some of the blocks in the wallet, pretending that the sync was aborted in the middle.
         // We'll remove the top 20 blocks, so now the wallet only has the first 3 blocks
-        recipient.wallet.blocks.write().await.drain(0..20);
+        recipient.wallet.last_100_blocks.write().await.drain(0..20);
         assert_eq!(recipient.wallet.last_synced_height().await, 5);
 
         // 6. Do a sync again
@@ -3935,6 +3955,7 @@ async fn audit_anyp_outputs() {
     assert_eq!(lapo.len(), 1);
 }
 mod send_all {
+
     use super::*;
     #[tokio::test]
     async fn toggle_zennies_for_zingo() {

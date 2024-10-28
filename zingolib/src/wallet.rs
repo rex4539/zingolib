@@ -3,7 +3,9 @@
 //! TODO: Add Mod Description Here
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use error::KeyError;
 use getset::{Getters, MutGetters};
+use zcash_keys::keys::UnifiedFullViewingKey;
 #[cfg(feature = "sync")]
 use zcash_primitives::consensus::BlockHeight;
 use zcash_primitives::memo::Memo;
@@ -11,8 +13,6 @@ use zcash_primitives::memo::Memo;
 use log::{info, warn};
 use rand::rngs::OsRng;
 use rand::Rng;
-
-use sapling_crypto::zip32::DiversifiableFullViewingKey;
 
 #[cfg(feature = "sync")]
 use zingo_sync::{
@@ -35,7 +35,6 @@ use crate::config::ZingoConfig;
 use zcash_client_backend::proto::service::TreeState;
 use zcash_encoding::Optional;
 
-use self::keys::unified::Fvk as _;
 use self::keys::unified::WalletCapability;
 
 use self::{
@@ -200,7 +199,7 @@ pub struct LightWallet {
     mnemonic: Option<(Mnemonic, u32)>,
 
     /// The last 100 blocks, used if something gets re-orged
-    pub blocks: Arc<RwLock<Vec<BlockData>>>,
+    pub last_100_blocks: Arc<RwLock<Vec<BlockData>>>,
 
     /// Wallet options
     pub wallet_options: Arc<RwLock<WalletOptions>>,
@@ -258,7 +257,7 @@ impl LightWallet {
     /// After this, the wallet's initial state will need to be set
     /// and the wallet will need to be rescanned
     pub async fn clear_all(&self) {
-        self.blocks.write().await.clear();
+        self.last_100_blocks.write().await.clear();
         self.transaction_context
             .transaction_metadata_set
             .write()
@@ -268,10 +267,18 @@ impl LightWallet {
 
     ///TODO: Make this work for orchard too
     pub async fn decrypt_message(&self, enc: Vec<u8>) -> Result<Message, String> {
-        let sapling_ivk = DiversifiableFullViewingKey::try_from(&*self.wallet_capability())?
-            .derive_ivk::<keys::unified::External>();
+        let ufvk: UnifiedFullViewingKey =
+            match self.wallet_capability().unified_key_store().try_into() {
+                Ok(ufvk) => ufvk,
+                Err(e) => return Err(e.to_string()),
+            };
+        let sapling_ivk = if let Some(ivk) = ufvk.sapling() {
+            ivk.to_external_ivk().prepare()
+        } else {
+            return Err(KeyError::NoViewCapability.to_string());
+        };
 
-        if let Ok(msg) = Message::decrypt(&enc, &sapling_ivk.ivk) {
+        if let Ok(msg) = Message::decrypt(&enc, &sapling_ivk) {
             // If decryption succeeded for this IVK, return the decrypted memo and the matched address
             return Ok(msg);
         }
@@ -367,15 +374,22 @@ impl LightWallet {
             }
         };
 
-        if let Err(e) = wc.new_address(wc.can_view()) {
+        if let Err(e) = wc.new_address(wc.can_view(), false) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("could not create initial address: {e}"),
             ));
         };
-        let transaction_metadata_set = if wc.can_spend_from_all_pools() {
+        let transaction_metadata_set = if wc.unified_key_store().is_spending_key() {
             Arc::new(RwLock::new(TxMap::new_with_witness_trees(
                 wc.transparent_child_addresses().clone(),
+                wc.get_rejection_addresses().clone(),
+                wc.rejection_ivk().map_err(|e| {
+                    Error::new(
+                        ErrorKind::InvalidData,
+                        format!("Error with transparent key: {e}"),
+                    )
+                })?,
             )))
         } else {
             Arc::new(RwLock::new(TxMap::new_treeless(
@@ -385,7 +399,7 @@ impl LightWallet {
         let transaction_context =
             TransactionContext::new(&config, Arc::new(wc), transaction_metadata_set);
         Ok(Self {
-            blocks: Arc::new(RwLock::new(vec![])),
+            last_100_blocks: Arc::new(RwLock::new(vec![])),
             mnemonic,
             wallet_options: Arc::new(RwLock::new(WalletOptions::default())),
             birthday: AtomicU64::new(height),
@@ -406,7 +420,7 @@ impl LightWallet {
 
     /// TODO: Add Doc Comment Here!
     pub async fn set_blocks(&self, new_blocks: Vec<BlockData>) {
-        let mut blocks = self.blocks.write().await;
+        let mut blocks = self.last_100_blocks.write().await;
         blocks.clear();
         blocks.extend_from_slice(&new_blocks[..]);
     }
@@ -418,7 +432,7 @@ impl LightWallet {
 
     /// TODO: Add Doc Comment Here!
     pub async fn set_initial_block(&self, height: u64, hash: &str, _sapling_tree: &str) -> bool {
-        let mut blocks = self.blocks.write().await;
+        let mut blocks = self.last_100_blocks.write().await;
         if !blocks.is_empty() {
             return false;
         }

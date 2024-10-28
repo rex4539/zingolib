@@ -22,13 +22,15 @@ use crate::wallet::notes::ShieldedNoteInterface;
 use crate::wallet::traits::Diversifiable as _;
 
 use crate::wallet::error::BalanceError;
-use crate::wallet::keys::unified::{Capability, WalletCapability};
+use crate::wallet::keys::unified::WalletCapability;
 use crate::wallet::notes::TransparentOutput;
 use crate::wallet::traits::DomainWalletExt;
 use crate::wallet::traits::Recipient;
 
 use crate::wallet::LightWallet;
 use crate::wallet::{data::BlockData, tx_map::TxMap};
+
+use super::keys::unified::UnifiedKeyStore;
 
 impl LightWallet {
     /// returns Some seed phrase for the wallet.
@@ -53,17 +55,17 @@ impl LightWallet {
         <D as Domain>::Recipient: Recipient,
     {
         // For the moment we encode lack of view capability as None
-        match D::SHIELDED_PROTOCOL {
-            ShieldedProtocol::Sapling => {
-                if !self.wallet_capability().sapling.can_view() {
-                    return None;
+        match self.wallet_capability().unified_key_store() {
+            UnifiedKeyStore::Spend(_) => (),
+            UnifiedKeyStore::View(ufvk) => match D::SHIELDED_PROTOCOL {
+                ShieldedProtocol::Sapling => {
+                    ufvk.sapling()?;
                 }
-            }
-            ShieldedProtocol::Orchard => {
-                if !self.wallet_capability().orchard.can_view() {
-                    return None;
+                ShieldedProtocol::Orchard => {
+                    ufvk.orchard()?;
                 }
-            }
+            },
+            UnifiedKeyStore::Empty => return None,
         }
         Some(
             self.transaction_context
@@ -98,7 +100,7 @@ impl LightWallet {
         <D as Domain>::Recipient: Recipient,
         <D as Domain>::Note: PartialEq + Clone,
     {
-        if let Capability::Spend(_) = self.wallet_capability().orchard {
+        if let UnifiedKeyStore::Spend(_) = self.wallet_capability().unified_key_store() {
             self.confirmed_balance::<D>().await
         } else {
             None
@@ -106,18 +108,21 @@ impl LightWallet {
     }
     /// Sums the transparent balance (unspent)
     pub async fn get_transparent_balance(&self) -> Option<u64> {
-        if self.wallet_capability().transparent.can_view() {
-            Some(
-                self.get_utxos()
-                    .await
-                    .iter()
-                    .filter(|transparent_output| transparent_output.is_unspent())
-                    .map(|utxo| utxo.value)
-                    .sum::<u64>(),
-            )
-        } else {
-            None
+        match self.wallet_capability().unified_key_store() {
+            UnifiedKeyStore::Spend(_) => (),
+            UnifiedKeyStore::View(ufvk) => {
+                ufvk.transparent()?;
+            }
+            UnifiedKeyStore::Empty => return None,
         }
+        Some(
+            self.get_utxos()
+                .await
+                .iter()
+                .filter(|transparent_output| transparent_output.is_unspent())
+                .map(|utxo| utxo.value)
+                .sum::<u64>(),
+        )
     }
 
     /// On chain balance
@@ -190,7 +195,7 @@ impl LightWallet {
         <D as Domain>::Recipient: Recipient,
         <D as Domain>::Note: PartialEq + Clone,
     {
-        D::wc_to_fvk(wallet_capability).expect("to get fvk from wc")
+        D::unified_key_store_to_fvk(wallet_capability.unified_key_store()).expect("to get fvk from the unified key store")
         .diversified_address(*note.diversifier())
         .and_then(|address| {
             D::ua_from_contained_receiver(wallet_capability, &address)
@@ -224,7 +229,7 @@ impl LightWallet {
 
     /// Return a copy of the blocks currently in the wallet, needed to process possible reorgs
     pub async fn get_blocks(&self) -> Vec<BlockData> {
-        self.blocks.read().await.iter().cloned().collect()
+        self.last_100_blocks.read().await.iter().cloned().collect()
     }
 
     /// Get the first block that this wallet has a transaction in. This is often used as the wallet's "birthday"
@@ -270,7 +275,7 @@ impl LightWallet {
 
     /// TODO: Add Doc Comment Here!
     pub async fn last_synced_hash(&self) -> String {
-        self.blocks
+        self.last_100_blocks
             .read()
             .await
             .first()
@@ -281,7 +286,7 @@ impl LightWallet {
     /// TODO: How do we know that 'sapling_activation_height - 1' is only returned
     /// when it should be?  When should it be?
     pub async fn last_synced_height(&self) -> u64 {
-        self.blocks
+        self.last_100_blocks
             .read()
             .await
             .first()
