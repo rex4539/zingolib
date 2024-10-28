@@ -1300,7 +1300,7 @@ mod test {
 
     use super::ReadableWriteable;
 
-    const V4_SERIALZED_NOTES: [u8; 435] = [
+    const V4_SERIALZED_NOTES: [u8; 302] = [
         4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 53, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1311,12 +1311,7 @@ mod test {
         73, 73, 73, 73, 73, 73, 73, 73, 73, 73, 73, 73, 73, 73, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 12, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 53, 12, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113,
-        113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113, 113,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+        0, 12, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
     ];
 
     #[test]
@@ -1365,12 +1360,21 @@ mod test {
 
         let mut cursor = Cursor::new(V4_SERIALZED_NOTES);
 
-        let first_note = OrchardNote::read(&mut cursor, (&wc, None)).unwrap();
-        let second_note = OrchardNote::read(&mut cursor, (&wc, None)).unwrap();
-        let third_note = OrchardNote::read(&mut cursor, (&wc, None)).unwrap();
+        let unspent_note_from_v4 = OrchardNote::read(&mut cursor, (&wc, None)).unwrap();
+        let spent_note_from_v4 = OrchardNote::read(&mut cursor, (&wc, None)).unwrap();
 
         assert_eq!(cursor.position() as usize, cursor.get_ref().len());
 
-        assert_eq!(first_note, unspent_orchard_note);
+        assert_eq!(unspent_note_from_v4, unspent_orchard_note);
+        assert_eq!(spent_note_from_v4, spent_orchard_note);
+
+        let mut mempool_note_bytes_v5 = vec![];
+        mempool_orchard_note
+            .write(&mut mempool_note_bytes_v5, ())
+            .unwrap();
+        let mempool_note_from_v5 =
+            OrchardNote::read(mempool_note_bytes_v5.as_slice(), (&wc, None)).unwrap();
+
+        assert_eq!(mempool_note_from_v5, mempool_orchard_note);
     }
 }
