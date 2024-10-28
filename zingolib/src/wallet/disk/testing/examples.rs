@@ -38,6 +38,9 @@ pub enum ExampleVTFCORFBCBPCTCFUPMEGMWBPVersion {
 pub enum ExampleHHCCLALTPCCKCSSLPCNETBLRVersion {
     /// wallet was last saved in this serialization version
     Gf0aaf9347,
+    /// this wallet was funded with 0.01 sapling fr fr fr
+    /// latest version of the wallet, with most up-to-date witness tree. git can tell more about when it was saved.
+    Latest,
 }
 /// /
 #[non_exhaustive]
@@ -209,29 +212,35 @@ impl ExampleWalletNetwork {
                 }
             },
             ExampleWalletNetwork::Mainnet(example_mainnet_seed) => match example_mainnet_seed {
-                ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP(
-                    ExampleVTFCORFBCBPCTCFUPMEGMWBPVersion::V28,
-                ) => {
-                    LightWallet::unsafe_from_buffer_mainnet(include_bytes!(
-                        "examples/mainnet/vtfcorfbcbpctcfupmegmwbp/v28/zingo-wallet.dat"
-                    ))
-                    .await
-                }
-                ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                    ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
-                ) => {
-                    LightWallet::unsafe_from_buffer_mainnet(include_bytes!(
-                        "examples/mainnet/hhcclaltpcckcsslpcnetblr/gf0aaf9347/zingo-wallet.dat"
-                    ))
-                    .await
-                }
+                ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP(version) => match version {
+                    ExampleVTFCORFBCBPCTCFUPMEGMWBPVersion::V28 => {
+                        LightWallet::unsafe_from_buffer_mainnet(include_bytes!(
+                            "examples/mainnet/vtfcorfbcbpctcfupmegmwbp/v28/zingo-wallet.dat"
+                        ))
+                        .await
+                    }
+                },
+                ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(version) => match version {
+                    ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347 => {
+                        LightWallet::unsafe_from_buffer_mainnet(include_bytes!(
+                            "examples/mainnet/hhcclaltpcckcsslpcnetblr/gf0aaf9347/zingo-wallet.dat"
+                        ))
+                        .await
+                    }
+                    ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest => {
+                        LightWallet::unsafe_from_buffer_mainnet(include_bytes!(
+                            "examples/mainnet/hhcclaltpcckcsslpcnetblr/latest/zingo-wallet.dat"
+                        ))
+                        .await
+                    }
+                },
             },
         }
     }
     /// picks the seed (or ufvk) string associated with an example wallet
     pub fn example_wallet_base(&self) -> String {
         match self {
-            ExampleWalletNetwork::Regtest(example_regt_seed) => match example_regt_seed {
+            ExampleWalletNetwork::Regtest(seed) => match seed {
                 ExampleRegtestWalletSeed::HMVASMUVWMSSVICHCARBPOCT(_) => {
                     crate::testvectors::seeds::HOSPITAL_MUSEUM_SEED.to_string()
                 },
@@ -242,7 +251,7 @@ impl ExampleWalletNetwork {
                     "absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice comic".to_string()
                 }
             },
-            ExampleWalletNetwork::Testnet(example_testnet_seed) => match example_testnet_seed {
+            ExampleWalletNetwork::Testnet(seed) => match seed {
                 ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
                     _,
                 ) => crate::testvectors::seeds::CHIMNEY_BETTER_SEED.to_string(),
@@ -250,7 +259,7 @@ impl ExampleWalletNetwork {
                     _,
                 ) => "mobile shuffle keen mother globe desk bless hub oil town begin potato explain table crawl just wild click spring pottery gasp often pill plug".to_string()
             },
-            ExampleWalletNetwork::Mainnet(example_mainnet_seed) => match example_mainnet_seed {
+            ExampleWalletNetwork::Mainnet(seed) => match seed {
                 ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP(
                      _,
                 ) => "village target fun course orange release female brain cruise birth pet copy trouble common fitness unfold panther man enjoy genuine merry write bulb pledge".to_string(),
@@ -264,31 +273,31 @@ impl ExampleWalletNetwork {
     pub fn example_wallet_address(&self, pool: PoolType) -> String {
         match pool {
             PoolType::Transparent => match self {
-                ExampleWalletNetwork::Regtest(example_regt_seed) => match example_regt_seed {
+                ExampleWalletNetwork::Regtest(seed) => match seed {
                     ExampleRegtestWalletSeed::HMVASMUVWMSSVICHCARBPOCT(_) => {"tmFLszfkjgim4zoUMAXpuohnFBAKy99rr2i".to_string()},
                     ExampleRegtestWalletSeed::AAAAAAAAAAAAAAAAAAAAAAAA(_) => {"tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd".to_string()},
                     ExampleRegtestWalletSeed::AADAALACAADAALACAADAALAC(_) => {"tmS9nbexug7uT8x1cMTLP1ABEyKXpMjR5F1".to_string()},
                 },
-                ExampleWalletNetwork::Testnet(example_test_seed) => match example_test_seed {
+                ExampleWalletNetwork::Testnet(seed) => match seed {
                     ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(_) => {"tmYd5GP6JxUxTUcz98NLPumEotvaMPaXytz".to_string()},
                     ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(_) => {"tmEVmDAnveCakZkvV4a6FT1TfYApTv937E7".to_string()},
                 },
-                ExampleWalletNetwork::Mainnet(example_mainn_seed) => match example_mainn_seed {
+                ExampleWalletNetwork::Mainnet(seed) => match seed {
                     ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP(_) => {"t1P8tQtYFLR7TWsqtauc71RGQdqqwfFBbb4".to_string()},
                     ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(_) => {"t1XnsupYhvhSDSFJ4nzZ2kADhLMR22wg35y".to_string()},
                 }
             },
             PoolType::Shielded(ShieldedProtocol::Sapling) => match self {
-                ExampleWalletNetwork::Regtest(example_regt_seed) => match example_regt_seed {
+                ExampleWalletNetwork::Regtest(seed) => match seed {
                     ExampleRegtestWalletSeed::HMVASMUVWMSSVICHCARBPOCT(_) => {"zregtestsapling1fkc26vpg566hgnx33n5uvgye4neuxt4358k68atnx78l5tg2dewdycesmr4m5pn56ffzsa7lyj6".to_string()},
                     ExampleRegtestWalletSeed::AAAAAAAAAAAAAAAAAAAAAAAA(_) => {"zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string()},
                     ExampleRegtestWalletSeed::AADAALACAADAALACAADAALAC(_) => {"zregtestsapling1lhjvuj4s3ghhccnjaefdzuwp3h3mfluz6tm8h0dsq2ym3f77zsv0wrrszpmaqlezm3kt6ajdvlw".to_string()},
                 },
-                ExampleWalletNetwork::Testnet(example_test_seed) => match example_test_seed {
+                ExampleWalletNetwork::Testnet(seed) => match seed {
                     ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(_) => {"ztestsapling1etnl5s47cqves0g5hk2dx5824rme4xv4aeauwzp4d6ys3qxykt5sw5rnaqh9syxry8vgxu60uhj".to_string()},
                     ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(_) => {"ztestsapling1h8l5mzlwhmqmd9x7ehquayqckzg6jwa6955f3w9mnkn5p5yfhqy04yz6yjrqfcztxx05xlh3prq".to_string()},
                 }
-                ExampleWalletNetwork::Mainnet(example_test_seed) => match example_test_seed {
+                ExampleWalletNetwork::Mainnet(seed) => match seed {
                     ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP(_) => {"zs1kgdrzfe6xuq3tg64vnezp3duyp43u7wcpgduqcpwz9wsnfqm4cecafu9qkmpsjtqxzf27n34z9k".to_string()},
                     ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(_) => {"zs1zgffhwsnh7efu4auv8ql9egteangyferp28rv8r7hmu76u0ee8mthcpflx575emx2zygqcuedzn".to_string()},
                 }
