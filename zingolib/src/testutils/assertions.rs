@@ -35,16 +35,12 @@ pub enum ProposalToTransactionRecordComparisonError {
 /// 1. len of txids == num steps
 /// 2. the txid is stored in the records_by_ids database
 /// 3. if the fee from the calculate_transaction_fee matches the sum of the per-step fees
-///    this currently fails for any broadcast but not confirmed transaction: it seems like
-///    get_transaction_fee does not recognize pending spends returns the total fee for the
-///    transfer
 ///
 /// if any of these checks fail, rather than panic immediately, this function will include an error enum in its output. make sure to expect this.
 pub async fn lookup_fees_with_proposal_check<NoteId>(
     client: &LightClient,
     proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
     txids: &NonEmpty<TxId>,
-    expected_status: ConfirmationStatus,
 ) -> Vec<Result<u64, ProposalToTransactionRecordComparisonError>> {
     let records = &client
         .wallet

@@ -95,3 +95,19 @@ pub mod from_inputs {
         proposer.propose_send(request).await
     }
 }
+
+/// gets stati for a vec of txids
+pub async fn lookup_stati(
+    client: &LightClient,
+    txids: NonEmpty<TxId>,
+) -> NonEmpty<ConfirmationStatus> {
+    let records = &client
+        .wallet
+        .transaction_context
+        .transaction_metadata_set
+        .read()
+        .await
+        .transaction_records_by_id;
+
+    txids.map(|txid| records[&txid].status.clone())
+}

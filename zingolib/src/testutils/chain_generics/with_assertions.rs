@@ -1,6 +1,6 @@
 //! lightclient functions with added assertions. used for tests.
 
-use crate::lightclient::LightClient;
+use crate::{lightclient::LightClient, testutils::lightclient::lookup_stati};
 use zcash_client_backend::PoolType;
 
 use crate::testutils::{
@@ -52,17 +52,16 @@ where
 
     // digesting the calculated transaction
     // this step happens after transaction is recorded locally, but before learning anything about whether the server accepted it
-    let recorded_fee = *lookup_fees_with_proposal_check(
-        sender,
-        &proposal,
-        &txids,
-        ConfirmationStatus::Transmitted(send_height.into()),
-    )
-    .await
-    .first()
-    .expect("one transaction proposed")
-    .as_ref()
-    .expect("record is ok");
+    let recorded_fee = *lookup_fees_with_proposal_check(sender, &proposal, &txids)
+        .await
+        .first()
+        .expect("one transaction proposed")
+        .as_ref()
+        .expect("record is ok");
+
+    lookup_stati(&sender, txids.clone()).await.map(|status| {
+        assert_eq!(status, ConfirmationStatus::Transmitted(send_height.into()));
+    });
 
     let send_ua_id = sender.do_addresses().await[0]["address"].clone();
 
