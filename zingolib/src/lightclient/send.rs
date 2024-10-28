@@ -425,6 +425,11 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
         async fn mainnet_latest_send_to_self_orchard_hot() {
+            // install default crypto provider (ring)
+            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+                log::error!("Error installing crypto provider: {:?}", e)
+            };
+
             let case = ExampleWalletNetwork::Mainnet(crate::wallet::disk::testing::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(crate::wallet::disk::testing::examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest));
             let target_pool = PoolType::Shielded(ShieldedProtocol::Orchard);
 
