@@ -424,8 +424,7 @@ pub mod send_with_proposal {
         #[tokio::test]
         /// this is a live sync test. its execution time scales linearly since last updated
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-        /// note: live send waits 2 minutes for confirmation. expect 3min runtime
-        #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
+        /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
         async fn mainnet_latest_send_to_self_orchard_hot() {
             let case = ExampleWalletNetwork::Mainnet(crate::wallet::disk::testing::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(crate::wallet::disk::testing::examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest));
             let target_pool = PoolType::Shielded(ShieldedProtocol::Orchard);

@@ -5,5 +5,5 @@ cargo run -- --data-dir zingolib/src/wallet/disk/testing/examples/mainnet/hhccla
 
 to run a basic hot test:
 
-cargo nextest run --run-ignored=ignored-only mainnet_latest_send_to_self_orchard_hot
+cargo nextest run --run-ignored=all mainnet_latest_send_to_self_orchard_hot
 
