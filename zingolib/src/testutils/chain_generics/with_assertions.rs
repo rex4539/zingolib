@@ -59,7 +59,7 @@ where
         .as_ref()
         .expect("record is ok");
 
-    lookup_stati(&sender, txids.clone()).await.map(|status| {
+    lookup_stati(sender, txids.clone()).await.map(|status| {
         assert_eq!(status, ConfirmationStatus::Transmitted(send_height.into()));
     });
 
@@ -80,7 +80,7 @@ where
             .as_ref()
             .expect("record to be ok");
 
-        lookup_stati(&sender, txids.clone()).await.map(|status| {
+        lookup_stati(sender, txids.clone()).await.map(|status| {
             assert!(matches!(status, ConfirmationStatus::Mempool(_)));
         });
 
@@ -116,7 +116,7 @@ where
         .as_ref()
         .expect("record to be ok");
 
-    lookup_stati(&sender, txids.clone()).await.map(|status| {
+    lookup_stati(sender, txids.clone()).await.map(|status| {
         assert!(matches!(status, ConfirmationStatus::Confirmed(_)));
     });
 
@@ -163,7 +163,7 @@ where
         .as_ref()
         .expect("record is ok");
 
-    lookup_stati(&client, txids.clone()).await.map(|status| {
+    lookup_stati(client, txids.clone()).await.map(|status| {
         assert_eq!(status, ConfirmationStatus::Transmitted(send_height.into()));
     });
 
@@ -177,7 +177,7 @@ where
             .as_ref()
             .expect("record is ok");
 
-        lookup_stati(&client, txids.clone()).await.map(|status| {
+        lookup_stati(client, txids.clone()).await.map(|status| {
             assert!(matches!(status, ConfirmationStatus::Mempool(_)));
         });
     }
@@ -192,7 +192,7 @@ where
         .as_ref()
         .expect("record is ok");
 
-    lookup_stati(&client, txids.clone()).await.map(|status| {
+    lookup_stati(client, txids.clone()).await.map(|status| {
         assert!(matches!(status, ConfirmationStatus::Confirmed(_)));
     });
 

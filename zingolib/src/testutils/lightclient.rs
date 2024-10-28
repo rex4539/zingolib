@@ -109,5 +109,5 @@ pub async fn lookup_stati(
         .await
         .transaction_records_by_id;
 
-    txids.map(|txid| records[&txid].status.clone())
+    txids.map(|txid| records[&txid].status)
 }
