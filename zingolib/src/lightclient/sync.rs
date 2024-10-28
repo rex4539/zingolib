@@ -51,6 +51,8 @@ pub enum StartMempoolMonitorError {
     Disabled,
     #[error("could not read mempool monitor: {0}")]
     CouldNotRead(String),
+    #[error("could not write mempool monitor: {0}")]
+    CouldNotWrite(String),
     #[error("Mempool Monitor does not exist.")]
     DoesNotExist,
 }
@@ -298,7 +300,9 @@ impl LightClient {
             });
         });
 
-        *lc.mempool_monitor.write().unwrap() = Some(h);
+        *lc.mempool_monitor
+            .write()
+            .map_err(|e| StartMempoolMonitorError::CouldNotWrite(e.to_string()))? = Some(h);
         Ok(())
     }
 
