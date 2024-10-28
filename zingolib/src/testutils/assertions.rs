@@ -6,7 +6,6 @@ use zcash_client_backend::proposal::Proposal;
 use zcash_primitives::transaction::TxId;
 
 use crate::{lightclient::LightClient, wallet::notes::query::OutputQuery};
-use zingo_status::confirmation_status::ConfirmationStatus;
 
 fn compare_fee_result(
     recorded_fee_result: &Result<u64, crate::wallet::error::FeeError>,
