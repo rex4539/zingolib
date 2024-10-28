@@ -27,13 +27,8 @@ pub enum ProposalToTransactionRecordComparisonError {
     MissingFromBroadcast,
     #[error("Could not look up TransactionRecord.")]
     MissingRecord,
-    #[error("Mismatch: Recorded status: {0:?} ; Expected status: {1:?} ; Recorded fee: {2:?} ; Expected fee: {3:?}")]
-    Mismatch(
-        ConfirmationStatus,
-        ConfirmationStatus,
-        Result<u64, crate::wallet::error::FeeError>,
-        u64,
-    ),
+    #[error("Mismatch: Recorded fee: {0:?} ; Expected fee: {1:?}")]
+    Mismatch(Result<u64, crate::wallet::error::FeeError>, u64),
 }
 
 /// currently checks:
@@ -68,8 +63,6 @@ pub async fn lookup_fees_with_proposal_check<NoteId>(
                     let proposed_fee = step.balance().fee_required().into_u64();
                     compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
                         ProposalToTransactionRecordComparisonError::Mismatch(
-                            record.status,
-                            expected_status,
                             recorded_fee_result,
                             proposed_fee,
                         )
