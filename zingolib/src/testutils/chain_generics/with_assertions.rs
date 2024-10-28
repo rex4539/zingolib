@@ -82,9 +82,9 @@ where
         )
         .await
         .first()
-        .expect("one transaction proposed")
+        .expect("one transaction to be proposed")
         .as_ref()
-        .expect("record is ok");
+        .expect("record to be ok");
 
         // TODO: distribute receivers
         for (recipient, _, _, _) in sends.clone() {
@@ -119,9 +119,9 @@ where
     )
     .await
     .first()
-    .expect("one transaction proposed")
+    .expect("one transaction to be proposed")
     .as_ref()
-    .expect("record is ok");
+    .expect("record to be ok");
 
     for (recipient, _, _, _) in sends {
         if send_ua_id != recipient.do_addresses().await[0]["address"].clone() {
