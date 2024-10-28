@@ -1,6 +1,6 @@
 (optional) to update the hot wallet in order to minimize execution time:
 
-cargo run -- --data-dir zingolib/src/wallet/disk/testing/examples/mainnet/hhcclaltpcckcsslpcnetblr/latest/  
+cargo run -- --data-dir zingolib/src/wallet/disk/testing/examples/mainnet/hhcclaltpcckcsslpcnetblr/latest/
 
 
 to run a basic hot test:
