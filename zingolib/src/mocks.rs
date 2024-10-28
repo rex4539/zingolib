@@ -260,10 +260,7 @@ pub mod orchard_note {
             let bytes = [0; 32];
             let sk = SpendingKey::from_bytes(bytes).unwrap();
             let fvk: FullViewingKey = (&sk).into();
-            let recipient = fvk.address(
-                orchard::keys::Diversifier::from_bytes([0; 11]),
-                Scope::External,
-            );
+            let recipient = fvk.address_at(0u32, Scope::External);
 
             self.recipient(recipient)
         }
