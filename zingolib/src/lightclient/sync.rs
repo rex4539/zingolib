@@ -150,14 +150,18 @@ impl LightClient {
         *self.interrupt_sync.write().await = set_interrupt;
     }
 
-    /// TODO: Add Doc Comment Here!
-    pub fn start_mempool_monitor(lc: Arc<LightClient>) {
+    /// a concurrent task
+    /// the mempool includes transactions waiting to be accepted to the chain
+    /// we query it through lightwalletd
+    /// and record any new data, using ConfirmationStatus::Mempool
+    #[allow(clippy::result_unit_err)]
+    pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), ()> {
         if !lc.config.monitor_mempool {
-            return;
+            return Err(());
         }
 
         if lc.mempool_monitor.read().unwrap().is_some() {
-            return;
+            return Err(());
         }
 
         let config = lc.config.clone();
@@ -279,6 +283,7 @@ impl LightClient {
         });
 
         *lc.mempool_monitor.write().unwrap() = Some(h);
+        Ok(())
     }
 
     /// Start syncing in batches with the max size, to manage memory consumption.
