@@ -691,7 +691,7 @@ pub mod test {
     /// this is a live sync test. its execution time scales linearly since last updated
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
-    async fn testnet_sync_mskmgdbhotbpetcjwcspgopp_latest() {
+    async fn testnet_sync_mskmgdbhotbpetcjwcspgopp() {
         sync_example_wallet(examples::NetworkSeedVersion::Testnet(
             examples::TestnetSeedVersion::MSKMGDBHOTBPETCJWCSPGOPP(
                 examples::MSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
@@ -702,7 +702,7 @@ pub mod test {
     /// this is a live sync test. its execution time scales linearly since last updated
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
-    async fn testnet_sync_cbbhrwiilgbrababsshsmtpr_latest() {
+    async fn testnet_sync_cbbhrwiilgbrababsshsmtpr() {
         sync_example_wallet(examples::NetworkSeedVersion::Testnet(
             examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
                 examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
@@ -713,7 +713,7 @@ pub mod test {
     /// this is a live sync test. its execution time scales linearly since last updated
     #[tokio::test]
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
-    async fn mainnet_sync_hhcclaltpcckcsslpcnetblr_latest() {
+    async fn mainnet_sync() {
         sync_example_wallet(examples::NetworkSeedVersion::Mainnet(
             examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
                 examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
