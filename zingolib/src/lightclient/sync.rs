@@ -693,8 +693,8 @@ pub mod test {
     #[tokio::test]
     async fn testnet_sync_mskmgdbhotbpetcjwcspgopp_latest() {
         sync_example_wallet(examples::NetworkSeedVersion::Testnet(
-            examples::ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
-                examples::ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
+            examples::TestnetSeedVersion::MSKMGDBHOTBPETCJWCSPGOPP(
+                examples::MSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
             ),
         ))
         .await;
@@ -704,8 +704,8 @@ pub mod test {
     #[tokio::test]
     async fn testnet_sync_cbbhrwiilgbrababsshsmtpr_latest() {
         sync_example_wallet(examples::NetworkSeedVersion::Testnet(
-            examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+            examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
+                examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
             ),
         ))
         .await;
@@ -715,8 +715,8 @@ pub mod test {
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     async fn mainnet_sync_hhcclaltpcckcsslpcnetblr_latest() {
         sync_example_wallet(examples::NetworkSeedVersion::Mainnet(
-            examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
+            examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
             ),
         ))
         .await;

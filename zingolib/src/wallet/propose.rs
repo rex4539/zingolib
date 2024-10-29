@@ -176,8 +176,8 @@ mod test {
     #[tokio::test]
     async fn example_mainnet_hhcclaltpcckcsslpcnetblr_80b5594ac_propose_100_000_to_self() {
         let wallet = examples::NetworkSeedVersion::Mainnet(
-            examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+            examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
             ),
         )
         .load_example_wallet()

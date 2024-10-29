@@ -366,8 +366,8 @@ pub mod send_with_proposal {
         /// this wallet contains archaic diversified addresses, which may clog the new send engine.
         async fn testnet_mskmgdbhotbpetcjwcspgopp_shield_multi_account() {
             let case = examples::NetworkSeedVersion::Testnet(
-                examples::ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
-                    examples::ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
+                examples::TestnetSeedVersion::MSKMGDBHOTBPETCJWCSPGOPP(
+                    examples::MSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
                 ),
             );
 
@@ -384,8 +384,8 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_cbbhrwiilgbrababsshsmtpr_send_to_self_orchard_hot() {
             let case = examples::NetworkSeedVersion::Testnet(
-                examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                    examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+                examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
+                    examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
                 ),
             );
 
@@ -411,8 +411,8 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_cbbhrwiilgbrababsshsmtpr_shield_hot() {
             let case = examples::NetworkSeedVersion::Testnet(
-                examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                    examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+                examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
+                    examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
                 ),
             );
 
@@ -429,8 +429,8 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
         async fn mainnet_latest_send_to_self_orchard_hot() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
             );
             let target_pool = PoolType::Shielded(ShieldedProtocol::Orchard);
@@ -464,8 +464,8 @@ pub mod send_with_proposal {
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_hhcclaltpcckcsslpcnetblr_send_to_self_sapling_hot() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
             );
             let target_pool = PoolType::Shielded(ShieldedProtocol::Sapling);
@@ -499,8 +499,8 @@ pub mod send_with_proposal {
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_hhcclaltpcckcsslpcnetblr_send_to_self_transparent_hot() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
             );
             let target_pool = PoolType::Transparent;
@@ -534,8 +534,8 @@ pub mod send_with_proposal {
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_hhcclaltpcckcsslpcnetblr_shield_hot() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
             );
             let client = sync_example_wallet(case).await;
