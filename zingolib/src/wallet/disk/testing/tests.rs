@@ -10,10 +10,10 @@ use crate::wallet::keys::unified::UnifiedKeyStore;
 use super::super::LightWallet;
 use super::assert_wallet_capability_matches_seed;
 
-use super::examples::ExampleWalletNetwork;
-use super::examples::ExampleWalletNetwork::Mainnet;
-use super::examples::ExampleWalletNetwork::Regtest;
-use super::examples::ExampleWalletNetwork::Testnet;
+use super::examples::NetworkSeedVersion;
+use super::examples::NetworkSeedVersion::Mainnet;
+use super::examples::NetworkSeedVersion::Regtest;
+use super::examples::NetworkSeedVersion::Testnet;
 
 use super::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR;
 use super::examples::ExampleMainnetWalletSeed::VTFCORFBCBPCTCFUPMEGMWBP;
@@ -33,7 +33,7 @@ use super::examples::ExampleVTFCORFBCBPCTCFUPMEGMWBPVersion;
 
 // moving toward completeness: each of these tests should assert everything known about the LightWallet without network.
 
-impl ExampleWalletNetwork {
+impl NetworkSeedVersion {
     /// this is enough data to restore wallet from! thus, it is the bronze test for backward compatibility
     async fn load_example_wallet_with_verification(&self) -> LightWallet {
         let wallet = self.load_example_wallet().await;

@@ -674,7 +674,7 @@ pub mod test {
     /// turns on the internet tube
     /// and syncs to the present blockchain moment
     pub(crate) async fn sync_example_wallet(
-        wallet_case: examples::ExampleWalletNetwork,
+        wallet_case: examples::NetworkSeedVersion,
     ) -> LightClient {
         // install default crypto provider (ring)
         if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
@@ -692,7 +692,7 @@ pub mod test {
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
     async fn testnet_sync_mskmgdbhotbpetcjwcspgopp_latest() {
-        sync_example_wallet(examples::ExampleWalletNetwork::Testnet(
+        sync_example_wallet(examples::NetworkSeedVersion::Testnet(
             examples::ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
                 examples::ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
             ),
@@ -703,7 +703,7 @@ pub mod test {
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
     async fn testnet_sync_cbbhrwiilgbrababsshsmtpr_latest() {
-        sync_example_wallet(examples::ExampleWalletNetwork::Testnet(
+        sync_example_wallet(examples::NetworkSeedVersion::Testnet(
             examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
                 examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
             ),
@@ -714,7 +714,7 @@ pub mod test {
     #[tokio::test]
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     async fn mainnet_sync_hhcclaltpcckcsslpcnetblr_latest() {
-        sync_example_wallet(examples::ExampleWalletNetwork::Mainnet(
+        sync_example_wallet(examples::NetworkSeedVersion::Mainnet(
             examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                 examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
             ),

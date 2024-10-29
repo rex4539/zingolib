@@ -73,7 +73,7 @@ mod load_wallet {
         let _cph = regtest_manager.launch(false).unwrap();
         println!("loading wallet");
 
-        let wallet = examples::ExampleWalletNetwork::Regtest(
+        let wallet = examples::NetworkSeedVersion::Regtest(
             examples::ExampleRegtestWalletSeed::HMVASMUVWMSSVICHCARBPOCT(
                 examples::ExampleHMVASMUVWMSSVICHCARBPOCTVersion::V27,
             ),

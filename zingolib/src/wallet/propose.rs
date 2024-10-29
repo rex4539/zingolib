@@ -175,7 +175,7 @@ mod test {
     #[ignore = "for some reason this is does not work without network, even though it should be possible"]
     #[tokio::test]
     async fn example_mainnet_hhcclaltpcckcsslpcnetblr_80b5594ac_propose_100_000_to_self() {
-        let wallet = examples::ExampleWalletNetwork::Mainnet(
+        let wallet = examples::NetworkSeedVersion::Mainnet(
             examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                 examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
             ),
