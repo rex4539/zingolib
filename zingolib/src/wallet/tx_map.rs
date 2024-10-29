@@ -13,7 +13,6 @@ use crate::{
 use getset::{Getters, MutGetters};
 use spending_data::SpendingData;
 use std::{fmt::Debug, sync::Arc};
-use thiserror::Error;
 use zcash_client_backend::wallet::TransparentAddressMetadata;
 use zcash_primitives::legacy::{keys::EphemeralIvk, TransparentAddress};
 
@@ -29,8 +28,8 @@ pub struct TxMap {
     // as below
     pub(crate) transparent_child_addresses:
         Arc<append_only_vec::AppendOnlyVec<(usize, TransparentAddress)>>,
-    // TODO: rename (ephemeral_transparent_addresses?)
-    pub(crate) transparent_child_ephemeral_addresses:
+    /// rejection_addresses are called "ephemeral" in LRZ 320
+    pub(crate) rejection_addresses:
         Arc<append_only_vec::AppendOnlyVec<(TransparentAddress, TransparentAddressMetadata)>>,
 }
 
@@ -45,19 +44,16 @@ impl TxMap {
         transparent_child_addresses: Arc<
             append_only_vec::AppendOnlyVec<(usize, TransparentAddress)>,
         >,
-        transparent_child_ephemeral_addresses: Arc<
+        rejection_addresses: Arc<
             append_only_vec::AppendOnlyVec<(TransparentAddress, TransparentAddressMetadata)>,
         >,
-        transparent_ephemeral_ivk: EphemeralIvk,
+        rejection_ivk: EphemeralIvk,
     ) -> TxMap {
         Self {
             transaction_records_by_id: TransactionRecordsById::new(),
-            spending_data: Some(SpendingData::new(
-                WitnessTrees::default(),
-                transparent_ephemeral_ivk,
-            )),
+            spending_data: Some(SpendingData::new(WitnessTrees::default(), rejection_ivk)),
             transparent_child_addresses,
-            transparent_child_ephemeral_addresses,
+            rejection_addresses,
         }
     }
     pub(crate) fn new_treeless(
@@ -69,7 +65,7 @@ impl TxMap {
             transaction_records_by_id: TransactionRecordsById::new(),
             spending_data: None,
             transparent_child_addresses,
-            transparent_child_ephemeral_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
+            rejection_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
         }
     }
     /// TODO: Doc-comment!
@@ -90,7 +86,7 @@ impl TxMap {
     }
 }
 #[allow(missing_docs)] // error types document themselves
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum TxMapTraitError {
     #[error("No witness trees. This is viewkey watch, not a spendkey wallet.")]
     NoSpendCapability,
@@ -130,7 +126,7 @@ impl TxMap {
                     .unwrap(),
             )),
             transparent_child_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
-            transparent_child_ephemeral_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
+            rejection_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
         }
     }
     /// For any unit tests that don't require a WalletCapability, where the addresses come from
@@ -139,7 +135,7 @@ impl TxMap {
             transaction_records_by_id: TransactionRecordsById::new(),
             spending_data: None,
             transparent_child_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
-            transparent_child_ephemeral_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
+            rejection_addresses: Arc::new(append_only_vec::AppendOnlyVec::new()),
         }
     }
 }

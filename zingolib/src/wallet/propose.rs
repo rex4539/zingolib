@@ -2,7 +2,6 @@
 
 use std::{convert::Infallible, num::NonZeroU32, ops::DerefMut as _};
 
-use thiserror::Error;
 use zcash_client_backend::{
     data_api::wallet::input_selection::GreedyInputSelector,
     zip321::{TransactionRequest, Zip321Error},
@@ -42,7 +41,7 @@ fn build_default_giskit(memo: Option<MemoBytes>) -> GISKit {
 }
 
 /// Errors that can result from do_propose
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProposeSendError {
     /// error in using trait to create spend proposal
     #[error("{0}")]
@@ -69,7 +68,7 @@ pub enum ProposeSendError {
 }
 
 /// Errors that can result from do_propose
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProposeShieldError {
     /// error in parsed addresses
     #[error("{0}")]
@@ -95,12 +94,9 @@ impl LightWallet {
         &self,
         request: TransactionRequest,
     ) -> Result<crate::data::proposal::ProportionalFeeProposal, ProposeSendError> {
-        let num_ephemeral_addresses = self
-            .transaction_context
-            .key
-            .transparent_child_ephemeral_addresses()
-            .len() as u32;
-        let memo = change_memo_from_transaction_request(&request, num_ephemeral_addresses);
+        let number_of_rejection_addresses =
+            self.transaction_context.key.get_rejection_addresses().len() as u32;
+        let memo = change_memo_from_transaction_request(&request, number_of_rejection_addresses);
 
         let input_selector = build_default_giskit(Some(memo));
         let mut tmamt = self
