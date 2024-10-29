@@ -1,4 +1,6 @@
-//! TODO: Add Mod Description HeStartMempoolMonitorError::Disabled!
+//! AWISOTT
+//! LightClient sync stuff.
+//! the difference between this and wallet/sync.rs is that these can interact with the network layer.
 
 use futures::future::join_all;
 
