@@ -670,10 +670,17 @@ impl LightClient {
 pub mod test {
     use crate::{lightclient::LightClient, wallet::disk::testing::examples};
 
+    /// loads a wallet from example data
+    /// turns on the internet tube
+    /// and syncs to the present blockchain moment
     pub(crate) async fn sync_example_wallet(
         wallet_case: examples::ExampleWalletNetwork,
     ) -> LightClient {
-        std::env::set_var("RUST_BACKTRACE", "1");
+        // install default crypto provider (ring)
+        if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+            log::error!("Error installing crypto provider: {:?}", e)
+        };
+
         let wallet = wallet_case.load_example_wallet().await;
         let lc = LightClient::create_from_wallet_async(wallet).await.unwrap();
         lc.do_sync(true).await.unwrap();

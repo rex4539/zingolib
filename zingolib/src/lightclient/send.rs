@@ -365,11 +365,6 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// this wallet contains archaic diversified addresses, which may clog the new send engine.
         async fn testnet_mskmgdbhotbpetcjwcspgopp_shield_multi_account() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Testnet(
                 examples::ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
                     examples::ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
@@ -388,11 +383,6 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_cbbhrwiilgbrababsshsmtpr_send_to_self_orchard_hot() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Testnet(
                 examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
                     examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
@@ -420,11 +410,6 @@ pub mod send_with_proposal {
         /// this is a live sync test. its execution time scales linearly since last updated
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_cbbhrwiilgbrababsshsmtpr_shield_hot() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Testnet(
                 examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
                     examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
@@ -443,11 +428,6 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
         async fn mainnet_latest_send_to_self_orchard_hot() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
@@ -483,11 +463,6 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_hhcclaltpcckcsslpcnetblr_send_to_self_sapling_hot() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
@@ -523,11 +498,6 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_hhcclaltpcckcsslpcnetblr_send_to_self_transparent_hot() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
@@ -563,11 +533,6 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_hhcclaltpcckcsslpcnetblr_shield_hot() {
-            // install default crypto provider (ring)
-            if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
-                log::error!("Error installing crypto provider: {:?}", e)
-            };
-
             let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
