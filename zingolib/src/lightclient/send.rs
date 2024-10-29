@@ -438,6 +438,7 @@ pub mod send_with_proposal {
         }
 
         #[tokio::test]
+        #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         /// this is a live sync test. its execution time scales linearly since last updated
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
