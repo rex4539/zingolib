@@ -336,11 +336,7 @@ pub mod send_with_proposal {
             testutils::chain_generics::{
                 conduct_chain::ConductChain as _, live_chain::LiveChain, with_assertions,
             },
-            wallet::disk::testing::examples::{
-                self, ExampleCBBHRWIILGBRABABSSHSMTPRVersion,
-                ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion, ExampleTestnetWalletSeed,
-                ExampleWalletNetwork,
-            },
+            wallet::disk::testing::examples,
         };
 
         #[tokio::test]
@@ -372,10 +368,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case =
-                ExampleWalletNetwork::Testnet(ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
-                    ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
-                ));
+            let case = examples::ExampleWalletNetwork::Testnet(
+                examples::ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
+                    examples::ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
+                ),
+            );
 
             let client = sync_example_wallet(case).await;
 
@@ -394,10 +391,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case =
-                ExampleWalletNetwork::Testnet(ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                    ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
-                ));
+            let case = examples::ExampleWalletNetwork::Testnet(
+                examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
+                    examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+                ),
+            );
 
             let client = sync_example_wallet(case).await;
 
@@ -425,10 +423,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case =
-                ExampleWalletNetwork::Testnet(ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                    ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
-                ));
+            let case = examples::ExampleWalletNetwork::Testnet(
+                examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
+                    examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+                ),
+            );
 
             let client = sync_example_wallet(case).await;
 
@@ -446,7 +445,7 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(
+            let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
@@ -486,7 +485,7 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(
+            let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
@@ -526,7 +525,7 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(
+            let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),
@@ -566,7 +565,7 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(
+            let case = examples::ExampleWalletNetwork::Mainnet(
                 examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
                 ),

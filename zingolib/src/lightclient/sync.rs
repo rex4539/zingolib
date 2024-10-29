@@ -668,16 +668,11 @@ impl LightClient {
 
 #[cfg(all(test, feature = "testvectors"))]
 pub mod test {
-    use crate::{
-        lightclient::LightClient,
-        wallet::disk::testing::examples::{
-            ExampleCBBHRWIILGBRABABSSHSMTPRVersion, ExampleHHCCLALTPCCKCSSLPCNETBLRVersion,
-            ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion, ExampleMainnetWalletSeed,
-            ExampleTestnetWalletSeed, ExampleWalletNetwork,
-        },
-    };
+    use crate::{lightclient::LightClient, wallet::disk::testing::examples};
 
-    pub(crate) async fn sync_example_wallet(wallet_case: ExampleWalletNetwork) -> LightClient {
+    pub(crate) async fn sync_example_wallet(
+        wallet_case: examples::ExampleWalletNetwork,
+    ) -> LightClient {
         std::env::set_var("RUST_BACKTRACE", "1");
         let wallet = wallet_case.load_example_wallet().await;
         let lc = LightClient::create_from_wallet_async(wallet).await.unwrap();
@@ -690,9 +685,9 @@ pub mod test {
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
     async fn testnet_sync_mskmgdbhotbpetcjwcspgopp_latest() {
-        sync_example_wallet(ExampleWalletNetwork::Testnet(
-            ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
-                ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
+        sync_example_wallet(examples::ExampleWalletNetwork::Testnet(
+            examples::ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
+                examples::ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
             ),
         ))
         .await;
@@ -701,9 +696,9 @@ pub mod test {
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
     async fn testnet_sync_cbbhrwiilgbrababsshsmtpr_latest() {
-        sync_example_wallet(ExampleWalletNetwork::Testnet(
-            ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+        sync_example_wallet(examples::ExampleWalletNetwork::Testnet(
+            examples::ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
+                examples::ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
             ),
         ))
         .await;
@@ -712,9 +707,9 @@ pub mod test {
     #[tokio::test]
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     async fn mainnet_sync_hhcclaltpcckcsslpcnetblr_latest() {
-        sync_example_wallet(ExampleWalletNetwork::Mainnet(
-            ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
+        sync_example_wallet(examples::ExampleWalletNetwork::Mainnet(
+            examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
+                examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
             ),
         ))
         .await;

@@ -168,14 +168,14 @@ mod test {
 
     use crate::{
         testutils::lightclient::from_inputs::transaction_request_from_send_inputs,
-        wallet::disk::testing::examples::{self, ExampleWalletNetwork},
+        wallet::disk::testing::examples,
     };
 
     /// this test loads an example wallet with existing sapling finds
     #[ignore = "for some reason this is does not work without network, even though it should be possible"]
     #[tokio::test]
     async fn example_mainnet_hhcclaltpcckcsslpcnetblr_80b5594ac_propose_100_000_to_self() {
-        let wallet = ExampleWalletNetwork::Mainnet(
+        let wallet = examples::ExampleWalletNetwork::Mainnet(
             examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
                 examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
             ),
