@@ -590,6 +590,24 @@ impl LightClient {
             };
         }
 
+        value_transfers.sort_by(|t1, t2| match t1.txid().cmp(&t2.txid()) {
+            Ordering::Equal => match match (t1.pool_received(), t2.pool_received()) {
+                (None, None) => Ordering::Equal,
+                (None, Some(_)) => Ordering::Less,
+                (Some(_), None) => Ordering::Greater,
+                (Some(pool1), Some(pool2)) if pool1 == pool2 => Ordering::Greater,
+                (Some("transparent"), Some(_)) => Ordering::Less,
+                (Some(_), Some("transparent")) => Ordering::Greater,
+                (Some("sapling"), Some(_)) => Ordering::Less,
+                (Some(_), Some("sapling")) => Ordering::Greater,
+                (Some(pool1), Some(pool2)) => panic!("invalid pool variants"),
+            } {
+                Ordering::Equal => todo!(),
+                nonequal => nonequal,
+            },
+            nonequal => nonequal,
+        });
+
         ValueTransfers(value_transfers)
     }
 
