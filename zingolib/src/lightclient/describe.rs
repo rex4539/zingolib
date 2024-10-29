@@ -282,7 +282,7 @@ impl LightClient {
             transaction_summary: &TransactionSummary,
         ) {
             let mut addresses =
-                HashSet::with_capacity(transaction_summary.outgoing_tx_data().len());
+                HashMap::with_capacity(transaction_summary.outgoing_tx_data().len());
             transaction_summary
                 .outgoing_tx_data()
                 .iter()
@@ -293,9 +293,11 @@ impl LightClient {
                         outgoing_tx_data.recipient_address.clone()
                     };
                     // hash set is used to create unique list of addresses as duplicates are not inserted twice
-                    addresses.insert(address);
+                    addresses.insert(address, outgoing_tx_data.output_index);
                 });
-            addresses.iter().for_each(|address| {
+            let mut addresses_vec = addresses.into_iter().collect::<Vec<_>>();
+            addresses_vec.sort_by_key(|x| x.1);
+            addresses_vec.iter().for_each(|(address, _output_index)| {
                 let outgoing_data_to_address: Vec<OutgoingTxData> = transaction_summary
                     .outgoing_tx_data()
                     .iter()
@@ -589,24 +591,6 @@ impl LightClient {
                 }
             };
         }
-
-        value_transfers.sort_by(|t1, t2| match t1.txid().cmp(&t2.txid()) {
-            Ordering::Equal => match match (t1.pool_received(), t2.pool_received()) {
-                (None, None) => Ordering::Equal,
-                (None, Some(_)) => Ordering::Less,
-                (Some(_), None) => Ordering::Greater,
-                (Some(pool1), Some(pool2)) if pool1 == pool2 => Ordering::Greater,
-                (Some("transparent"), Some(_)) => Ordering::Less,
-                (Some(_), Some("transparent")) => Ordering::Greater,
-                (Some("sapling"), Some(_)) => Ordering::Less,
-                (Some(_), Some("sapling")) => Ordering::Greater,
-                (Some(pool1), Some(pool2)) => panic!("invalid pool variants"),
-            } {
-                Ordering::Equal => todo!(),
-                nonequal => nonequal,
-            },
-            nonequal => nonequal,
-        });
 
         ValueTransfers(value_transfers)
     }

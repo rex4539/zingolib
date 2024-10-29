@@ -291,7 +291,7 @@ pub struct OutgoingTxData {
     /// What if it wasn't provided?  How does this relate to
     /// recipient_address?
     pub recipient_ua: Option<String>,
-    /// This output's pool-specific index in its containing transaction
+    /// This output's index in its containing transaction
     pub output_index: Option<u64>,
 }
 impl std::fmt::Display for OutgoingTxData {

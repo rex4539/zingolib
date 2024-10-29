@@ -611,7 +611,9 @@ mod decrypt_transaction {
                                             value: D::WalletNote::value_from_note(&note),
                                             memo,
                                             recipient_ua: None,
-                                            output_index: Some(i as u64),
+                                            output_index: Some(
+                                                D::output_index_offset(&transaction) + i as u64,
+                                            ),
                                         })
                                     }
                                 }
