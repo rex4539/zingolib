@@ -339,6 +339,8 @@ pub mod send_with_proposal {
             wallet::disk::testing::examples,
         };
 
+        // all tests below (and in this mod) use example wallets, which describe real-world chains.
+
         #[tokio::test]
         async fn complete_and_broadcast_unconnected_error() {
             use crate::{
