@@ -337,8 +337,9 @@ pub mod send_with_proposal {
                 conduct_chain::ConductChain as _, live_chain::LiveChain, with_assertions,
             },
             wallet::disk::testing::examples::{
-                ExampleCBBHRWIILGBRABABSSHSMTPRVersion, ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion,
-                ExampleTestnetWalletSeed, ExampleWalletNetwork,
+                self, ExampleCBBHRWIILGBRABABSSHSMTPRVersion,
+                ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion, ExampleTestnetWalletSeed,
+                ExampleWalletNetwork,
             },
         };
 
@@ -445,7 +446,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(crate::wallet::disk::testing::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(crate::wallet::disk::testing::examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest));
+            let case = ExampleWalletNetwork::Mainnet(
+                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                ),
+            );
             let target_pool = PoolType::Shielded(ShieldedProtocol::Orchard);
 
             let client = sync_example_wallet(case).await;
@@ -481,7 +486,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(crate::wallet::disk::testing::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(crate::wallet::disk::testing::examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest));
+            let case = ExampleWalletNetwork::Mainnet(
+                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                ),
+            );
             let target_pool = PoolType::Shielded(ShieldedProtocol::Sapling);
 
             let client = sync_example_wallet(case).await;
@@ -517,7 +526,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(crate::wallet::disk::testing::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(crate::wallet::disk::testing::examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest));
+            let case = ExampleWalletNetwork::Mainnet(
+                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                ),
+            );
             let target_pool = PoolType::Transparent;
 
             let client = sync_example_wallet(case).await;
@@ -553,7 +566,11 @@ pub mod send_with_proposal {
                 log::error!("Error installing crypto provider: {:?}", e)
             };
 
-            let case = ExampleWalletNetwork::Mainnet(crate::wallet::disk::testing::examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(crate::wallet::disk::testing::examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest));
+            let case = ExampleWalletNetwork::Mainnet(
+                examples::ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
+                    examples::ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+                ),
+            );
             let client = sync_example_wallet(case).await;
 
             println!(
