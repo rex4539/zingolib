@@ -330,18 +330,9 @@ mod tests {
     use zcash_client_backend::data_api::WalletRead;
     use zcash_primitives::consensus::BlockHeight;
     use zingo_status::confirmation_status::ConfirmationStatus::Confirmed;
-    use zingo_status::confirmation_status::ConfirmationStatus::Mempool;
+    
 
-    use crate::{
-        mocks::default_txid,
-        wallet::{
-            notes::{
-                orchard::mocks::OrchardNoteBuilder, sapling::mocks::SaplingNoteBuilder,
-                transparent::mocks::TransparentOutputBuilder,
-            },
-            transaction_record::mocks::TransactionRecordBuilder,
-        },
-    };
+    use crate::wallet::transaction_record::mocks::TransactionRecordBuilder;
 
     use super::TxMap;
     use super::TxMapTraitError;
