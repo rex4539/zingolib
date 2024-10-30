@@ -354,7 +354,8 @@ mod tests {
             .as_mut()
             .unwrap()
             .witness_trees_mut()
-            .add_checkpoint(8421.into());
+            .witness_tree_sapling
+            .checkpoint(8421.into());
 
         assert_eq!(
             transaction_records_and_maybe_trees
