@@ -16,7 +16,7 @@ use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
 };
-use zcash_primitives::consensus::{BlockHeight, NetworkUpgrade, Parameters};
+use zcash_primitives::consensus::{self, BlockHeight, NetworkUpgrade};
 
 use futures::future::try_join_all;
 use tokio::sync::mpsc;
@@ -31,7 +31,7 @@ pub async fn sync<P, W>(
     wallet: &mut W,
 ) -> Result<(), ()>
 where
-    P: Parameters + Sync + Send + 'static,
+    P: consensus::Parameters + Sync + Send + 'static,
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
 {
     tracing::info!("Syncing wallet...");
@@ -123,7 +123,7 @@ async fn update_scan_ranges<P>(
     sync_state: &mut SyncState,
 ) -> Result<(), ()>
 where
-    P: Parameters,
+    P: consensus::Parameters,
 {
     let chain_height = get_chain_height(fetch_request_sender).await.unwrap();
 
