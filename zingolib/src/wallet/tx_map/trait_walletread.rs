@@ -15,15 +15,15 @@ use zcash_primitives::{
     consensus::BlockHeight,
     legacy::keys::{NonHardenedChildIndex, TransparentKeyScope},
 };
-use zip32::{AccountId, Scope};
+use zip32::Scope;
 
 /// This is a facade for using LRZ traits. In actuality, Zingo does not use multiple accounts in one wallet.
-pub struct ZingoAccount(AccountId, UnifiedFullViewingKey);
+pub struct ZingoAccount(zip32::AccountId, UnifiedFullViewingKey);
 
 impl Account for ZingoAccount {
     type AccountId = zip32::AccountId;
 
-    fn id(&self) -> AccountId {
+    fn id(&self) -> Self::AccountId {
         self.0
     }
 
@@ -58,7 +58,7 @@ fn has_unspent_shielded_outputs(
 /// except those doc-comments starting with IMPL:
 impl WalletRead for TxMap {
     type Error = TxMapTraitError;
-    type AccountId = AccountId;
+    type AccountId = zip32::AccountId;
     type Account = ZingoAccount;
 
     /// Returns the account corresponding to a given [`UnifiedFullViewingKey`], if any.
@@ -68,7 +68,7 @@ impl WalletRead for TxMap {
         ufvk: &UnifiedFullViewingKey,
     ) -> Result<Option<Self::Account>, Self::Error> {
         // todo we could assert that the ufvk matches, or return error.
-        Ok(Some(ZingoAccount(AccountId::ZERO, ufvk.clone())))
+        Ok(Some(ZingoAccount(Self::AccountId::ZERO, ufvk.clone())))
     }
 
     /// Returns the default target height (for the block in which a new
@@ -128,7 +128,7 @@ impl WalletRead for TxMap {
     }
 
     fn get_account_ids(&self) -> Result<Vec<Self::AccountId>, Self::Error> {
-        Ok(vec![(AccountId::ZERO)])
+        Ok(vec![(Self::AccountId::ZERO)])
     }
     fn get_account(
         &self,
