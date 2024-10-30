@@ -13,6 +13,8 @@ env:
 jobs:
   build-test-artifacts:
     name: Build test artifacts
+    container:
+      image: zingodevops/ci-build:004
     runs-on: self-hosted
     if: github.event.pull_request.draft == false
     env:
