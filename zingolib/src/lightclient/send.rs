@@ -36,7 +36,6 @@ pub mod send_with_proposal {
 
     use zcash_primitives::transaction::{Transaction, TxId};
 
-    use thiserror::Error;
     use zingo_status::confirmation_status::ConfirmationStatus;
 
     use crate::lightclient::LightClient;
@@ -44,16 +43,18 @@ pub mod send_with_proposal {
     use crate::wallet::propose::{ProposeSendError, ProposeShieldError};
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Clone, Debug, Error)]
+    #[derive(Clone, Debug, thiserror::Error)]
     pub enum TransactionCacheError {
         #[error("No witness trees. This is viewkey watch, not spendkey wallet.")]
         NoSpendCapability,
         #[error("No Tx in cached!")]
         NoCachedTx,
+        #[error("Multistep transaction with non-tex steps")]
+        InvalidMultiStep,
     }
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Clone, Debug, Error)]
+    #[derive(Clone, Debug, thiserror::Error)]
     pub enum BroadcastCachedTransactionsError {
         #[error("Cant broadcast: {0:?}")]
         Cache(#[from] TransactionCacheError),
@@ -64,7 +65,7 @@ pub mod send_with_proposal {
     }
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Debug, Error)]
+    #[derive(Debug, thiserror::Error)]
     pub enum RecordCachedTransactionsError {
         #[error("Cant record: {0:?}")]
         Cache(#[from] TransactionCacheError),
@@ -75,7 +76,7 @@ pub mod send_with_proposal {
     }
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Debug, Error)]
+    #[derive(Debug, thiserror::Error)]
     pub enum CompleteAndBroadcastError {
         #[error("The transaction could not be calculated: {0:?}")]
         BuildTransaction(#[from] crate::wallet::send::BuildTransactionError),
@@ -88,7 +89,7 @@ pub mod send_with_proposal {
     }
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Debug, Error)]
+    #[derive(Debug, thiserror::Error)]
     pub enum CompleteAndBroadcastStoredProposalError {
         #[error("No proposal. Call do_propose first.")]
         NoStoredProposal,
@@ -97,7 +98,7 @@ pub mod send_with_proposal {
     }
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Debug, Error)]
+    #[derive(Debug, thiserror::Error)]
     pub enum QuickSendError {
         #[error("propose send {0:?}")]
         ProposeSend(#[from] ProposeSendError),
@@ -106,7 +107,7 @@ pub mod send_with_proposal {
     }
 
     #[allow(missing_docs)] // error types document themselves
-    #[derive(Debug, Error)]
+    #[derive(Debug, thiserror::Error)]
     pub enum QuickShieldError {
         #[error("propose shield {0:?}")]
         Propose(#[from] ProposeShieldError),
@@ -115,8 +116,18 @@ pub mod send_with_proposal {
     }
 
     impl LightClient {
-        /// When a transaction is created, it is added to a cache. This step records all cached transactions into TransactionRecord s.
-        /// overwrites confirmation status to Calculated (not broadcast) so only call this if
+        /// When a transactions are created, they are added to "spending_data".
+        /// This step records all cached transactions into TransactionRecord s.
+        /// This overwrites confirmation status to Calculated (not Broadcast)
+        /// so only call this immediately after creating the transaction
+        ///
+        /// With the introduction of multistep transacations to support ZIP320
+        /// we begin ordering transactions in the "spending_data" cache such
+        /// that any output that's used to fund a subsequent transaction is
+        /// added prior to that fund-requiring transaction.
+        /// After some consideration we don't see why the spending_data should
+        /// be stored out-of-order with respect to earlier transactions funding
+        /// later ones in the cache, so we implement an in order cache.
         async fn record_created_transactions(
             &self,
         ) -> Result<Vec<TxId>, RecordCachedTransactionsError> {
@@ -132,9 +143,9 @@ pub mod send_with_proposal {
                 .map_err(RecordCachedTransactionsError::Height)?;
             let mut transactions_to_record = vec![];
             if let Some(spending_data) = tx_map.spending_data_mut() {
-                for raw_tx in spending_data.cached_raw_transactions().values() {
+                for (_txid, raw_tx) in spending_data.cached_raw_transactions().iter() {
                     transactions_to_record.push(Transaction::read(
-                        &raw_tx[..],
+                        raw_tx.as_slice(),
                         zcash_primitives::consensus::BranchId::for_height(
                             &self.wallet.transaction_context.config.chain,
                             current_height + 1,

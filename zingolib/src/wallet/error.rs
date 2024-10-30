@@ -1,11 +1,11 @@
 //! Errors for [`crate::wallet`] and sub-modules
 
-use thiserror::Error;
+use zcash_keys::keys::DerivationError;
 
 use crate::wallet::data::OutgoingTxData;
 
 /// Errors associated with transaction fee calculation
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum FeeError {
     /// Sapling notes spent in a transaction not found in the wallet
     #[error("Sapling nullifier(s) {0:?} for this transaction not found in wallet. Is the wallet fully synced?")]
@@ -32,7 +32,7 @@ pub enum FeeError {
 }
 
 /// Errors associated with balance calculation
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum BalanceError {
     /// failed to retrieve full viewing key
     #[error("failed to retrieve full viewing key.")]
@@ -43,7 +43,7 @@ pub enum BalanceError {
 }
 
 /// Errors associated with balance key derivation
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum KeyError {
     /// Error asociated with standard IO
     #[error("{0}")]
@@ -54,7 +54,7 @@ pub enum KeyError {
     /// Key derivation failed
     // TODO: add std::Error to zcash_keys::keys::DerivationError in LRZ fork and add thiserror #[from] macro
     #[error("Key derivation failed")]
-    KeyDerivationError,
+    KeyDerivationError(DerivationError),
     /// Key decoding failed
     // TODO: add std::Error to zcash_keys::keys::DecodingError in LRZ fork and add thiserror #[from] macro
     #[error("Key decoding failed")]
