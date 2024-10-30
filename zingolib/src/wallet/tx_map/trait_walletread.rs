@@ -112,33 +112,6 @@ impl WalletRead for TxMap {
         }
     }
 
-    /// Returns the minimum block height corresponding to an unspent note in the wallet.
-    /// IMPL: fully implemented
-    /// IMPL: tested
-    fn get_min_unspent_height(
-        &self,
-    ) -> Result<Option<zcash_primitives::consensus::BlockHeight>, Self::Error> {
-        Ok(self
-            .transaction_records_by_id
-            .values()
-            .fold(None, |height_rolling_min, transaction| {
-                match transaction.status.get_confirmed_height() {
-                    None => height_rolling_min,
-                    Some(transaction_height) => {
-                        // query for an unspent shielded output
-                        if has_unspent_shielded_outputs(transaction) {
-                            Some(match height_rolling_min {
-                                None => transaction_height,
-                                Some(min_height) => std::cmp::min(min_height, transaction_height),
-                            })
-                        } else {
-                            height_rolling_min
-                        }
-                    }
-                }
-            }))
-    }
-
     /// Returns the block height in which the specified transaction was mined, or `Ok(None)` if the
     /// transaction is not in the main chain.
     /// IMPL: fully implemented
@@ -414,63 +387,6 @@ mod tests {
     }
 
     proptest! {
-        #[test]
-        fn get_min_unspent_height(sapling_height: u32, orchard_height: u32) {
-            let mut transaction_records_and_maybe_trees = TxMap::new_with_witness_trees_address_free();
-
-            // these first three outputs will not trigger min_unspent_note
-            transaction_records_and_maybe_trees
-                .transaction_records_by_id
-                .insert_transaction_record(
-                    TransactionRecordBuilder::default()
-                        .transparent_outputs(TransparentOutputBuilder::default())
-                        .status(Confirmed(1000000.into()))
-                        .build(),
-                );
-            let spend = Some((default_txid(), Confirmed(112358.into())));
-            let mempool_spend = Some((default_txid(), Mempool(112357.into())));
-            transaction_records_and_maybe_trees
-                .transaction_records_by_id
-                .insert_transaction_record(
-                    TransactionRecordBuilder::default()
-                        .sapling_notes(SaplingNoteBuilder::default().spending_tx_status(spend).clone())
-                        .status(Confirmed(2000000.into()))
-                        .randomize_txid()
-                        .build(),
-                );
-            transaction_records_and_maybe_trees
-                .transaction_records_by_id
-                .insert_transaction_record(
-                    TransactionRecordBuilder::default()
-                        .orchard_notes(OrchardNoteBuilder::default().spending_tx_status(mempool_spend).clone())
-                        .status(Confirmed(3000000.into()))
-                        .randomize_txid()
-                        .build(),
-                );
-
-            // min_unspent will stop at the lesser of these
-            transaction_records_and_maybe_trees
-                .transaction_records_by_id
-                .insert_transaction_record(
-                    TransactionRecordBuilder::default()
-                        .sapling_notes(SaplingNoteBuilder::default())
-                        .status(Confirmed(sapling_height.into()))
-                        .randomize_txid()
-                        .build(),
-                );
-            transaction_records_and_maybe_trees
-                .transaction_records_by_id
-                .insert_transaction_record(
-                    TransactionRecordBuilder::default()
-                        .orchard_notes(OrchardNoteBuilder::default())
-                        .status(Confirmed(orchard_height.into()))
-                        .randomize_txid()
-                        .build(),
-                );
-
-            assert_eq!(transaction_records_and_maybe_trees.get_min_unspent_height().unwrap().unwrap(), BlockHeight::from_u32(std::cmp::min(sapling_height, orchard_height)));
-        }
-
         #[test]
         fn get_tx_height(tx_height: u32) {
             let mut transaction_records_and_maybe_trees = TxMap::new_with_witness_trees_address_free();
