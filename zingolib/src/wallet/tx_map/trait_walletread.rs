@@ -1,6 +1,5 @@
 //! in this mod, we implement an LRZ type on the TxMap
 
-use crate::wallet::notes::{query::OutputSpendStatusQuery, Output, OutputInterface};
 
 use super::{TxMap, TxMapTraitError};
 use secrecy::SecretVec;
@@ -9,7 +8,6 @@ use zcash_client_backend::{
     data_api::{Account, WalletRead},
     keys::UnifiedFullViewingKey,
     wallet::TransparentAddressMetadata,
-    PoolType,
 };
 use zcash_primitives::{
     consensus::BlockHeight,
