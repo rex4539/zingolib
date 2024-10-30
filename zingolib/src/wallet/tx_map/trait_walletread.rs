@@ -330,7 +330,6 @@ mod tests {
     use zcash_client_backend::data_api::WalletRead;
     use zcash_primitives::consensus::BlockHeight;
     use zingo_status::confirmation_status::ConfirmationStatus::Confirmed;
-    
 
     use crate::wallet::transaction_record::mocks::TransactionRecordBuilder;
 
