@@ -55,7 +55,6 @@ RUN apt update \
     git \
     gcc \
     curl \
-    libc6 \
     pkg-config \
     libssl-dev \
     build-essential \
