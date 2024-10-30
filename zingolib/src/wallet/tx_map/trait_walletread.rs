@@ -1,6 +1,5 @@
 //! in this mod, we implement an LRZ type on the TxMap
 
-
 use super::{TxMap, TxMapTraitError};
 use secrecy::SecretVec;
 use shardtree::store::ShardStore;
