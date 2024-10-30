@@ -15,7 +15,7 @@ use zcash_client_backend::{
     proto::compact_formats::CompactBlock, wallet::TransparentAddressMetadata,
 };
 
-use zcash_encoding::{Optional, Vector};
+use zcash_encoding::{CompactSize, Optional, Vector};
 
 use zcash_primitives::merkle_tree::{read_commitment_tree, write_commitment_tree};
 use zcash_primitives::{legacy::TransparentAddress, memo::MemoBytes};
@@ -345,8 +345,9 @@ impl PartialEq for OutgoingTxData {
     }
 }
 impl OutgoingTxData {
-    /// TODO: Add Doc Comment Here!
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    const VERSION: u64 = 0;
+    /// Before version 0, OutgoingTxData didn't have a version field
+    pub fn read_old<R: Read>(mut reader: R) -> io::Result<Self> {
         let address_len = reader.read_u64::<LittleEndian>()?;
         let mut address_bytes = vec![0; address_len as usize];
         reader.read_exact(&mut address_bytes)?;
@@ -376,8 +377,43 @@ impl OutgoingTxData {
         })
     }
 
+    /// Read an OutgoingTxData from its serialized
+    /// representation
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let _external_version = CompactSize::read(&mut reader);
+        let address_len = reader.read_u64::<LittleEndian>()?;
+        let mut address_bytes = vec![0; address_len as usize];
+        reader.read_exact(&mut address_bytes)?;
+        let address = String::from_utf8(address_bytes).unwrap();
+
+        let value = reader.read_u64::<LittleEndian>()?;
+
+        let mut memo_bytes = [0u8; 512];
+        reader.read_exact(&mut memo_bytes)?;
+        let memo = match MemoBytes::from_bytes(&memo_bytes) {
+            Ok(mb) => match Memo::try_from(mb.clone()) {
+                Ok(m) => Ok(m),
+                Err(_) => Ok(Memo::Future(mb)),
+            },
+            Err(e) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Couldn't create memo: {}", e),
+            )),
+        }?;
+        let output_index = Optional::read(&mut reader, CompactSize::read)?;
+
+        Ok(OutgoingTxData {
+            recipient_address: address,
+            value,
+            memo,
+            recipient_ua: None,
+            output_index,
+        })
+    }
+
     /// TODO: Add Doc Comment Here!
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        CompactSize::write(&mut writer, Self::VERSION as usize)?;
         // Strings are written as len + utf8
         match &self.recipient_ua {
             None => {
@@ -390,7 +426,10 @@ impl OutgoingTxData {
             }
         }
         writer.write_u64::<LittleEndian>(self.value)?;
-        writer.write_all(self.memo.encode().as_array())
+        writer.write_all(self.memo.encode().as_array())?;
+        Optional::write(&mut writer, self.output_index, |w, output_index| {
+            CompactSize::write(w, output_index as usize)
+        })
     }
 }
 

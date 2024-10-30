@@ -2,10 +2,7 @@
 use ::orchard::note_encryption::OrchardDomain;
 use json::{object, JsonValue};
 use sapling_crypto::note_encryption::SaplingDomain;
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-};
+use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
 use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
@@ -292,7 +289,7 @@ impl LightClient {
                     } else {
                         outgoing_tx_data.recipient_address.clone()
                     };
-                    // hash set is used to create unique list of addresses as duplicates are not inserted twice
+                    // hash map is used to create unique list of addresses as duplicates are not inserted twice
                     addresses.insert(address, outgoing_tx_data.output_index);
                 });
             let mut addresses_vec = addresses.into_iter().collect::<Vec<_>>();
