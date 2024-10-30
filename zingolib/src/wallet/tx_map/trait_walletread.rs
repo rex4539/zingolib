@@ -39,20 +39,7 @@ impl Account for ZingoAccount {
         unimplemented!()
     }
 }
-/// This is true iff there's at least one unspect shielded output in the transaction
-fn has_unspent_shielded_outputs(
-    transaction: &crate::wallet::transaction_record::TransactionRecord,
-) -> bool {
-    let outputs =
-        Output::get_all_outputs_with_status(transaction, OutputSpendStatusQuery::only_unspent());
-    outputs
-        .iter()
-        .any(|output| matches!(output.pool_type(), PoolType::Shielded(_)))
-    /*Output::filter_outputs_pools(transaction.get_outputs(), OutputPoolQuery::shielded())
-        .iter()
-        .any(|output| output.spend_status_query(OutputSpendStatusQuery::only_unspent()))
-    */
-}
+
 /// some of these functions, initially those required for calculate_transaction, will be implemented
 /// every doc-comment on a trait method is copied from the trait declaration in zcash_client_backend
 /// except those doc-comments starting with IMPL:
