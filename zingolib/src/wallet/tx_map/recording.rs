@@ -195,8 +195,7 @@ impl crate::wallet::tx_map::TxMap {
                         if let Some(ref mut tree) =
                             D::transaction_metadata_set_to_shardtree_mut(self)
                         {
-                            tree.remove_mark(position, Some(&(height - BlockHeight::from(1))))
-                                .unwrap();
+                            tree.remove_mark(position, Some(&(height - 1))).unwrap();
                         }
                     } else {
                         todo!("Tried to mark note as spent with no position: FIX")
