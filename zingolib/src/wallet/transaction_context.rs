@@ -563,7 +563,7 @@ mod decrypt_transaction {
                     >(
                         &output.domain(status.get_height(), self.config.chain),
                         &ovk.ovk,
-                        &output,
+                        output,
                         &output.value_commitment(),
                         &output.out_ciphertext(),
                     ) {
@@ -612,7 +612,7 @@ mod decrypt_transaction {
                                             memo,
                                             recipient_ua: None,
                                             output_index: Some(
-                                                D::output_index_offset(&transaction) + i as u64,
+                                                D::output_index_offset(transaction) + i as u64,
                                             ),
                                         })
                                     }
