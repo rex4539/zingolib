@@ -380,7 +380,7 @@ impl OutgoingTxData {
     /// Read an OutgoingTxData from its serialized
     /// representation
     pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        let _external_version = CompactSize::read(&mut reader);
+        let _external_version = CompactSize::read(&mut reader)?;
         let address_len = reader.read_u64::<LittleEndian>()?;
         let mut address_bytes = vec![0; address_len as usize];
         reader.read_exact(&mut address_bytes)?;
