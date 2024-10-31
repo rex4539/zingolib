@@ -149,20 +149,14 @@ impl Default for WitnessTrees {
 }
 
 impl WitnessTrees {
-    pub(crate) fn add_checkpoint(&mut self, height: BlockHeight) {
-        self.witness_tree_sapling.checkpoint(height).unwrap();
-        self.witness_tree_orchard.checkpoint(height).unwrap();
-    }
-
     /// helper truncates shard trees for both shielded pools
     pub(crate) fn truncate_to_checkpoint(&mut self, checkpoint_height: BlockHeight) {
         self.witness_tree_sapling
-            .truncate_removing_checkpoint(&checkpoint_height)
+            .truncate_to_checkpoint(&checkpoint_height)
             .expect("Infallible");
         self.witness_tree_orchard
-            .truncate_removing_checkpoint(&checkpoint_height)
+            .truncate_to_checkpoint(&checkpoint_height)
             .expect("Infallible");
-        self.add_checkpoint(checkpoint_height);
     }
 
     const VERSION: u8 = 0;
