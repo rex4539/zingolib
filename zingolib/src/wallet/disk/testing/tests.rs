@@ -4,15 +4,18 @@ use zcash_client_backend::{PoolType, ShieldedProtocol};
 use zcash_keys::keys::Era;
 
 use crate::lightclient::LightClient;
-use crate::wallet::disk::testing::examples::{
-    AbandonAbandonVersion, AbsurdAmountVersion, ChimneyBetterVersion, HospitalMuseumVersion,
-    HotelHumorVersion, MainnetSeedVersion, MobileShuffleVersion, NetworkSeedVersion,
-    RegtestSeedVersion, TestnetSeedVersion, VillageTargetVersion,
+use crate::wallet::{
+    disk::testing::{
+        assert_wallet_capability_matches_seed,
+        examples::{
+            AbandonAbandonVersion, AbsurdAmountVersion, ChimneyBetterVersion,
+            HospitalMuseumVersion, HotelHumorVersion, MainnetSeedVersion, MobileShuffleVersion,
+            NetworkSeedVersion, RegtestSeedVersion, TestnetSeedVersion, VillageTargetVersion,
+        },
+    },
+    keys::unified::UnifiedKeyStore,
+    LightWallet,
 };
-use crate::wallet::keys::unified::UnifiedKeyStore;
-
-use super::super::LightWallet;
-use super::assert_wallet_capability_matches_seed;
 
 // moving toward completeness: each of these tests should assert everything known about the LightWallet without network.
 
