@@ -1337,6 +1337,56 @@ pub mod scenarios {
         )
     }
 
+    /// This scenario funds a client with transparent funds.
+    pub async fn funded_transparent_mobileclient(
+        value: u64,
+    ) -> (RegtestManager, ChildProcessHandler) {
+        let regtest_network = crate::config::RegtestNetwork::all_upgrades_active();
+        let mut scenario_builder = setup::ScenarioBuilder::build_configure_launch(
+            Some(PoolType::Shielded(ShieldedProtocol::Sapling)),
+            None,
+            Some(20_000),
+            &regtest_network,
+        )
+        .await;
+        let faucet = scenario_builder
+            .client_builder
+            .build_faucet(false, regtest_network)
+            .await;
+        let recipient = scenario_builder
+            .client_builder
+            .build_client(HOSPITAL_MUSEUM_SEED.to_string(), 0, false, regtest_network)
+            .await;
+        increase_height_and_wait_for_client(&scenario_builder.regtest_manager, &faucet, 1)
+            .await
+            .unwrap();
+
+        // received from a faucet to transparent
+        super::lightclient::from_inputs::quick_send(
+            &faucet,
+            vec![(
+                &get_base_address_macro!(recipient, "transparent"),
+                value.checked_div(4).unwrap(),
+                None,
+            )],
+        )
+        .await
+        .unwrap();
+        increase_height_and_wait_for_client(&scenario_builder.regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        // end
+        scenario_builder
+            .regtest_manager
+            .generate_n_blocks(1)
+            .expect("Failed to generate blocks.");
+        (
+            scenario_builder.regtest_manager,
+            scenario_builder.child_process_handler.unwrap(),
+        )
+    }
+
     /// TODO: Add Doc Comment Here!
     pub async fn funded_orchard_sapling_transparent_shielded_mobileclient(
         value: u64,

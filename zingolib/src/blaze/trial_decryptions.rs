@@ -439,7 +439,7 @@ where
     for block in notes_to_mark_position.into_iter().rev() {
         if let Some(witness_tree) = D::transaction_metadata_set_to_shardtree(&*txmds_writelock) {
             let position = witness_tree
-                .max_leaf_position(0)
+                .max_leaf_position(None)
                 .unwrap()
                 .map(|pos| pos + 1)
                 .unwrap_or(Position::from(0));

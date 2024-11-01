@@ -155,6 +155,14 @@ async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_gf0aaf9347() {
     .load_example_wallet_with_verification()
     .await;
 }
+#[tokio::test]
+async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_latest() {
+    Mainnet(HHCCLALTPCCKCSSLPCNETBLR(
+        HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
+    ))
+    .load_example_wallet_with_verification()
+    .await;
+}
 
 async fn loaded_wallet_assert(
     wallet: LightWallet,

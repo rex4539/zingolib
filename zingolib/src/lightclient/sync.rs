@@ -1,4 +1,6 @@
-//! TODO: Add Mod Description Here!
+//! AWISOTT
+//! LightClient sync stuff.
+//! the difference between this and wallet/sync.rs is that these can interact with the network layer.
 
 use futures::future::join_all;
 
@@ -42,6 +44,20 @@ use crate::{
     grpc_connector::GrpcConnector,
     wallet::{now, transaction_context::TransactionContext, utils::get_price},
 };
+
+#[allow(missing_docs)] // error types document themselves
+#[derive(Debug, thiserror::Error)]
+/// likely no errors here. but this makes clippy (and fv) happier
+pub enum StartMempoolMonitorError {
+    #[error("Mempool Monitor is disabled.")]
+    Disabled,
+    #[error("could not read mempool monitor: {0}")]
+    CouldNotRead(String),
+    #[error("could not write mempool monitor: {0}")]
+    CouldNotWrite(String),
+    #[error("Mempool Monitor does not exist.")]
+    DoesNotExist,
+}
 
 impl LightClient {
     /// TODO: Add Doc Comment Here!
@@ -150,14 +166,22 @@ impl LightClient {
         *self.interrupt_sync.write().await = set_interrupt;
     }
 
-    /// TODO: Add Doc Comment Here!
-    pub fn start_mempool_monitor(lc: Arc<LightClient>) {
+    /// a concurrent task
+    /// the mempool includes transactions waiting to be accepted to the chain
+    /// we query it through lightwalletd
+    /// and record any new data, using ConfirmationStatus::Mempool
+    pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), StartMempoolMonitorError> {
         if !lc.config.monitor_mempool {
-            return;
+            return Err(StartMempoolMonitorError::Disabled);
         }
 
-        if lc.mempool_monitor.read().unwrap().is_some() {
-            return;
+        if lc
+            .mempool_monitor
+            .read()
+            .map_err(|e| StartMempoolMonitorError::CouldNotRead(e.to_string()))?
+            .is_some()
+        {
+            return Err(StartMempoolMonitorError::DoesNotExist);
         }
 
         let config = lc.config.clone();
@@ -278,7 +302,10 @@ impl LightClient {
             });
         });
 
-        *lc.mempool_monitor.write().unwrap() = Some(h);
+        *lc.mempool_monitor
+            .write()
+            .map_err(|e| StartMempoolMonitorError::CouldNotWrite(e.to_string()))? = Some(h);
+        Ok(())
     }
 
     /// Start syncing in batches with the max size, to manage memory consumption.
