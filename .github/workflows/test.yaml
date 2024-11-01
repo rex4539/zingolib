@@ -52,6 +52,7 @@ jobs:
       RUSTFLAGS: -D warnings
     container:
       image: zingodevops/ci-build:004
+      options: --security-opt seccomp=unconfined
     strategy:
       matrix:
         partition: [1, 2, 3, 4, 5, 6, 7, 8]
