@@ -1343,7 +1343,7 @@ pub mod scenarios {
     ) -> (RegtestManager, ChildProcessHandler) {
         let regtest_network = crate::config::RegtestNetwork::all_upgrades_active();
         let mut scenario_builder = setup::ScenarioBuilder::build_configure_launch(
-            Some(PoolType::Transparent),
+            Some(PoolType::Shielded(ShieldedProtocol::Sapling)),
             None,
             Some(20_000),
             &regtest_network,
