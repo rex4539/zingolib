@@ -1,7 +1,6 @@
 use bip0039::Mnemonic;
 
-use zcash_client_backend::PoolType;
-use zcash_client_backend::ShieldedProtocol;
+use zcash_client_backend::{PoolType, ShieldedProtocol};
 use zcash_keys::keys::Era;
 
 use crate::lightclient::LightClient;
@@ -157,11 +156,9 @@ async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_gf0aaf9347() {
 }
 #[tokio::test]
 async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_latest() {
-    Mainnet(HHCCLALTPCCKCSSLPCNETBLR(
-        HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-    ))
-    .load_example_wallet_with_verification()
-    .await;
+    NetworkSeedVersion::Mainnet(MainnetSeedVersion::HotelHumor(HotelHumorVersion::Latest))
+        .load_example_wallet_with_verification()
+        .await;
 }
 
 async fn loaded_wallet_assert(
