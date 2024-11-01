@@ -3,18 +3,20 @@ use bip0039::Mnemonic;
 use zcash_client_backend::{PoolType, ShieldedProtocol};
 use zcash_keys::keys::Era;
 
-use crate::lightclient::LightClient;
-use crate::wallet::{
-    disk::testing::{
-        assert_wallet_capability_matches_seed,
-        examples::{
-            AbandonAbandonVersion, AbsurdAmountVersion, ChimneyBetterVersion,
-            HospitalMuseumVersion, HotelHumorVersion, MainnetSeedVersion, MobileShuffleVersion,
-            NetworkSeedVersion, RegtestSeedVersion, TestnetSeedVersion, VillageTargetVersion,
+use crate::{
+    lightclient::LightClient,
+    wallet::{
+        disk::testing::{
+            assert_wallet_capability_matches_seed,
+            examples::{
+                AbandonAbandonVersion, AbsurdAmountVersion, ChimneyBetterVersion,
+                HospitalMuseumVersion, HotelHumorVersion, MainnetSeedVersion, MobileShuffleVersion,
+                NetworkSeedVersion, RegtestSeedVersion, TestnetSeedVersion, VillageTargetVersion,
+            },
         },
+        keys::unified::UnifiedKeyStore,
+        LightWallet,
     },
-    keys::unified::UnifiedKeyStore,
-    LightWallet,
 };
 
 // moving toward completeness: each of these tests should assert everything known about the LightWallet without network.
