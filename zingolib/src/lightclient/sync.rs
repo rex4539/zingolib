@@ -1,4 +1,6 @@
-//! TODO: Add Mod Description Here!
+//! AWISOTT
+//! LightClient sync stuff.
+//! the difference between this and wallet/sync.rs is that these can interact with the network layer.
 
 use futures::future::join_all;
 
@@ -42,6 +44,20 @@ use crate::{
     grpc_connector::GrpcConnector,
     wallet::{now, transaction_context::TransactionContext, utils::get_price},
 };
+
+#[allow(missing_docs)] // error types document themselves
+#[derive(Debug, thiserror::Error)]
+/// likely no errors here. but this makes clippy (and fv) happier
+pub enum StartMempoolMonitorError {
+    #[error("Mempool Monitor is disabled.")]
+    Disabled,
+    #[error("could not read mempool monitor: {0}")]
+    CouldNotRead(String),
+    #[error("could not write mempool monitor: {0}")]
+    CouldNotWrite(String),
+    #[error("Mempool Monitor does not exist.")]
+    DoesNotExist,
+}
 
 impl LightClient {
     /// TODO: Add Doc Comment Here!
@@ -150,14 +166,22 @@ impl LightClient {
         *self.interrupt_sync.write().await = set_interrupt;
     }
 
-    /// TODO: Add Doc Comment Here!
-    pub fn start_mempool_monitor(lc: Arc<LightClient>) {
+    /// a concurrent task
+    /// the mempool includes transactions waiting to be accepted to the chain
+    /// we query it through lightwalletd
+    /// and record any new data, using ConfirmationStatus::Mempool
+    pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), StartMempoolMonitorError> {
         if !lc.config.monitor_mempool {
-            return;
+            return Err(StartMempoolMonitorError::Disabled);
         }
 
-        if lc.mempool_monitor.read().unwrap().is_some() {
-            return;
+        if lc
+            .mempool_monitor
+            .read()
+            .map_err(|e| StartMempoolMonitorError::CouldNotRead(e.to_string()))?
+            .is_some()
+        {
+            return Err(StartMempoolMonitorError::DoesNotExist);
         }
 
         let config = lc.config.clone();
@@ -278,7 +302,10 @@ impl LightClient {
             });
         });
 
-        *lc.mempool_monitor.write().unwrap() = Some(h);
+        *lc.mempool_monitor
+            .write()
+            .map_err(|e| StartMempoolMonitorError::CouldNotWrite(e.to_string()))? = Some(h);
+        Ok(())
     }
 
     /// Start syncing in batches with the max size, to manage memory consumption.
@@ -668,30 +695,33 @@ impl LightClient {
 
 #[cfg(all(test, feature = "testvectors"))]
 pub mod test {
-    use crate::{
-        lightclient::LightClient,
-        wallet::disk::testing::examples::{
-            ExampleCBBHRWIILGBRABABSSHSMTPRVersion, ExampleHHCCLALTPCCKCSSLPCNETBLRVersion,
-            ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion, ExampleMainnetWalletSeed,
-            ExampleTestnetWalletSeed, ExampleWalletNetwork,
-        },
-    };
+    use crate::{lightclient::LightClient, wallet::disk::testing::examples};
 
-    pub(crate) async fn sync_example_wallet(wallet_case: ExampleWalletNetwork) -> LightClient {
-        std::env::set_var("RUST_BACKTRACE", "1");
+    /// loads a wallet from example data
+    /// turns on the internet tube
+    /// and syncs to the present blockchain moment
+    pub(crate) async fn sync_example_wallet(
+        wallet_case: examples::NetworkSeedVersion,
+    ) -> LightClient {
+        // install default crypto provider (ring)
+        if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+            log::error!("Error installing crypto provider: {:?}", e)
+        };
+
         let wallet = wallet_case.load_example_wallet().await;
         let lc = LightClient::create_from_wallet_async(wallet).await.unwrap();
         lc.do_sync(true).await.unwrap();
+        println!("{:?}", lc.do_balance().await);
         lc
     }
 
     /// this is a live sync test. its execution time scales linearly since last updated
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
-    async fn testnet_sync_mskmgdbhotbpetcjwcspgopp_latest() {
-        sync_example_wallet(ExampleWalletNetwork::Testnet(
-            ExampleTestnetWalletSeed::MSKMGDBHOTBPETCJWCSPGOPP(
-                ExampleMSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
+    async fn testnet_sync_mskmgdbhotbpetcjwcspgopp() {
+        sync_example_wallet(examples::NetworkSeedVersion::Testnet(
+            examples::TestnetSeedVersion::MSKMGDBHOTBPETCJWCSPGOPP(
+                examples::MSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
             ),
         ))
         .await;
@@ -699,10 +729,10 @@ pub mod test {
     /// this is a live sync test. its execution time scales linearly since last updated
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
     #[tokio::test]
-    async fn testnet_sync_cbbhrwiilgbrababsshsmtpr_latest() {
-        sync_example_wallet(ExampleWalletNetwork::Testnet(
-            ExampleTestnetWalletSeed::CBBHRWIILGBRABABSSHSMTPR(
-                ExampleCBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+    async fn testnet_sync_cbbhrwiilgbrababsshsmtpr() {
+        sync_example_wallet(examples::NetworkSeedVersion::Testnet(
+            examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
+                examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
             ),
         ))
         .await;
@@ -710,10 +740,10 @@ pub mod test {
     /// this is a live sync test. its execution time scales linearly since last updated
     #[tokio::test]
     #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
-    async fn mainnet_sync_hhcclaltpcckcsslpcnetblr_latest() {
-        sync_example_wallet(ExampleWalletNetwork::Mainnet(
-            ExampleMainnetWalletSeed::HHCCLALTPCCKCSSLPCNETBLR(
-                ExampleHHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
+    async fn mainnet_sync() {
+        sync_example_wallet(examples::NetworkSeedVersion::Mainnet(
+            examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
+                examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
             ),
         ))
         .await;

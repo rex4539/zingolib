@@ -89,9 +89,8 @@ impl LightWallet {
     }
 }
 
-use thiserror::Error;
 #[allow(missing_docs)] // error types document themselves
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum BuildTransactionError {
     #[error("No witness trees. This is viewkey watch, not spendkey wallet.")]
     NoSpendCapability,
@@ -164,20 +163,22 @@ impl LightWallet {
         sapling_prover: LocalTxProver,
         proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteRef>,
     ) -> Result<(), BuildTransactionError> {
+        let mut wallet_db = self
+            .transaction_context
+            .transaction_metadata_set
+            .write()
+            .await;
+        let usk = &self
+            .transaction_context
+            .key
+            .unified_key_store()
+            .try_into()?;
         zcash_client_backend::data_api::wallet::create_proposed_transactions(
-            self.transaction_context
-                .transaction_metadata_set
-                .write()
-                .await
-                .deref_mut(),
+            wallet_db.deref_mut(),
             &self.transaction_context.config.chain,
             &sapling_prover,
             &sapling_prover,
-            &self
-                .transaction_context
-                .key
-                .unified_key_store()
-                .try_into()?,
+            usk,
             zcash_client_backend::wallet::OvkPolicy::Sender,
             proposal,
             Some(self.wallet_capability().first_sapling_address()),

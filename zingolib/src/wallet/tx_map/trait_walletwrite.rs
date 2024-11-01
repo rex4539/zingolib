@@ -78,7 +78,7 @@ impl WalletWrite for TxMap {
     fn truncate_to_height(
         &mut self,
         _block_height: zcash_primitives::consensus::BlockHeight,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<zcash_primitives::consensus::BlockHeight, TxMapTraitError> {
         unimplemented!()
     }
 
