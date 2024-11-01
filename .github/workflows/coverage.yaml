@@ -13,6 +13,7 @@ jobs:
       RUSTFLAGS: -D warnings
     container:
       image: zingodevops/ci-build:004
+      options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
