@@ -1337,13 +1337,13 @@ pub mod scenarios {
         )
     }
 
-    /// TODO: Add Doc Comment Here!
+    /// This scenario funds a client with transparent funds.
     pub async fn funded_transparent_mobileclient(
         value: u64,
     ) -> (RegtestManager, ChildProcessHandler) {
         let regtest_network = crate::config::RegtestNetwork::all_upgrades_active();
         let mut scenario_builder = setup::ScenarioBuilder::build_configure_launch(
-            Some(PoolType::Shielded(ShieldedProtocol::Sapling)),
+            Some(PoolType::Transparent),
             None,
             Some(20_000),
             &regtest_network,
@@ -1376,20 +1376,6 @@ pub mod scenarios {
             .await
             .unwrap();
 
-        // send to self transparent
-        super::lightclient::from_inputs::quick_send(
-            &recipient,
-            vec![(
-                &get_base_address_macro!(recipient, "transparent"),
-                value.checked_div(10).unwrap(),
-                None,
-            )],
-        )
-        .await
-        .unwrap();
-        increase_height_and_wait_for_client(&scenario_builder.regtest_manager, &recipient, 1)
-            .await
-            .unwrap();
         // end
         scenario_builder
             .regtest_manager
