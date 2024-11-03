@@ -97,7 +97,7 @@ impl LightWalletSendProgress {
             "sending" => self.progress.is_send_in_progress,
             "progress" => self.progress.progress,
             "total" => self.progress.total,
-            "txid" => txid,
+            "txids" => txid,
             "error" => error,
             "sync_interrupt" => self.interrupt_sync
         }
