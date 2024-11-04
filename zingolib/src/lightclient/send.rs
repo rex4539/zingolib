@@ -426,6 +426,7 @@ pub mod send_with_proposal {
         /// this is a live sync test. its execution time scales linearly since last updated
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
+        #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_send_to_self_orchard() {
             let case = examples::NetworkSeedVersion::Mainnet(
                 examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
@@ -460,6 +461,7 @@ pub mod send_with_proposal {
         /// this is a live sync test. its execution time scales linearly since last updated
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
+        #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_send_to_self_sapling() {
             let case = examples::NetworkSeedVersion::Mainnet(
                 examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
@@ -494,6 +496,7 @@ pub mod send_with_proposal {
         /// this is a live sync test. its execution time scales linearly since last updated
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation, twice. expect 5min runtime
+        #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_send_to_self_transparent_and_then_shield() {
             let case = examples::NetworkSeedVersion::Mainnet(
                 examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
