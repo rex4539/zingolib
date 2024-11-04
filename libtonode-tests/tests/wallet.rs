@@ -74,9 +74,7 @@ mod load_wallet {
         println!("loading wallet");
 
         let wallet = examples::NetworkSeedVersion::Regtest(
-            examples::RegtestSeedVersion::HMVASMUVWMSSVICHCARBPOCT(
-                examples::HMVASMUVWMSSVICHCARBPOCTVersion::V27,
-            ),
+            examples::RegtestSeedVersion::HospitalMuseum(examples::HospitalMuseumVersion::V27),
         )
         .load_example_wallet()
         .await;
