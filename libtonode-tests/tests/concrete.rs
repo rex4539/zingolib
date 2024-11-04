@@ -2099,7 +2099,7 @@ mod slow {
                 .witness_trees()
                 .unwrap()
                 .witness_tree_orchard
-                .max_leaf_position(Some(0)),
+                .max_leaf_position(None),
             recipient
                 .wallet
                 .transaction_context
@@ -2109,7 +2109,7 @@ mod slow {
                 .witness_trees()
                 .unwrap()
                 .witness_tree_orchard
-                .max_leaf_position(Some(0))
+                .max_leaf_position(None)
         );
     }
     /// This mod collects tests of outgoing_metadata (a TransactionRecordField) across rescans
@@ -2615,7 +2615,7 @@ mod slow {
         let wallet_trees = read_lock.witness_trees().unwrap();
         let last_leaf = wallet_trees
             .witness_tree_orchard
-            .max_leaf_position(Some(0))
+            .max_leaf_position(None)
             .unwrap();
         let server_trees = zingolib::grpc_connector::get_trees(
             recipient.get_server_uri(),
@@ -2641,6 +2641,11 @@ mod slow {
                 server_orchard_front.unwrap(),
                 zingolib::testutils::incrementalmerkletree::Retention::Marked,
             )
+            .unwrap();
+        // This height doesn't matter, all we need is any arbitrary checkpoint ID
+        // as witness_at_checkpoint_depth requres a checkpoint to function now
+        server_orchard_shardtree
+            .checkpoint(BlockHeight::from_u32(0))
             .unwrap();
         assert_eq!(
             wallet_trees

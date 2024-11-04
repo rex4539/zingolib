@@ -44,12 +44,12 @@ impl LightWallet {
             .is_some_and(|trees| {
                 trees
                     .witness_tree_orchard
-                    .max_leaf_position(Some(0))
+                    .max_leaf_position(None)
                     .unwrap()
                     .is_none()
                     || trees
                         .witness_tree_sapling
-                        .max_leaf_position(Some(0))
+                        .max_leaf_position(None)
                         .unwrap()
                         .is_none()
             })
