@@ -495,9 +495,9 @@ pub mod send_with_proposal {
         #[tokio::test]
         /// this is a live sync test. its execution time scales linearly since last updated
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-        /// note: live send waits 2 minutes for confirmation. expect 3min runtime
+        /// note: live send waits 2 minutes for confirmation, twice. expect 5min runtime
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
-        async fn mainnet_send_to_self_transparent() {
+        async fn mainnet_send_to_self_transparent_and_then_shield() {
             let case = examples::NetworkSeedVersion::Mainnet(
                 examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
                     examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
@@ -526,32 +526,6 @@ pub mod send_with_proposal {
                 false,
             )
             .await;
-        }
-        #[tokio::test]
-        /// this is a live sync test. its execution time scales linearly since last updated
-        /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-        /// note: live send waits 2 minutes for confirmation. expect 3min runtime
-        #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
-        async fn mainnet_shield() {
-            let case = examples::NetworkSeedVersion::Mainnet(
-                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-                ),
-            );
-            let client = sync_example_wallet(case).await;
-
-            println!(
-                "mainnet_hhcclaltpcckcsslpcnetblr has {} transactions in it",
-                client
-                    .wallet
-                    .transaction_context
-                    .transaction_metadata_set
-                    .read()
-                    .await
-                    .transaction_records_by_id
-                    .len()
-            );
-
             with_assertions::propose_shield_bump_sync(
                 &mut LiveChain::setup().await,
                 &client,
