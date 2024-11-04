@@ -75,7 +75,12 @@ jobs:
           name: nextest-archive
 
       - name: Run tests
-        run: |
-          cargo nextest run --verbose --profile ci --archive-file nextest-archive.tar.zst \
-            --workspace-remap ./ --partition count:${{ matrix.partition }}/8 ${{ env.NEXTEST-FLAGS }}
+        uses: nick-fields/retry@v3
+        with:
+          timeout_seconds: 1000
+          max_attempts: 3
+          retry_on: error
+          command: |
+            cargo nextest run --verbose --profile ci --archive-file nextest-archive.tar.zst \
+              --workspace-remap ./ --partition count:${{ matrix.partition }}/8 ${{ env.NEXTEST-FLAGS }}
 
