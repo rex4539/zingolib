@@ -146,6 +146,12 @@ async fn verify_example_wallet_testnet_mskmgdbhotbpetcjwcspgopp_ga74fed621() {
     .await;
 }
 #[tokio::test]
+async fn verify_example_wallet_testnet_glorygoddess() {
+    NetworkSeedVersion::Testnet(TestnetSeedVersion::GloryGoddess)
+        .load_example_wallet_with_verification()
+        .await;
+}
+#[tokio::test]
 async fn verify_example_wallet_mainnet_vtfcorfbcbpctcfupmegmwbp_v28() {
     NetworkSeedVersion::Mainnet(MainnetSeedVersion::VillageTarget(VillageTargetVersion::V28))
         .load_example_wallet_with_verification()
