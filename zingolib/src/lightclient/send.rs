@@ -382,10 +382,9 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_send_to_self_orchard() {
-            let case =
-                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::ChimneyBetter(
-                    examples::ChimneyBetterVersion::G2f3830058,
-                ));
+            let case = examples::NetworkSeedVersion::Testnet(
+                examples::TestnetSeedVersion::ChimneyBetter(examples::ChimneyBetterVersion::Latest),
+            );
 
             let client = sync_example_wallet(case).await;
 
@@ -408,10 +407,9 @@ pub mod send_with_proposal {
         /// this is a live sync test. its execution time scales linearly since last updated
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_shield() {
-            let case =
-                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::ChimneyBetter(
-                    examples::ChimneyBetterVersion::G2f3830058,
-                ));
+            let case = examples::NetworkSeedVersion::Testnet(
+                examples::TestnetSeedVersion::ChimneyBetter(examples::ChimneyBetterVersion::Latest),
+            );
 
             let client = sync_example_wallet(case).await;
 

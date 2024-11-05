@@ -729,7 +729,7 @@ pub mod test {
     #[tokio::test]
     async fn testnet_sync_cbbhrwiilgbrababsshsmtpr() {
         sync_example_wallet(examples::NetworkSeedVersion::Testnet(
-            examples::TestnetSeedVersion::ChimneyBetter(examples::ChimneyBetterVersion::G2f3830058),
+            examples::TestnetSeedVersion::ChimneyBetter(examples::ChimneyBetterVersion::Latest),
         ))
         .await;
     }

@@ -65,7 +65,7 @@ pub enum ChimneyBetterVersion {
     /// wallet was last saved in this serialization version
     V28,
     /// wallet was last saved at this commit
-    G2f3830058,
+    Latest,
 }
 #[allow(missing_docs)] // described in parent enum
 #[non_exhaustive]
@@ -171,9 +171,9 @@ impl NetworkSeedVersion {
                         ))
                         .await
                     }
-                    ChimneyBetterVersion::G2f3830058 => {
+                    ChimneyBetterVersion::Latest => {
                         LightWallet::unsafe_from_buffer_testnet(include_bytes!(
-                            "examples/testnet/cbbhrwiilgbrababsshsmtpr/G2f3830058/zingo-wallet.dat"
+                            "examples/testnet/cbbhrwiilgbrababsshsmtpr/latest/zingo-wallet.dat"
                         ))
                         .await
                     }
