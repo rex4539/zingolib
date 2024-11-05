@@ -365,10 +365,9 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// this wallet contains archaic diversified addresses, which may clog the new send engine.
         async fn testnet_shield_multi_account() {
-            let case =
-                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::MobileShuffle(
-                    examples::MobileShuffleVersion::Ga74fed621,
-                ));
+            let case = examples::NetworkSeedVersion::Testnet(
+                examples::TestnetSeedVersion::MobileShuffle(examples::MobileShuffleVersion::Latest),
+            );
 
             let client = sync_example_wallet(case).await;
 

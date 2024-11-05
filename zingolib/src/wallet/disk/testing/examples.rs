@@ -76,7 +76,7 @@ pub enum MobileShuffleVersion {
     /// this wallet was synced in this version. does it have a bunch of taz scattered around different addresses?
     G93738061a,
     /// NU6 added to zingolib re-allows testnet tests by this commit
-    Ga74fed621,
+    Latest,
 }
 #[allow(missing_docs)] // described in parent enum
 #[non_exhaustive]
@@ -191,9 +191,9 @@ impl NetworkSeedVersion {
                         ))
                         .await
                     }
-                    MobileShuffleVersion::Ga74fed621 => {
+                    MobileShuffleVersion::Latest => {
                         LightWallet::unsafe_from_buffer_testnet(include_bytes!(
-                            "examples/testnet/mskmgdbhotbpetcjwcspgopp/Ga74fed621/zingo-wallet.dat"
+                            "examples/testnet/mskmgdbhotbpetcjwcspgopp/latest/zingo-wallet.dat"
                         ))
                         .await
                     }
