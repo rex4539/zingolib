@@ -269,69 +269,69 @@ impl NetworkSeedVersion {
     /// picks the first receiver associated with an example wallet
     pub fn example_wallet_address(&self, pool: PoolType) -> String {
         match self {
-                NetworkSeedVersion::Regtest(seed) => match seed {
-                    RegtestSeedVersion::HospitalMuseum(_) => {
-                        match pool {
-                            PoolType::Transparent => {"tmFLszfkjgim4zoUMAXpuohnFBAKy99rr2i".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"zregtestsapling1fkc26vpg566hgnx33n5uvgye4neuxt4358k68atnx78l5tg2dewdycesmr4m5pn56ffzsa7lyj6".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"uregtest1wdukkmv5p5n824e8ytnc3m6m77v9vwwl7hcpj0wangf6z23f9x0fnaen625dxgn8cgp67vzw6swuar6uwp3nqywfvvkuqrhdjffxjfg644uthqazrtxhrgwac0a6ujzgwp8y9cwthjeayq8r0q6786yugzzyt9vevxn7peujlw8kp3vf6d8p4fvvpd8qd5p7xt2uagelmtf3vl6w3u8".to_string()},
-                        }
-                    },
-                    RegtestSeedVersion::AbandonAbandon(_) => {
-                        match pool {
-                            PoolType::Transparent => {"tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string().to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"uregtest1zkuzfv5m3yhv2j4fmvq5rjurkxenxyq8r7h4daun2zkznrjaa8ra8asgdm8wwgwjvlwwrxx7347r8w0ee6dqyw4rufw4wg9djwcr6frzkezmdw6dud3wsm99eany5r8wgsctlxquu009nzd6hsme2tcsk0v3sgjvxa70er7h27z5epr67p5q767s2z5gt88paru56mxpm6pwz0cu35m".to_string()},
-                        }
-                    },
-                    RegtestSeedVersion::AbsurdAmount(_) => {
-                        match pool {
-                            PoolType::Transparent => {"tmS9nbexug7uT8x1cMTLP1ABEyKXpMjR5F1".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"zregtestsapling1lhjvuj4s3ghhccnjaefdzuwp3h3mfluz6tm8h0dsq2ym3f77zsv0wrrszpmaqlezm3kt6ajdvlw".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"uregtest1qtqr46fwkhmdn336uuyvvxyrv0l7trgc0z9clpryx6vtladnpyt4wvq99p59f4rcyuvpmmd0hm4k5vv6j8edj6n8ltk45sdkptlk7rtzlm4uup4laq8ka8vtxzqemj3yhk6hqhuypupzryhv66w65lah9ms03xa8nref7gux2zzhjnfanxnnrnwscmz6szv2ghrurhu3jsqdx25y2yh".to_string()},
-                        }
-                    },
+            NetworkSeedVersion::Regtest(seed) => match seed {
+                RegtestSeedVersion::HospitalMuseum(_) => {
+                    match pool {
+                        PoolType::Transparent => {"tmFLszfkjgim4zoUMAXpuohnFBAKy99rr2i".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"zregtestsapling1fkc26vpg566hgnx33n5uvgye4neuxt4358k68atnx78l5tg2dewdycesmr4m5pn56ffzsa7lyj6".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"uregtest1wdukkmv5p5n824e8ytnc3m6m77v9vwwl7hcpj0wangf6z23f9x0fnaen625dxgn8cgp67vzw6swuar6uwp3nqywfvvkuqrhdjffxjfg644uthqazrtxhrgwac0a6ujzgwp8y9cwthjeayq8r0q6786yugzzyt9vevxn7peujlw8kp3vf6d8p4fvvpd8qd5p7xt2uagelmtf3vl6w3u8".to_string()},
+                    }
                 },
-                NetworkSeedVersion::Testnet(seed) => match seed {
-                    TestnetSeedVersion::ChimneyBetter(_) => {
-                        match pool {
-                            PoolType::Transparent => {"tmYd5GP6JxUxTUcz98NLPumEotvaMPaXytz".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"ztestsapling1etnl5s47cqves0g5hk2dx5824rme4xv4aeauwzp4d6ys3qxykt5sw5rnaqh9syxry8vgxu60uhj".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"utest17wwv8nuvdnpjsxtu6ndz6grys5x8wphcwtzmg75wkx607c7cue9qz5kfraqzc7k9dfscmylazj4nkwazjj26s9rhyjxm0dcqm837ykgh2suv0at9eegndh3kvtfjwp3hhhcgk55y9d2ys56zkw8aaamcrv9cy0alj0ndvd0wll4gxhrk9y4yy9q9yg8yssrencl63uznqnkv7mk3w05".to_string()},
-                        }
-                    },
-                    TestnetSeedVersion::MobileShuffle(_) => {
-                        match pool {
-                            PoolType::Transparent => {"tmEVmDAnveCakZkvV4a6FT1TfYApTv937E7".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"ztestsapling1h8l5mzlwhmqmd9x7ehquayqckzg6jwa6955f3w9mnkn5p5yfhqy04yz6yjrqfcztxx05xlh3prq".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"utest19zd9laj93deq4lkay48xcfyh0tjec786x6yrng38fp6zusgm0c84h3el99fngh8eks4kxv020r2h2njku6pf69anpqmjq5c3suzcjtlyhvpse0aqje09la48xk6a2cnm822s2yhuzfr47pp4dla9rakdk90g0cee070z57d3trqk87wwj4swz6uf6ts6p5z6lep3xyvueuvt7392tww".to_string()},
-                        }
-                    },
-                    TestnetSeedVersion::GloryGoddess => {
-                        match pool {
-                            PoolType::Transparent => {"tmF7QpuKsLF7nsMvThu4wQBpiKVGJXGCSJF".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"ztestsapling17d9jswjas4zt852el3au4fpnvelc5k76d05fga2rdm9zttac29m8g202dkz8wsfcd7r4c8q540n".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"utest1dfj7pz3v2hewxk5nt36h9mu9g5h9cuc3064h5jlzgnq9f9f74fv4vr4vz4yvp2mq36ave8y8ggghm4g0e2nw9fg7qewuflpxxtvq4dzpscws4eq0hlh09shhj83a5yuzm9p3hsrtd028xk37gyf6403g90jwvtxkgyqv25kzzafyjfl7rvexzvrjx24akdr83qzkssyg22jm5cgcxc9".to_string()},
-                        }
-                    },
+                RegtestSeedVersion::AbandonAbandon(_) => {
+                    match pool {
+                        PoolType::Transparent => {"tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string().to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"uregtest1zkuzfv5m3yhv2j4fmvq5rjurkxenxyq8r7h4daun2zkznrjaa8ra8asgdm8wwgwjvlwwrxx7347r8w0ee6dqyw4rufw4wg9djwcr6frzkezmdw6dud3wsm99eany5r8wgsctlxquu009nzd6hsme2tcsk0v3sgjvxa70er7h27z5epr67p5q767s2z5gt88paru56mxpm6pwz0cu35m".to_string()},
+                    }
                 },
-                NetworkSeedVersion::Mainnet(seed) => match seed {
-                    MainnetSeedVersion::VillageTarget(_) => {
-                        match pool {
-                            PoolType::Transparent => {
-                        "t1P8tQtYFLR7TWsqtauc71RGQdqqwfFBbb4".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"zs1kgdrzfe6xuq3tg64vnezp3duyp43u7wcpgduqcpwz9wsnfqm4cecafu9qkmpsjtqxzf27n34z9k".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"u1n5zgv8c9px4hfmq7cr9f9t0av6q9nj5dwca9w0z9jxegut65gxs2y4qnx7ppng6k2hyt0asyycqrywalzyasxu2302xt4spfqnkh25nevr3h9exc3clh9tfpr5hyhc9dwee50l0cxm7ajun5xs9ycqhlw8rd39jql8z5zlv9hw4q8azcgpv04dez5547geuvyh8pfzezpw52cg2qknm".to_string()},
-                        }
-                    },
-                    MainnetSeedVersion::HotelHumor(_) => {
-                        match pool {
-                            PoolType::Transparent => {"t1XnsupYhvhSDSFJ4nzZ2kADhLMR22wg35y".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Sapling) => {"zs1zgffhwsnh7efu4auv8ql9egteangyferp28rv8r7hmu76u0ee8mthcpflx575emx2zygqcuedzn".to_string()},
-                            PoolType::Shielded(ShieldedProtocol::Orchard) => {"u14lrpa0myuh5ax8dtyaj64jddk8m80nk2wgd3sjlu7g3ejwxs3qkfj5hntakjte8ena3qnk40ht0ats5ad0lcwhjtn9hak6733fdf33fhkl7umgqy2vtcfmhmca9pjdlrsz68euuw06swnl9uzzpadmvztd50xen4ruw738t995x7mhdcx3mjv7eh5hntgtvhtv6vgp9l885eqg6xpm8".to_string()},
-                        }
-                    },
+                RegtestSeedVersion::AbsurdAmount(_) => {
+                    match pool {
+                        PoolType::Transparent => {"tmS9nbexug7uT8x1cMTLP1ABEyKXpMjR5F1".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"zregtestsapling1lhjvuj4s3ghhccnjaefdzuwp3h3mfluz6tm8h0dsq2ym3f77zsv0wrrszpmaqlezm3kt6ajdvlw".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"uregtest1qtqr46fwkhmdn336uuyvvxyrv0l7trgc0z9clpryx6vtladnpyt4wvq99p59f4rcyuvpmmd0hm4k5vv6j8edj6n8ltk45sdkptlk7rtzlm4uup4laq8ka8vtxzqemj3yhk6hqhuypupzryhv66w65lah9ms03xa8nref7gux2zzhjnfanxnnrnwscmz6szv2ghrurhu3jsqdx25y2yh".to_string()},
+                    }
                 },
+            },
+            NetworkSeedVersion::Testnet(seed) => match seed {
+                TestnetSeedVersion::ChimneyBetter(_) => {
+                    match pool {
+                        PoolType::Transparent => {"tmYd5GP6JxUxTUcz98NLPumEotvaMPaXytz".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"ztestsapling1etnl5s47cqves0g5hk2dx5824rme4xv4aeauwzp4d6ys3qxykt5sw5rnaqh9syxry8vgxu60uhj".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"utest17wwv8nuvdnpjsxtu6ndz6grys5x8wphcwtzmg75wkx607c7cue9qz5kfraqzc7k9dfscmylazj4nkwazjj26s9rhyjxm0dcqm837ykgh2suv0at9eegndh3kvtfjwp3hhhcgk55y9d2ys56zkw8aaamcrv9cy0alj0ndvd0wll4gxhrk9y4yy9q9yg8yssrencl63uznqnkv7mk3w05".to_string()},
+                    }
+                },
+                TestnetSeedVersion::MobileShuffle(_) => {
+                    match pool {
+                        PoolType::Transparent => {"tmEVmDAnveCakZkvV4a6FT1TfYApTv937E7".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"ztestsapling1h8l5mzlwhmqmd9x7ehquayqckzg6jwa6955f3w9mnkn5p5yfhqy04yz6yjrqfcztxx05xlh3prq".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"utest19zd9laj93deq4lkay48xcfyh0tjec786x6yrng38fp6zusgm0c84h3el99fngh8eks4kxv020r2h2njku6pf69anpqmjq5c3suzcjtlyhvpse0aqje09la48xk6a2cnm822s2yhuzfr47pp4dla9rakdk90g0cee070z57d3trqk87wwj4swz6uf6ts6p5z6lep3xyvueuvt7392tww".to_string()},
+                    }
+                },
+                TestnetSeedVersion::GloryGoddess => {
+                    match pool {
+                        PoolType::Transparent => {"tmF7QpuKsLF7nsMvThu4wQBpiKVGJXGCSJF".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"ztestsapling17d9jswjas4zt852el3au4fpnvelc5k76d05fga2rdm9zttac29m8g202dkz8wsfcd7r4c8q540n".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"utest1dfj7pz3v2hewxk5nt36h9mu9g5h9cuc3064h5jlzgnq9f9f74fv4vr4vz4yvp2mq36ave8y8ggghm4g0e2nw9fg7qewuflpxxtvq4dzpscws4eq0hlh09shhj83a5yuzm9p3hsrtd028xk37gyf6403g90jwvtxkgyqv25kzzafyjfl7rvexzvrjx24akdr83qzkssyg22jm5cgcxc9".to_string()},
+                    }
+                },
+            },
+            NetworkSeedVersion::Mainnet(seed) => match seed {
+                MainnetSeedVersion::VillageTarget(_) => {
+                    match pool {
+                        PoolType::Transparent => {
+                    "t1P8tQtYFLR7TWsqtauc71RGQdqqwfFBbb4".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"zs1kgdrzfe6xuq3tg64vnezp3duyp43u7wcpgduqcpwz9wsnfqm4cecafu9qkmpsjtqxzf27n34z9k".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"u1n5zgv8c9px4hfmq7cr9f9t0av6q9nj5dwca9w0z9jxegut65gxs2y4qnx7ppng6k2hyt0asyycqrywalzyasxu2302xt4spfqnkh25nevr3h9exc3clh9tfpr5hyhc9dwee50l0cxm7ajun5xs9ycqhlw8rd39jql8z5zlv9hw4q8azcgpv04dez5547geuvyh8pfzezpw52cg2qknm".to_string()},
+                    }
+                },
+                MainnetSeedVersion::HotelHumor(_) => {
+                    match pool {
+                        PoolType::Transparent => {"t1XnsupYhvhSDSFJ4nzZ2kADhLMR22wg35y".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Sapling) => {"zs1zgffhwsnh7efu4auv8ql9egteangyferp28rv8r7hmu76u0ee8mthcpflx575emx2zygqcuedzn".to_string()},
+                        PoolType::Shielded(ShieldedProtocol::Orchard) => {"u14lrpa0myuh5ax8dtyaj64jddk8m80nk2wgd3sjlu7g3ejwxs3qkfj5hntakjte8ena3qnk40ht0ats5ad0lcwhjtn9hak6733fdf33fhkl7umgqy2vtcfmhmca9pjdlrsz68euuw06swnl9uzzpadmvztd50xen4ruw738t995x7mhdcx3mjv7eh5hntgtvhtv6vgp9l885eqg6xpm8".to_string()},
+                    }
+                },
+            },
         }
     }
 }
