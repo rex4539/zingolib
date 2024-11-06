@@ -200,7 +200,12 @@ impl NetworkSeedVersion {
                         .await
                     }
                 },
-                TestnetSeedVersion::GloryGoddess => {LightWallet::unsafe_from_buffer_testnet(include_bytes!("examples/testnet/glory_goddess/latest/zingo-wallet.dat")).await},
+                TestnetSeedVersion::GloryGoddess => {
+                    LightWallet::unsafe_from_buffer_testnet(include_bytes!(
+                        "examples/testnet/glory_goddess/latest/zingo-wallet.dat"
+                    ))
+                    .await
+                }
             },
             NetworkSeedVersion::Mainnet(seed) => match seed {
                 MainnetSeedVersion::VillageTarget(version) => match version {
@@ -263,7 +268,7 @@ impl NetworkSeedVersion {
     }
     /// picks the first receiver associated with an example wallet
     pub fn example_wallet_address(&self, pool: PoolType) -> String {
-         match self {
+        match self {
                 NetworkSeedVersion::Regtest(seed) => match seed {
                     RegtestSeedVersion::HospitalMuseum(_) => {
                         match pool {
