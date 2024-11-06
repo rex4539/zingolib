@@ -319,7 +319,6 @@ impl NetworkSeedVersion {
                     MainnetSeedVersion::VillageTarget(_) => {
                         match pool {
                             PoolType::Transparent => {
-                                
                         "t1P8tQtYFLR7TWsqtauc71RGQdqqwfFBbb4".to_string()},
                             PoolType::Shielded(ShieldedProtocol::Sapling) => {"zs1kgdrzfe6xuq3tg64vnezp3duyp43u7wcpgduqcpwz9wsnfqm4cecafu9qkmpsjtqxzf27n34z9k".to_string()},
                             PoolType::Shielded(ShieldedProtocol::Orchard) => {"u1n5zgv8c9px4hfmq7cr9f9t0av6q9nj5dwca9w0z9jxegut65gxs2y4qnx7ppng6k2hyt0asyycqrywalzyasxu2302xt4spfqnkh25nevr3h9exc3clh9tfpr5hyhc9dwee50l0cxm7ajun5xs9ycqhlw8rd39jql8z5zlv9hw4q8azcgpv04dez5547geuvyh8pfzezpw52cg2qknm".to_string()},
