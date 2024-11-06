@@ -176,9 +176,7 @@ mod test {
     #[tokio::test]
     async fn example_mainnet_hhcclaltpcckcsslpcnetblr_80b5594ac_propose_100_000_to_self() {
         let wallet = examples::NetworkSeedVersion::Mainnet(
-            examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-            ),
+            examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
         )
         .load_example_wallet()
         .await;

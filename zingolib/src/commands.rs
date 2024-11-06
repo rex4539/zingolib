@@ -29,15 +29,17 @@ lazy_static! {
     static ref RT: Runtime = tokio::runtime::Runtime::new().unwrap();
 }
 
-/// TODO: Add Doc Comment Here!
+/// This command interface is used both by cli and also consumers.
 pub trait Command {
-    /// TODO: Add Doc Comment Here!
+    /// display command help (in cli)
     fn help(&self) -> &'static str;
 
-    /// TODO: Add Doc Comment Here!
+    /// TODO: Add Doc Comment for this!
     fn short_help(&self) -> &'static str;
 
-    /// TODO: Add Doc Comment Here!
+    /// in zingocli, this string is printed to console
+    /// consumers occasionally make assumptions about this
+    /// e. expect it to be a json object
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String;
 }
 
@@ -609,8 +611,30 @@ impl Command for UpdateCurrentPriceCommand {
     }
 }
 
+/// assumed by consumers to be JSON
 struct BalanceCommand {}
 impl Command for BalanceCommand {
+    fn help(&self) -> &'static str {
+        indoc! {r#"
+            Return the current ZEC balance in the wallet as a JSON object.
+
+            Transparent and Shielded balances, along with the addresses they belong to are displayed
+        "#}
+    }
+
+    fn short_help(&self) -> &'static str {
+        "Return the current ZEC balance in the wallet"
+    }
+
+    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
+        RT.block_on(async move {
+            serde_json::to_string_pretty(&lightclient.do_balance().await).unwrap()
+        })
+    }
+}
+
+struct PrintBalanceCommand {}
+impl Command for PrintBalanceCommand {
     fn help(&self) -> &'static str {
         indoc! {r#"
             Show the current ZEC balance in the wallet
@@ -1749,6 +1773,7 @@ pub fn get_commands() -> HashMap<&'static str, Box<dyn Command>> {
         ("clear", Box::new(ClearCommand {})),
         ("help", Box::new(HelpCommand {})),
         ("balance", Box::new(BalanceCommand {})),
+        ("print_balance", Box::new(PrintBalanceCommand {})),
         ("addresses", Box::new(AddressCommand {})),
         ("height", Box::new(HeightCommand {})),
         ("sendprogress", Box::new(SendProgressCommand {})),
