@@ -1819,7 +1819,7 @@ pub mod summaries {
         let fee = transaction_records
             .calculate_transaction_fee(transaction_record)
             .ok();
-        let orchard_notes = transaction_record
+        let mut orchard_notes = transaction_record
             .orchard_notes
             .iter()
             .map(|output| {
@@ -1839,7 +1839,7 @@ pub mod summaries {
                 )
             })
             .collect::<Vec<_>>();
-        let sapling_notes = transaction_record
+        let mut sapling_notes = transaction_record
             .sapling_notes
             .iter()
             .map(|output| {
@@ -1859,7 +1859,7 @@ pub mod summaries {
                 )
             })
             .collect::<Vec<_>>();
-        let transparent_coins = transaction_record
+        let mut transparent_coins = transaction_record
             .transparent_outputs
             .iter()
             .map(|output| {
@@ -1872,6 +1872,11 @@ pub mod summaries {
                 )
             })
             .collect::<Vec<_>>();
+
+        // TODO: this sorting should be removed once we root cause the tx records outputs being out of order
+        orchard_notes.sort_by_key(|output| output.output_index());
+        sapling_notes.sort_by_key(|output| output.output_index());
+        transparent_coins.sort_by_key(|output| output.output_index());
         (
             kind,
             value,
