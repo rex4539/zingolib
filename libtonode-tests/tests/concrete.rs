@@ -668,6 +668,39 @@ mod fast {
             NonNegativeAmount::const_from_u64((block_rewards::CANOPY * 4) - expected_fee)
         )
     }
+    #[tokio::test]
+    async fn mine_to_transparent_and_propose_shielding_with_div_addr() {
+        let regtest_network = RegtestNetwork::all_upgrades_active();
+        let (regtest_manager, _cph, faucet, _recipient) =
+            scenarios::faucet_recipient(PoolType::Transparent, regtest_network).await;
+        increase_height_and_wait_for_client(&regtest_manager, &faucet, 1)
+            .await
+            .unwrap();
+        faucet.do_new_address("zto").await.unwrap();
+        let proposal = faucet.propose_shield().await.unwrap();
+        let only_step = proposal.steps().first();
+
+        // Orchard action and dummy, plus 4 transparent inputs
+        let expected_fee = 30_000;
+
+        assert_eq!(proposal.steps().len(), 1);
+        assert_eq!(only_step.transparent_inputs().len(), 4);
+        assert_eq!(
+            only_step.balance().fee_required(),
+            NonNegativeAmount::const_from_u64(expected_fee)
+        );
+        // Only one change item. I guess change could be split between pools?
+        assert_eq!(only_step.balance().proposed_change().len(), 1);
+        assert_eq!(
+            only_step
+                .balance()
+                .proposed_change()
+                .first()
+                .unwrap()
+                .value(),
+            NonNegativeAmount::const_from_u64((block_rewards::CANOPY * 4) - expected_fee)
+        )
+    }
 }
 mod slow {
     use bip0039::Mnemonic;
