@@ -374,19 +374,60 @@ pub mod send_with_proposal {
             /// this wallet contains archaic diversified addresses, which may clog the new send engine.
             #[ignore = "live testnet: testnet relies on NU6"]
             #[tokio::test]
-            async fn testnet_shield_multi_account() {
+            async fn mobile_shuffle_super_send() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::MobileShuffle(
                         examples::MobileShuffleVersion::Latest,
                     ),
                 );
-
                 let client = sync_example_wallet(case).await;
 
                 with_assertions::propose_shield_bump_sync(
                     &mut LiveChain::setup().await,
                     &client,
                     true,
+                )
+                .await;
+
+                let case2 = examples::NetworkSeedVersion::Testnet(
+                    examples::TestnetSeedVersion::ChimneyBetter(
+                        examples::ChimneyBetterVersion::Latest,
+                    ),
+                );
+                let client2 = sync_example_wallet(case2).await;
+
+                with_assertions::propose_send_bump_sync_all_recipients(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    vec![
+                        (&client, PoolType::Transparent, 10_000, None),
+                        (
+                            &client,
+                            PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Sapling),
+                            10_000,
+                            None,
+                        ),
+                        (
+                            &client,
+                            PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Orchard),
+                            10_000,
+                            None,
+                        ),
+                        (&client2, PoolType::Transparent, 10_000, None),
+                        (
+                            &client2,
+                            PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Sapling),
+                            10_000,
+                            None,
+                        ),
+                        (
+                            &client2,
+                            PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Orchard),
+                            10_000,
+                            None,
+                        ),
+                    ],
+                    false,
                 )
                 .await;
             }
