@@ -382,13 +382,6 @@ pub mod send_with_proposal {
                 );
                 let client = sync_example_wallet(case).await;
 
-                with_assertions::propose_shield_bump_sync(
-                    &mut LiveChain::setup().await,
-                    &client,
-                    true,
-                )
-                .await;
-
                 let case2 = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::ChimneyBetter(
                         examples::ChimneyBetterVersion::Latest,
@@ -430,6 +423,14 @@ pub mod send_with_proposal {
                     false,
                 )
                 .await;
+
+                with_assertions::propose_shield_bump_sync(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    true,
+                )
+                .await
+                .unwrap();
             }
 
             /// requires 1 confirmation: expect 3 minute runtime
@@ -475,7 +476,8 @@ pub mod send_with_proposal {
                     &client,
                     true,
                 )
-                .await;
+                .await
+                .unwrap();
             }
         }
 
@@ -584,7 +586,8 @@ pub mod send_with_proposal {
                     &client,
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
         }
     }

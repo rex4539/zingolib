@@ -91,7 +91,9 @@ where
         ValueTransferKind::Sent(SentValueTransfer::SendToSelf(SelfSendValueTransfer::Basic))
     );
 
-    with_assertions::propose_shield_bump_sync(&mut environment, &sender, false).await;
+    with_assertions::propose_shield_bump_sync(&mut environment, &sender, false)
+        .await
+        .unwrap();
     assert_eq!(sender.value_transfers().await.0.len(), 5);
     assert_eq!(
         sender.value_transfers().await.0[4].kind(),
@@ -200,7 +202,9 @@ where
         );
 
         assert_eq!(
-            with_assertions::propose_shield_bump_sync(&mut environment, &secondary, false,).await,
+            with_assertions::propose_shield_bump_sync(&mut environment, &secondary, false,)
+                .await
+                .unwrap(),
             MARGINAL_FEE.into_u64() * 3
         );
 
