@@ -46,8 +46,8 @@ impl LightWallet {
             .unwrap()
     }
     /// parses a wallet as an mainnet wallet, aimed at a default mainnet server
-    pub async fn example_mainnet_saveable(wallet_path: Box<Path>) -> Self {
-        let config = crate::config::ZingoConfig::create_mainnet();
+    pub async fn example_testnet_saveable(wallet_path: Box<Path>) -> Self {
+        let config = crate::config::ZingoConfig::create_testnet();
         let data_reader = BufReader::new(File::open(wallet_path).unwrap());
         Self::read_internal(data_reader, &config)
             .await
