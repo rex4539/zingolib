@@ -360,14 +360,15 @@ pub mod send_with_proposal {
             // TODO: match on specific error
         }
 
+        /// live sync: execution time increases linearly until example wallet is upgraded
+        /// live send TESTNET: these assume the wallet has on-chain TAZ.
+        /// - waits 150 seconds for confirmation per transaction. see [zingolib/src/testutils/chain_generics/live_chain.rs]
         mod testnet {
             use super::*;
 
+            /// this wallet contains archaic diversified addresses, which may clog the new send engine.
             #[ignore = "live testnet: testnet relies on NU6"]
             #[tokio::test]
-            /// this is a live sync test. its execution time scales linearly since last updated
-            /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-            /// this wallet contains archaic diversified addresses, which may clog the new send engine.
             async fn testnet_shield_multi_account() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::MobileShuffle(
@@ -385,11 +386,9 @@ pub mod send_with_proposal {
                 .await;
             }
 
+            /// requires 1 confirmation: expect 3 minute runtime
             #[ignore = "live testnet: testnet relies on NU6"]
             #[tokio::test]
-            /// this is a live sync test. its execution time scales linearly since last updated
-            /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-            /// note: live send waits 2 minutes for confirmation. expect 3min runtime
             async fn testnet_send_to_self_orchard() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::ChimneyBetter(
@@ -413,10 +412,9 @@ pub mod send_with_proposal {
                 .await;
             }
 
+            /// requires 1 confirmation: expect 3 minute runtime
             #[ignore = "live testnet: testnet relies on NU6"]
             #[tokio::test]
-            /// this is a live sync test. its execution time scales linearly since last updated
-            /// note: live send waits 2 minutes for confirmation. expect 3min runtime
             async fn testnet_shield() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::ChimneyBetter(
@@ -434,13 +432,15 @@ pub mod send_with_proposal {
                 .await;
             }
         }
+
+        /// live sync: execution time increases linearly until example wallet is upgraded
+        /// live send MAINNET: spends on-chain ZEC.
+        /// - waits 150 seconds for confirmation per transaction. see [zingolib/src/testutils/chain_generics/live_chain.rs]
         mod mainnet {
             use super::*;
 
+            /// requires 1 confirmation: expect 3 minute runtime
             #[tokio::test]
-            /// this is a live sync test. its execution time scales linearly since last updated
-            /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-            /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
             #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
             async fn mainnet_send_to_self_orchard() {
                 let case = examples::NetworkSeedVersion::Mainnet(
@@ -470,10 +470,9 @@ pub mod send_with_proposal {
                 )
                 .await;
             }
+
+            /// requires 1 confirmation: expect 3 minute runtime
             #[tokio::test]
-            /// this is a live sync test. its execution time scales linearly since last updated
-            /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-            /// note: live send waits 2 minutes for confirmation. expect 3min runtime
             #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
             async fn mainnet_send_to_self_sapling() {
                 let case = examples::NetworkSeedVersion::Mainnet(
@@ -503,10 +502,9 @@ pub mod send_with_proposal {
                 )
                 .await;
             }
+
+            /// requires 2 confirmations: expect 6 minute runtime
             #[tokio::test]
-            /// this is a live sync test. its execution time scales linearly since last updated
-            /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-            /// note: live send waits 2 minutes for confirmation, twice. expect 5min runtime
             #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
             async fn mainnet_send_to_self_transparent_and_then_shield() {
                 let case = examples::NetworkSeedVersion::Mainnet(
