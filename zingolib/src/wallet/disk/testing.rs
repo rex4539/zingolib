@@ -45,15 +45,6 @@ impl LightWallet {
             .map_err(|e| format!("Cannot deserialize LightWallet file!: {}", e))
             .unwrap()
     }
-    /// parses a wallet as an mainnet wallet, aimed at a default mainnet server
-    pub async fn example_testnet_saveable(wallet_path: Box<Path>) -> Self {
-        let config = crate::config::ZingoConfig::create_testnet();
-        let data_reader = BufReader::new(File::open(wallet_path).unwrap());
-        Self::read_internal(data_reader, &config)
-            .await
-            .map_err(|e| format!("Cannot deserialize LightWallet file!: {}", e))
-            .unwrap()
-    }
 }
 
 // async fn assert_test_wallet(case: examples::LegacyWalletCase) {
