@@ -173,7 +173,7 @@ impl NetworkSeedVersion {
                     }
                     ChimneyBetterVersion::Latest => {
                         LightWallet::unsafe_from_buffer_testnet(include_bytes!(
-                            "examples/testnet/cbbhrwiilgbrababsshsmtpr/G2f3830058/zingo-wallet.dat"
+                            "examples/testnet/cbbhrwiilgbrababsshsmtpr/latest/zingo-wallet.dat"
                         ))
                         .await
                     }
@@ -193,7 +193,7 @@ impl NetworkSeedVersion {
                     }
                     MobileShuffleVersion::Latest => {
                         LightWallet::unsafe_from_buffer_testnet(include_bytes!(
-                            "examples/testnet/mskmgdbhotbpetcjwcspgopp/Ga74fed621/zingo-wallet.dat"
+                            "examples/testnet/mskmgdbhotbpetcjwcspgopp/latest/zingo-wallet.dat"
                         ))
                         .await
                     }
