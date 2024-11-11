@@ -371,14 +371,35 @@ pub mod send_with_proposal {
         mod testnet {
             use super::*;
 
-            /// this wallet contains archaic diversified addresses, which may clog the new send engine.
+            /// requires 1 confirmation: expect 3 minute runtime
             #[ignore = "live testnet: testnet relies on NU6"]
             #[tokio::test]
-            async fn mobile_shuffle_super_send() {
+            async fn glory_goddess_simple_send() {
                 let case = examples::NetworkSeedVersion::Testnet(
-                    examples::TestnetSeedVersion::MobileShuffle(
-                        examples::MobileShuffleVersion::Latest,
-                    ),
+                    examples::TestnetSeedVersion::GloryGoddess,
+                );
+                let client = sync_example_wallet(case).await;
+
+                with_assertions::propose_send_bump_sync_all_recipients(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    vec![(
+                        &client,
+                        PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Orchard),
+                        10_000,
+                        None,
+                    )],
+                    false,
+                )
+                .await;
+            }
+
+            /// requires 1 confirmation: expect 3 minute runtime
+            #[ignore = "live testnet: testnet relies on NU6"]
+            #[tokio::test]
+            async fn glory_goddess_super_send() {
+                let case = examples::NetworkSeedVersion::Testnet(
+                    examples::TestnetSeedVersion::GloryGoddess,
                 );
                 let client = sync_example_wallet(case).await;
 
