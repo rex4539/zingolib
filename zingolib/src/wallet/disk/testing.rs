@@ -1,8 +1,6 @@
 //! functionality for testing the save and load functions of LightWallet.
 //! do not compile test-elevation feature for production.
 
-use std::{fs::File, io::BufReader, path::Path};
-
 use bip0039::Mnemonic;
 use zcash_keys::keys::{Era, UnifiedSpendingKey};
 
@@ -41,15 +39,6 @@ impl LightWallet {
     pub async fn unsafe_from_buffer_mainnet(data: &[u8]) -> Self {
         let config = crate::config::ZingoConfig::create_mainnet();
         Self::read_internal(data, &config)
-            .await
-            .map_err(|e| format!("Cannot deserialize LightWallet file!: {}", e))
-            .unwrap()
-    }
-    /// parses a wallet as an mainnet wallet, aimed at a default mainnet server
-    pub async fn example_mainnet_saveable(wallet_path: Box<Path>) -> Self {
-        let config = crate::config::ZingoConfig::create_mainnet();
-        let data_reader = BufReader::new(File::open(wallet_path).unwrap());
-        Self::read_internal(data_reader, &config)
             .await
             .map_err(|e| format!("Cannot deserialize LightWallet file!: {}", e))
             .unwrap()

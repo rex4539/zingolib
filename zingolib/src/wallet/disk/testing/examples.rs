@@ -77,7 +77,7 @@ pub enum MobileShuffleVersion {
     Gab72a38b,
     /// this wallet was synced in this version. does it have a bunch of taz scattered around different addresses?
     G93738061a,
-    /// NU6 added to zingolib re-allows testnet tests by this commit
+    /// most recent chain state added to the wallet
     Latest,
 }
 #[allow(missing_docs)] // described in parent enum
