@@ -1280,7 +1280,8 @@ mod slow {
                  recipient_address: "zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string(),
                  value: first_send_to_sapling,
                  memo: Memo::Empty,
-                 recipient_ua: None
+                 recipient_ua: None,
+                 output_index: None,
              }])
             .build()
             .unwrap();
@@ -1310,6 +1311,7 @@ mod slow {
                 value: first_send_to_transparent,
                 memo: Memo::Empty,
                 recipient_ua: None,
+                output_index: None,
             }])
             .build()
             .unwrap();
@@ -1423,6 +1425,7 @@ mod slow {
                 value: second_send_to_transparent,
                 memo: Memo::Empty,
                 recipient_ua: None,
+                output_index: None,
             }])
             .build()
             .unwrap();
@@ -1460,7 +1463,8 @@ mod slow {
                  recipient_address: "zregtestsapling1fmq2ufux3gm0v8qf7x585wj56le4wjfsqsj27zprjghntrerntggg507hxh2ydcdkn7sx8kya7p".to_string(),
                  value: second_send_to_sapling,
                  memo: Memo::Empty,
-                 recipient_ua: None
+                 recipient_ua: None,
+                 output_index: None,
              }])
             .build()
             .unwrap();
@@ -1502,6 +1506,7 @@ mod slow {
                 value: external_transparent_3,
                 memo: Memo::Empty,
                 recipient_ua: None,
+                output_index: None,
             }])
             .build()
             .unwrap();
@@ -2641,6 +2646,11 @@ mod slow {
                 server_orchard_front.unwrap(),
                 zingolib::testutils::incrementalmerkletree::Retention::Marked,
             )
+            .unwrap();
+        // This height doesn't matter, all we need is any arbitrary checkpoint ID
+        // as witness_at_checkpoint_depth requres a checkpoint to function now
+        server_orchard_shardtree
+            .checkpoint(BlockHeight::from_u32(0))
             .unwrap();
         assert_eq!(
             wallet_trees
