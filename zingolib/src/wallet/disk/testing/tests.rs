@@ -116,7 +116,7 @@ async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_v28() {
 #[tokio::test]
 async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_g2f3830058() {
     NetworkSeedVersion::Testnet(TestnetSeedVersion::ChimneyBetter(
-        ChimneyBetterVersion::G2f3830058,
+        ChimneyBetterVersion::Latest,
     ))
     .load_example_wallet_with_verification()
     .await;

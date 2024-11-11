@@ -392,7 +392,7 @@ pub mod send_with_proposal {
             async fn testnet_send_to_self_orchard() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::ChimneyBetter(
-                        examples::ChimneyBetterVersion::G2f3830058,
+                        examples::ChimneyBetterVersion::Latest,
                     ),
                 );
 
@@ -418,7 +418,7 @@ pub mod send_with_proposal {
             async fn testnet_shield() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::ChimneyBetter(
-                        examples::ChimneyBetterVersion::G2f3830058,
+                        examples::ChimneyBetterVersion::Latest,
                     ),
                 );
 
