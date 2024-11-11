@@ -394,7 +394,7 @@ pub mod send_with_proposal {
             /// requires 1 confirmation: expect 3 minute runtime
             #[ignore = "live testnet: testnet relies on NU6"]
             #[tokio::test]
-            async fn testnet_send_to_self_orchard() {
+            async fn chimney_better_send_to_self_orchard() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::ChimneyBetter(
                         examples::ChimneyBetterVersion::Latest,
