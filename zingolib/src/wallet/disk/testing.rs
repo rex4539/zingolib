@@ -1,8 +1,6 @@
 //! functionality for testing the save and load functions of LightWallet.
 //! do not compile test-elevation feature for production.
 
-use std::{fs::File, io::BufReader, path::Path};
-
 use bip0039::Mnemonic;
 use zcash_keys::keys::{Era, UnifiedSpendingKey};
 
