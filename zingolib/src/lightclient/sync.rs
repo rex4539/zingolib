@@ -720,7 +720,7 @@ pub mod test {
     #[tokio::test]
     async fn testnet_sync_mskmgdbhotbpetcjwcspgopp() {
         sync_example_wallet(examples::NetworkSeedVersion::Testnet(
-            examples::TestnetSeedVersion::MobileShuffle(examples::MobileShuffleVersion::Ga74fed621),
+            examples::TestnetSeedVersion::MobileShuffle(examples::MobileShuffleVersion::Latest),
         ))
         .await;
     }

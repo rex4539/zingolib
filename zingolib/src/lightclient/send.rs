@@ -372,7 +372,7 @@ pub mod send_with_proposal {
             async fn testnet_shield_multi_account() {
                 let case = examples::NetworkSeedVersion::Testnet(
                     examples::TestnetSeedVersion::MobileShuffle(
-                        examples::MobileShuffleVersion::Ga74fed621,
+                        examples::MobileShuffleVersion::Latest,
                     ),
                 );
 

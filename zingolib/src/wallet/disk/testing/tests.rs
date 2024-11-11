@@ -140,7 +140,7 @@ async fn verify_example_wallet_testnet_mskmgdbhotbpetcjwcspgopp_g93738061a() {
 #[tokio::test]
 async fn verify_example_wallet_testnet_mskmgdbhotbpetcjwcspgopp_ga74fed621() {
     NetworkSeedVersion::Testnet(TestnetSeedVersion::MobileShuffle(
-        MobileShuffleVersion::Ga74fed621,
+        MobileShuffleVersion::Latest,
     ))
     .load_example_wallet_with_verification()
     .await;
