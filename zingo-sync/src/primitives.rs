@@ -257,7 +257,7 @@ pub struct OutgoingData {
     pub recipient_address: String,
     /// Full unified address encoded in change memo
     pub recipient_ua: Option<UnifiedAddress>,
-    /// Amount of funds sent to receipient address
+    /// Amount of funds sent to recipient address
     pub value: u64,
     /// Memo sent to recipient address
     pub memo: Memo,
