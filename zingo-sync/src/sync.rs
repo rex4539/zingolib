@@ -143,6 +143,7 @@ where
     };
 
     if wallet_height > chain_height {
+        // TODO:  Isn't this a possible state if there's been a reorg?
         panic!("wallet is ahead of server!")
     }
 
