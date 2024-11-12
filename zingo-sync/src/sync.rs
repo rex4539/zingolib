@@ -18,7 +18,6 @@ use zcash_client_backend::{
 };
 use zcash_primitives::consensus::{self, BlockHeight, NetworkUpgrade};
 
-use futures::future::try_join_all;
 use tokio::sync::mpsc;
 
 const BATCH_SIZE: u32 = 10;
@@ -36,8 +35,6 @@ where
 {
     tracing::info!("Syncing wallet...");
 
-    let mut handles = Vec::new();
-
     // create channel for sending fetch requests and launch fetcher task
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
     let fetcher_handle = tokio::spawn(fetch(
@@ -45,7 +42,6 @@ where
         client,
         consensus_parameters.clone(),
     ));
-    handles.push(fetcher_handle);
 
     update_scan_ranges(
         fetch_request_sender.clone(),
@@ -110,7 +106,7 @@ where
         mark_scanned(scan_range, wallet.get_sync_state_mut().unwrap()).unwrap();
     }
 
-    try_join_all(handles).await.unwrap();
+    let _ = fetcher_handle.await.unwrap();
 
     Ok(())
 }
