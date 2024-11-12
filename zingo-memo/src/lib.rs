@@ -90,7 +90,7 @@ pub fn create_wallet_internal_memo_version_1(
     }
 }
 
-/// Attempts to parse the 511 bytes of a version_0 zingo memo
+/// Attempts to parse the 511 bytes of a zingo memo
 pub fn parse_zingo_memo(memo: [u8; 511]) -> io::Result<ParsedMemo> {
     let mut reader: &[u8] = &memo;
     match CompactSize::read(&mut reader)? {
@@ -199,14 +199,12 @@ mod test_vectors;
 
 #[cfg(test)]
 mod tests {
-    use zcash_primitives::consensus::MAIN_NETWORK;
-
     use super::*;
-    use crate::test_vectors::UA_TEST_VECTORS;
+    use zcash_primitives::consensus::MAIN_NETWORK;
 
     #[test]
     fn round_trip_ser_deser() {
-        for test_vector in UA_TEST_VECTORS {
+        for test_vector in test_vectors::UA_TEST_VECTORS {
             let zcash_keys::address::Address::Unified(ua) =
                 zcash_keys::address::Address::decode(&MAIN_NETWORK, test_vector.unified_addr)
                     .unwrap()
