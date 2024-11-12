@@ -2,7 +2,6 @@
 
 use std::{convert::Infallible, num::NonZeroU32, ops::DerefMut as _};
 
-use thiserror::Error;
 use zcash_client_backend::{
     data_api::wallet::input_selection::GreedyInputSelector,
     zip321::{TransactionRequest, Zip321Error},
@@ -14,14 +13,12 @@ use crate::config::ChainType;
 
 use super::{
     send::change_memo_from_transaction_request,
-    tx_map_and_maybe_trees::{TxMapAndMaybeTrees, TxMapAndMaybeTreesTraitError},
+    tx_map::{TxMap, TxMapTraitError},
     LightWallet,
 };
 
-type GISKit = GreedyInputSelector<
-    TxMapAndMaybeTrees,
-    zcash_client_backend::fees::zip317::SingleOutputChangeStrategy,
->;
+type GISKit =
+    GreedyInputSelector<TxMap, zcash_client_backend::fees::zip317::SingleOutputChangeStrategy>;
 
 // This private helper is a very small DRY, but it has already corrected a minor
 // divergence in change strategy.
@@ -44,14 +41,14 @@ fn build_default_giskit(memo: Option<MemoBytes>) -> GISKit {
 }
 
 /// Errors that can result from do_propose
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProposeSendError {
     /// error in using trait to create spend proposal
     #[error("{0}")]
     Proposal(
         zcash_client_backend::data_api::error::Error<
-            TxMapAndMaybeTreesTraitError,
-            TxMapAndMaybeTreesTraitError,
+            TxMapTraitError,
+            TxMapTraitError,
             zcash_client_backend::data_api::wallet::input_selection::GreedyInputSelectorError<
                 zcash_primitives::transaction::fees::zip317::FeeError,
                 zcash_client_backend::wallet::NoteId,
@@ -71,7 +68,7 @@ pub enum ProposeSendError {
 }
 
 /// Errors that can result from do_propose
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProposeShieldError {
     /// error in parsed addresses
     #[error("{0}")]
@@ -80,8 +77,8 @@ pub enum ProposeShieldError {
     /// error in using trait to create shielding proposal
     Component(
         zcash_client_backend::data_api::error::Error<
-            TxMapAndMaybeTreesTraitError,
-            TxMapAndMaybeTreesTraitError,
+            TxMapTraitError,
+            TxMapTraitError,
             zcash_client_backend::data_api::wallet::input_selection::GreedyInputSelectorError<
                 zcash_primitives::transaction::fees::zip317::FeeError,
                 Infallible,
@@ -97,7 +94,9 @@ impl LightWallet {
         &self,
         request: TransactionRequest,
     ) -> Result<crate::data::proposal::ProportionalFeeProposal, ProposeSendError> {
-        let memo = change_memo_from_transaction_request(&request);
+        let number_of_rejection_addresses =
+            self.transaction_context.key.get_rejection_addresses().len() as u32;
+        let memo = change_memo_from_transaction_request(&request, number_of_rejection_addresses);
 
         let input_selector = build_default_giskit(Some(memo));
         let mut tmamt = self
@@ -107,10 +106,10 @@ impl LightWallet {
             .await;
 
         zcash_client_backend::data_api::wallet::propose_transfer::<
-            TxMapAndMaybeTrees,
+            TxMap,
             ChainType,
             GISKit,
-            TxMapAndMaybeTreesTraitError,
+            TxMapTraitError,
         >(
             tmamt.deref_mut(),
             &self.transaction_context.config.chain,
@@ -142,10 +141,10 @@ impl LightWallet {
             .await;
 
         let proposed_shield = zcash_client_backend::data_api::wallet::propose_shielding::<
-            TxMapAndMaybeTrees,
+            TxMap,
             ChainType,
             GISKit,
-            TxMapAndMaybeTreesTraitError,
+            TxMapTraitError,
         >(
             &mut tmamt,
             &self.transaction_context.config.chain,
@@ -160,5 +159,38 @@ impl LightWallet {
         .map_err(ProposeShieldError::Component)?;
 
         Ok(proposed_shield)
+    }
+}
+
+#[cfg(all(test, feature = "testvectors"))]
+mod test {
+    use zcash_client_backend::PoolType;
+
+    use crate::{
+        testutils::lightclient::from_inputs::transaction_request_from_send_inputs,
+        wallet::disk::testing::examples,
+    };
+
+    /// this test loads an example wallet with existing sapling finds
+    #[ignore = "for some reason this is does not work without network, even though it should be possible"]
+    #[tokio::test]
+    async fn example_mainnet_hhcclaltpcckcsslpcnetblr_80b5594ac_propose_100_000_to_self() {
+        let wallet = examples::NetworkSeedVersion::Mainnet(
+            examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
+        )
+        .load_example_wallet()
+        .await;
+
+        let pool = PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Orchard);
+        let self_address = wallet.get_first_address(pool).unwrap();
+
+        let receivers = vec![(self_address.as_str(), 100_000, None)];
+        let request = transaction_request_from_send_inputs(receivers)
+            .expect("actually all of this logic oughta be internal to propose");
+
+        wallet
+            .create_send_proposal(request)
+            .await
+            .expect("can propose from existing data");
     }
 }
