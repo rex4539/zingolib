@@ -726,6 +726,15 @@ where
                 ParsedMemo::Version0 { uas } => {
                     add_recipient_unified_address(parameters, uas, outgoing_data);
                 }
+
+                ParsedMemo::Version1 {
+                    uas,
+                    rejection_address_indexes,
+                } => {
+                    dbg!(uas);
+                    dbg!(rejection_address_indexes);
+                    todo!("Handle this new case!")
+                }
                 _ => panic!(
                     "memo version not supported. please ensure that your software is up-to-date."
                 ),
