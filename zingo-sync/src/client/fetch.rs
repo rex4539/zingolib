@@ -27,7 +27,7 @@ use crate::client::FetchRequest;
 pub async fn fetch(
     mut fetch_request_receiver: UnboundedReceiver<FetchRequest>,
     mut client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: impl consensus::Parameters,
+    consensus_parameters: impl consensus::Parameters,
 ) -> Result<(), ()> {
     let mut fetch_request_queue: Vec<FetchRequest> = Vec::new();
 
@@ -41,7 +41,7 @@ pub async fn fetch(
         let fetch_request = select_fetch_request(&mut fetch_request_queue);
 
         if let Some(request) = fetch_request {
-            fetch_from_server(&mut client, &parameters, request)
+            fetch_from_server(&mut client, &consensus_parameters, request)
                 .await
                 .unwrap();
         }
