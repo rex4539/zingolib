@@ -5,10 +5,10 @@ on: [workflow_call]
 jobs:
   cache-checkmate:
     name: Cache checkmate
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     if: github.event.pull_request.draft == false
     steps:
-      - uses: taiki-e/cache-cargo-install-action@v1
+      - uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-checkmate
 
@@ -18,12 +18,12 @@ jobs:
       matrix:
         phase: [build, check, clippy, doc, format]
     needs: cache-checkmate
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     if: github.event.pull_request.draft == false
     env:
       RUSTFLAGS: -D warnings
     steps:
-      - uses: taiki-e/cache-cargo-install-action@v1
+      - uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-checkmate
 

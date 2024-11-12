@@ -275,11 +275,12 @@ pub mod send_with_proposal {
             self.wallet
                 .set_send_result(broadcast_result.clone().map_err(|e| e.to_string()).map(
                     |vec_txids| {
-                        vec_txids
-                            .iter()
-                            .map(|txid| "created txid: ".to_string() + &txid.to_string())
-                            .collect::<Vec<String>>()
-                            .join(" & ")
+                        serde_json::Value::Array(
+                            vec_txids
+                                .iter()
+                                .map(|txid| serde_json::Value::String(txid.to_string()))
+                                .collect::<Vec<serde_json::Value>>(),
+                        )
                     },
                 ))
                 .await;
@@ -365,11 +366,10 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// this wallet contains archaic diversified addresses, which may clog the new send engine.
         async fn testnet_shield_multi_account() {
-            let case = examples::NetworkSeedVersion::Testnet(
-                examples::TestnetSeedVersion::MSKMGDBHOTBPETCJWCSPGOPP(
-                    examples::MSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
-                ),
-            );
+            let case =
+                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::MobileShuffle(
+                    examples::MobileShuffleVersion::Ga74fed621,
+                ));
 
             let client = sync_example_wallet(case).await;
 
@@ -383,11 +383,10 @@ pub mod send_with_proposal {
         /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_send_to_self_orchard() {
-            let case = examples::NetworkSeedVersion::Testnet(
-                examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
-                    examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
-                ),
-            );
+            let case =
+                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::ChimneyBetter(
+                    examples::ChimneyBetterVersion::G2f3830058,
+                ));
 
             let client = sync_example_wallet(case).await;
 
@@ -410,11 +409,10 @@ pub mod send_with_proposal {
         /// this is a live sync test. its execution time scales linearly since last updated
         /// note: live send waits 2 minutes for confirmation. expect 3min runtime
         async fn testnet_shield() {
-            let case = examples::NetworkSeedVersion::Testnet(
-                examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR(
-                    examples::CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
-                ),
-            );
+            let case =
+                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::ChimneyBetter(
+                    examples::ChimneyBetterVersion::G2f3830058,
+                ));
 
             let client = sync_example_wallet(case).await;
 
@@ -429,9 +427,7 @@ pub mod send_with_proposal {
         /// note: live send waits 2 minutes for confirmation. expect 3min+ runtime
         async fn mainnet_send_to_self_orchard() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-                ),
+                examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
             );
             let target_pool = PoolType::Shielded(ShieldedProtocol::Orchard);
 
@@ -464,9 +460,7 @@ pub mod send_with_proposal {
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_send_to_self_sapling() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-                ),
+                examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
             );
             let target_pool = PoolType::Shielded(ShieldedProtocol::Sapling);
 
@@ -499,9 +493,7 @@ pub mod send_with_proposal {
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_send_to_self_transparent() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-                ),
+                examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
             );
             let target_pool = PoolType::Transparent;
 
@@ -534,9 +526,7 @@ pub mod send_with_proposal {
         #[ignore = "dont automatically run hot tests! this test spends actual zec!"]
         async fn mainnet_shield() {
             let case = examples::NetworkSeedVersion::Mainnet(
-                examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                    examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-                ),
+                examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
             );
             let client = sync_example_wallet(case).await;
 

@@ -1,35 +1,23 @@
 use bip0039::Mnemonic;
 
-use zcash_client_backend::PoolType;
-use zcash_client_backend::ShieldedProtocol;
+use zcash_client_backend::{PoolType, ShieldedProtocol};
 use zcash_keys::keys::Era;
 
-use crate::lightclient::LightClient;
-use crate::wallet::keys::unified::UnifiedKeyStore;
-
-use super::super::LightWallet;
-use super::assert_wallet_capability_matches_seed;
-
-use super::examples::NetworkSeedVersion;
-use super::examples::NetworkSeedVersion::Mainnet;
-use super::examples::NetworkSeedVersion::Regtest;
-use super::examples::NetworkSeedVersion::Testnet;
-
-use super::examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR;
-use super::examples::MainnetSeedVersion::VTFCORFBCBPCTCFUPMEGMWBP;
-use super::examples::RegtestSeedVersion::AAAAAAAAAAAAAAAAAAAAAAAA;
-use super::examples::RegtestSeedVersion::AADAALACAADAALACAADAALAC;
-use super::examples::RegtestSeedVersion::HMVASMUVWMSSVICHCARBPOCT;
-use super::examples::TestnetSeedVersion::CBBHRWIILGBRABABSSHSMTPR;
-use super::examples::TestnetSeedVersion::MSKMGDBHOTBPETCJWCSPGOPP;
-
-use super::examples::AAAAAAAAAAAAAAAAAAAAAAAAVersion;
-use super::examples::AADAALACAADAALACAADAALACVersion;
-use super::examples::CBBHRWIILGBRABABSSHSMTPRVersion;
-use super::examples::HHCCLALTPCCKCSSLPCNETBLRVersion;
-use super::examples::HMVASMUVWMSSVICHCARBPOCTVersion;
-use super::examples::MSKMGDBHOTBPETCJWCSPGOPPVersion;
-use super::examples::VTFCORFBCBPCTCFUPMEGMWBPVersion;
+use crate::{
+    lightclient::LightClient,
+    wallet::{
+        disk::testing::{
+            assert_wallet_capability_matches_seed,
+            examples::{
+                AbandonAbandonVersion, AbsurdAmountVersion, ChimneyBetterVersion,
+                HospitalMuseumVersion, HotelHumorVersion, MainnetSeedVersion, MobileShuffleVersion,
+                NetworkSeedVersion, RegtestSeedVersion, TestnetSeedVersion, VillageTargetVersion,
+            },
+        },
+        keys::unified::UnifiedKeyStore,
+        LightWallet,
+    },
+};
 
 // moving toward completeness: each of these tests should assert everything known about the LightWallet without network.
 
@@ -56,32 +44,32 @@ impl NetworkSeedVersion {
 
 #[tokio::test]
 async fn verify_example_wallet_regtest_aaaaaaaaaaaaaaaaaaaaaaaa_v26() {
-    Regtest(AAAAAAAAAAAAAAAAAAAAAAAA(
-        AAAAAAAAAAAAAAAAAAAAAAAAVersion::V26,
+    NetworkSeedVersion::Regtest(RegtestSeedVersion::AbandonAbandon(
+        AbandonAbandonVersion::V26,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_regtest_aadaalacaadaalacaadaalac_orch_and_sapl() {
-    Regtest(AADAALACAADAALACAADAALAC(
-        AADAALACAADAALACAADAALACVersion::OrchAndSapl,
+    NetworkSeedVersion::Regtest(RegtestSeedVersion::AbsurdAmount(
+        AbsurdAmountVersion::OrchAndSapl,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_regtest_aadaalacaadaalacaadaalac_orch_only() {
-    Regtest(AADAALACAADAALACAADAALAC(
-        AADAALACAADAALACAADAALACVersion::OrchOnly,
+    NetworkSeedVersion::Regtest(RegtestSeedVersion::AbsurdAmount(
+        AbsurdAmountVersion::OrchOnly,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_regtest_hmvasmuvwmssvichcarbpoct_v27() {
-    Regtest(HMVASMUVWMSSVICHCARBPOCT(
-        HMVASMUVWMSSVICHCARBPOCTVersion::V27,
+    NetworkSeedVersion::Regtest(RegtestSeedVersion::HospitalMuseum(
+        HospitalMuseumVersion::V27,
     ))
     .load_example_wallet_with_verification()
     .await;
@@ -89,11 +77,10 @@ async fn verify_example_wallet_regtest_hmvasmuvwmssvichcarbpoct_v27() {
 /// unlike other, more basic tests, this test also checks number of addresses and balance
 #[tokio::test]
 async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_v26() {
-    let wallet = Testnet(CBBHRWIILGBRABABSSHSMTPR(
-        CBBHRWIILGBRABABSSHSMTPRVersion::V26,
-    ))
-    .load_example_wallet_with_verification()
-    .await;
+    let wallet =
+        NetworkSeedVersion::Testnet(TestnetSeedVersion::ChimneyBetter(ChimneyBetterVersion::V26))
+            .load_example_wallet_with_verification()
+            .await;
 
     loaded_wallet_assert(
         wallet,
@@ -107,11 +94,10 @@ async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_v26() {
 #[ignore = "test proves note has no index bug is a breaker"]
 #[tokio::test]
 async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_v27() {
-    let wallet = Testnet(CBBHRWIILGBRABABSSHSMTPR(
-        CBBHRWIILGBRABABSSHSMTPRVersion::V27,
-    ))
-    .load_example_wallet_with_verification()
-    .await;
+    let wallet =
+        NetworkSeedVersion::Testnet(TestnetSeedVersion::ChimneyBetter(ChimneyBetterVersion::V27))
+            .load_example_wallet_with_verification()
+            .await;
 
     loaded_wallet_assert(
         wallet,
@@ -123,59 +109,61 @@ async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_v27() {
 }
 #[tokio::test]
 async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_v28() {
-    Testnet(CBBHRWIILGBRABABSSHSMTPR(
-        CBBHRWIILGBRABABSSHSMTPRVersion::V28,
-    ))
-    .load_example_wallet_with_verification()
-    .await;
+    NetworkSeedVersion::Testnet(TestnetSeedVersion::ChimneyBetter(ChimneyBetterVersion::V28))
+        .load_example_wallet_with_verification()
+        .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_testnet_cbbhrwiilgbrababsshsmtpr_g2f3830058() {
-    Testnet(CBBHRWIILGBRABABSSHSMTPR(
-        CBBHRWIILGBRABABSSHSMTPRVersion::G2f3830058,
+    NetworkSeedVersion::Testnet(TestnetSeedVersion::ChimneyBetter(
+        ChimneyBetterVersion::G2f3830058,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_testnet_mskmgdbhotbpetcjwcspgopp_gab72a38b() {
-    Testnet(MSKMGDBHOTBPETCJWCSPGOPP(
-        MSKMGDBHOTBPETCJWCSPGOPPVersion::Gab72a38b,
+    NetworkSeedVersion::Testnet(TestnetSeedVersion::MobileShuffle(
+        MobileShuffleVersion::Gab72a38b,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_testnet_mskmgdbhotbpetcjwcspgopp_g93738061a() {
-    Testnet(MSKMGDBHOTBPETCJWCSPGOPP(
-        MSKMGDBHOTBPETCJWCSPGOPPVersion::G93738061a,
+    NetworkSeedVersion::Testnet(TestnetSeedVersion::MobileShuffle(
+        MobileShuffleVersion::G93738061a,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_testnet_mskmgdbhotbpetcjwcspgopp_ga74fed621() {
-    Testnet(MSKMGDBHOTBPETCJWCSPGOPP(
-        MSKMGDBHOTBPETCJWCSPGOPPVersion::Ga74fed621,
+    NetworkSeedVersion::Testnet(TestnetSeedVersion::MobileShuffle(
+        MobileShuffleVersion::Ga74fed621,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
 async fn verify_example_wallet_mainnet_vtfcorfbcbpctcfupmegmwbp_v28() {
-    Mainnet(VTFCORFBCBPCTCFUPMEGMWBP(
-        VTFCORFBCBPCTCFUPMEGMWBPVersion::V28,
+    NetworkSeedVersion::Mainnet(MainnetSeedVersion::VillageTarget(VillageTargetVersion::V28))
+        .load_example_wallet_with_verification()
+        .await;
+}
+#[tokio::test]
+async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_gf0aaf9347() {
+    NetworkSeedVersion::Mainnet(MainnetSeedVersion::HotelHumor(
+        HotelHumorVersion::Gf0aaf9347,
     ))
     .load_example_wallet_with_verification()
     .await;
 }
 #[tokio::test]
-async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_gf0aaf9347() {
-    Mainnet(HHCCLALTPCCKCSSLPCNETBLR(
-        HHCCLALTPCCKCSSLPCNETBLRVersion::Gf0aaf9347,
-    ))
-    .load_example_wallet_with_verification()
-    .await;
+async fn verify_example_wallet_mainnet_hhcclaltpcckcsslpcnetblr_latest() {
+    NetworkSeedVersion::Mainnet(MainnetSeedVersion::HotelHumor(HotelHumorVersion::Latest))
+        .load_example_wallet_with_verification()
+        .await;
 }
 
 async fn loaded_wallet_assert(
@@ -231,11 +219,10 @@ async fn reload_wallet_from_buffer() {
     use crate::wallet::WalletBase;
     use crate::wallet::WalletCapability;
 
-    let mid_wallet = Testnet(CBBHRWIILGBRABABSSHSMTPR(
-        CBBHRWIILGBRABABSSHSMTPRVersion::V28,
-    ))
-    .load_example_wallet_with_verification()
-    .await;
+    let mid_wallet =
+        NetworkSeedVersion::Testnet(TestnetSeedVersion::ChimneyBetter(ChimneyBetterVersion::V28))
+            .load_example_wallet_with_verification()
+            .await;
 
     let mid_client = LightClient::create_from_wallet_async(mid_wallet)
         .await
