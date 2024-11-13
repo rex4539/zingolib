@@ -224,7 +224,7 @@ mod tests {
         (ua, serialized_ua)
     }
     #[test]
-    fn parse_version_n_zingomemo() {
+    fn parse_zingo_memo_version_n() {
         for test_vector in zingomemo_vectors::UA_TEST_VECTORS {
             let (ua, _serialized_ua) = get_serialiazed_ua(test_vector);
             // version0
