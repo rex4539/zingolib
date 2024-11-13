@@ -380,61 +380,64 @@ pub mod send_with_proposal {
                 );
                 let client = sync_example_wallet(case).await;
 
-            with_assertions::assure_propose_shield_bump_sync(
-                &mut LiveChain::setup().await,
-                &client,
-                true,
-            )
-            .await
-            .unwrap();
-        }
-
-        #[ignore = "live testnet: testnet relies on NU6"]
-        #[tokio::test]
-        /// this is a live sync test. its execution time scales linearly since last updated
-        /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
-        /// note: live send waits 2 minutes for confirmation. expect 3min runtime
-        async fn testnet_send_to_self_orchard() {
-            let case =
-                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::ChimneyBetter(
-                    examples::ChimneyBetterVersion::G2f3830058,
-                ));
-
-            let client = sync_example_wallet(case).await;
-
-            with_assertions::propose_send_bump_sync_all_recipients(
-                &mut LiveChain::setup().await,
-                &client,
-                vec![(
+                with_assertions::assure_propose_shield_bump_sync(
+                    &mut LiveChain::setup().await,
                     &client,
-                    PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Orchard),
-                    10_000,
-                    None,
-                )],
-                false,
-            )
-            .await;
-        }
+                    true,
+                )
+                .await
+                .unwrap();
+            }
 
-        #[ignore = "live testnet: testnet relies on NU6"]
-        #[tokio::test]
-        /// this is a live sync test. its execution time scales linearly since last updated
-        /// note: live send waits 2 minutes for confirmation. expect 3min runtime
-        async fn testnet_shield() {
-            let case =
-                examples::NetworkSeedVersion::Testnet(examples::TestnetSeedVersion::ChimneyBetter(
-                    examples::ChimneyBetterVersion::G2f3830058,
-                ));
+            #[ignore = "live testnet: testnet relies on NU6"]
+            #[tokio::test]
+            /// this is a live sync test. its execution time scales linearly since last updated
+            /// this is a live send test. whether it can work depends on the state of live wallet on the blockchain
+            /// note: live send waits 2 minutes for confirmation. expect 3min runtime
+            async fn testnet_send_to_self_orchard() {
+                let case = examples::NetworkSeedVersion::Testnet(
+                    examples::TestnetSeedVersion::ChimneyBetter(
+                        examples::ChimneyBetterVersion::Latest,
+                    ),
+                );
 
-            let client = sync_example_wallet(case).await;
+                let client = sync_example_wallet(case).await;
 
-            with_assertions::assure_propose_shield_bump_sync(
-                &mut LiveChain::setup().await,
-                &client,
-                true,
-            )
-            .await
-            .unwrap();
+                with_assertions::propose_send_bump_sync_all_recipients(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    vec![(
+                        &client,
+                        PoolType::Shielded(zcash_client_backend::ShieldedProtocol::Orchard),
+                        10_000,
+                        None,
+                    )],
+                    false,
+                )
+                .await;
+            }
+
+            #[ignore = "live testnet: testnet relies on NU6"]
+            #[tokio::test]
+            /// this is a live sync test. its execution time scales linearly since last updated
+            /// note: live send waits 2 minutes for confirmation. expect 3min runtime
+            async fn testnet_shield() {
+                let case = examples::NetworkSeedVersion::Testnet(
+                    examples::TestnetSeedVersion::ChimneyBetter(
+                        examples::ChimneyBetterVersion::Latest,
+                    ),
+                );
+
+                let client = sync_example_wallet(case).await;
+
+                with_assertions::assure_propose_shield_bump_sync(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    true,
+                )
+                .await
+                .unwrap();
+            }
         }
 
         /// live sync: execution time increases linearly until example wallet is upgraded
@@ -518,13 +521,22 @@ pub mod send_with_proposal {
 
                 let client = sync_example_wallet(case).await;
 
-            with_assertions::assure_propose_shield_bump_sync(
-                &mut LiveChain::setup().await,
-                &client,
-                false,
-            )
-            .await
-            .unwrap();
+                with_assertions::propose_send_bump_sync_all_recipients(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    vec![(&client, target_pool, 400_000, None)],
+                    false,
+                )
+                .await;
+
+                with_assertions::assure_propose_shield_bump_sync(
+                    &mut LiveChain::setup().await,
+                    &client,
+                    false,
+                )
+                .await
+                .unwrap();
+            }
         }
     }
 }
