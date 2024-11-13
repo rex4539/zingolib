@@ -6,7 +6,7 @@ use super::LightClient;
 use super::LightWalletSendProgress;
 
 impl LightClient {
-    async fn get_latest_block(&self) -> Result<BlockHeight, String> {
+    pub(crate) async fn get_latest_block_height(&self) -> Result<BlockHeight, String> {
         Ok(BlockHeight::from_u32(
             crate::grpc_connector::get_latest_block(self.config.get_lightwalletd_uri())
                 .await?
@@ -138,7 +138,7 @@ pub mod send_with_proposal {
                 .write()
                 .await;
             let current_height = self
-                .get_latest_block()
+                .get_latest_block_height()
                 .await
                 .map_err(RecordCachedTransactionsError::Height)?;
             let mut transactions_to_record = vec![];
@@ -202,7 +202,7 @@ pub mod send_with_proposal {
                 .write()
                 .await;
             let current_height = self
-                .get_latest_block()
+                .get_latest_block_height()
                 .await
                 .map_err(BroadcastCachedTransactionsError::Height)?;
             let calculated_tx_cache = tx_map

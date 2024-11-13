@@ -5,7 +5,9 @@ use sapling_crypto::note_encryption::SaplingDomain;
 use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
-use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
+use zcash_client_backend::{
+    data_api::WalletRead as _, encoding::encode_payment_address, PoolType, ShieldedProtocol,
+};
 use zcash_primitives::{
     consensus::{BlockHeight, NetworkConstants},
     memo::Memo,
@@ -128,7 +130,10 @@ impl LightClient {
         };
 
         // anchor height is the highest block height that contains income that are considered spendable.
-        let anchor_height = self.wallet.get_anchor_height().await;
+        let current_height = self
+            .get_latest_block_height()
+            .await
+            .map_err(ZingoLibError::Lightwalletd)?;
 
         self.wallet
             .transactions()
@@ -137,9 +142,7 @@ impl LightClient {
             .transaction_records_by_id
             .iter()
             .for_each(|(_, tx)| {
-                let mature = tx
-                    .status
-                    .is_confirmed_before_or_at(&BlockHeight::from_u32(anchor_height));
+                let mature = tx.status.is_confirmed_before_or_at(&current_height);
                 let incoming = tx.is_incoming_transaction();
 
                 let mut change = 0;
@@ -948,13 +951,19 @@ impl LightClient {
     ///  * TODO:   This fn must (on success) return an Ok(Vec\<Notes\>) where Notes is a 3 variant enum....
     ///  * TODO:   type-associated to the variants of the enum must impl From\<Type\> for JsonValue
     ///  * TODO:  DEPRECATE in favor of list_outputs
+    #[cfg(any(test, feature = "test-elevation"))]
     pub async fn do_list_notes(&self, all_notes: bool) -> JsonValue {
-        let anchor_height = BlockHeight::from_u32(self.wallet.get_anchor_height().await);
+        // anchor height is the highest block height that contains income that are considered spendable.
+        let current_height = self
+            .get_latest_block_height()
+            .await
+            .map_err(ZingoLibError::Lightwalletd)
+            .unwrap();
 
         let (mut unspent_sapling_notes, mut spent_sapling_notes, mut pending_spent_sapling_notes) =
-            self.list_sapling_notes(all_notes, anchor_height).await;
+            self.list_sapling_notes(all_notes, current_height).await;
         let (mut unspent_orchard_notes, mut spent_orchard_notes, mut pending_spent_orchard_notes) =
-            self.list_orchard_notes(all_notes, anchor_height).await;
+            self.list_orchard_notes(all_notes, current_height).await;
         let (
             mut unspent_transparent_notes,
             mut spent_transparent_notes,

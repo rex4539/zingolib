@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this crate will be documented in this file.
+All notable changes to the public api of this crate will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `lightclient.bsync_data.uri()`
+- `lightclient.do_list_notes` is deprecated
 
 ## [mobile-release-1.4.3-0-g9fa99407]
 
