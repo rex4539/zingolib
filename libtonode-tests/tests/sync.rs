@@ -12,6 +12,9 @@ use zingolib::{
 #[ignore = "too slow, and flakey"]
 #[tokio::test]
 async fn sync_mainnet_test() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Ring to work as a default");
     tracing_subscriber::fmt().init();
 
     let uri = construct_lightwalletd_uri(Some(DEFAULT_LIGHTWALLETD_SERVER.to_string()));
@@ -62,6 +65,7 @@ async fn sync_test() {
     .await
     .unwrap();
 
+    dbg!(recipient.wallet.wallet_transactions());
     dbg!(recipient.wallet.wallet_blocks());
     dbg!(recipient.wallet.nullifier_map());
     dbg!(recipient.wallet.sync_state());
