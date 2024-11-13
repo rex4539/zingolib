@@ -6,7 +6,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
 use zcash_client_backend::{
-    data_api::WalletRead as _, encoding::encode_payment_address, PoolType, ShieldedProtocol,
+    encoding::encode_payment_address, PoolType, ShieldedProtocol,
 };
 use zcash_primitives::{
     consensus::{BlockHeight, NetworkConstants},
