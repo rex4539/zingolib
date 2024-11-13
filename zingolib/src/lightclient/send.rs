@@ -373,8 +373,12 @@ pub mod send_with_proposal {
 
             let client = sync_example_wallet(case).await;
 
-            with_assertions::propose_shield_bump_sync(&mut LiveChain::setup().await, &client, true)
-                .await;
+            with_assertions::assure_propose_shield_bump_sync(
+                &mut LiveChain::setup().await,
+                &client,
+                true,
+            )
+            .await;
         }
 
         #[ignore = "live testnet: testnet relies on NU6"]
@@ -416,8 +420,12 @@ pub mod send_with_proposal {
 
             let client = sync_example_wallet(case).await;
 
-            with_assertions::propose_shield_bump_sync(&mut LiveChain::setup().await, &client, true)
-                .await;
+            with_assertions::assure_propose_shield_bump_sync(
+                &mut LiveChain::setup().await,
+                &client,
+                true,
+            )
+            .await;
         }
 
         #[tokio::test]
@@ -542,7 +550,7 @@ pub mod send_with_proposal {
                     .len()
             );
 
-            with_assertions::propose_shield_bump_sync(
+            with_assertions::assure_propose_shield_bump_sync(
                 &mut LiveChain::setup().await,
                 &client,
                 false,
