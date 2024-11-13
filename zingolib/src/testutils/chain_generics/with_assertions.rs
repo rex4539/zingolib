@@ -137,11 +137,11 @@ pub async fn assure_propose_shield_bump_sync<CC>(
     environment: &mut CC,
     client: &LightClient,
     test_mempool: bool,
-) -> u64
+) -> Result<u64, String>
 where
     CC: ConductChain,
 {
-    let proposal = client.propose_shield().await.unwrap();
+    let proposal = client.propose_shield().await.map_err(|e| e.to_string())?;
 
     let send_height = client
         .wallet
@@ -196,5 +196,5 @@ where
         assert!(matches!(status, ConfirmationStatus::Confirmed(_)));
     });
 
-    recorded_fee
+    Ok(recorded_fee)
 }
