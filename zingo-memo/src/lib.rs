@@ -41,19 +41,19 @@ pub enum ParsedMemo {
 /// of 110 bytes per UA, and attempting to write more than 510 bytes will cause an error.
 #[deprecated(note = "prefer version 1")]
 pub fn create_wallet_internal_memo_version_0(uas: &[UnifiedAddress]) -> io::Result<[u8; 511]> {
-    let mut uas_bytes_vec = Vec::new();
-    CompactSize::write(&mut uas_bytes_vec, 0usize)?;
-    Vector::write(&mut uas_bytes_vec, uas, |w, ua| {
+    let mut version_and_data = Vec::new();
+    CompactSize::write(&mut version_and_data, 0usize)?;
+    Vector::write(&mut version_and_data, uas, |w, ua| {
         write_unified_address_to_raw_encoding(ua, w)
     })?;
     let mut uas_bytes = [0u8; 511];
-    if uas_bytes_vec.len() > 511 {
+    if version_and_data.len() > 511 {
         Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Too many uas to fit in memo field",
         ))
     } else {
-        uas_bytes[..uas_bytes_vec.len()].copy_from_slice(uas_bytes_vec.as_slice());
+        uas_bytes[..version_and_data.len()].copy_from_slice(version_and_data.as_slice());
         Ok(uas_bytes)
     }
 }
@@ -200,30 +200,31 @@ mod test_vectors;
 
 #[cfg(test)]
 mod tests {
+    use super::test_vectors as zingomemo_vectors;
     use super::*;
+    use test_vectors::TestVector;
     use zcash_primitives::consensus::MAIN_NETWORK;
 
+    fn get_serialiazed_ua(test_vector: &TestVector) -> (UnifiedAddress, Vec<u8>) {
+        let zcash_keys::address::Address::Unified(ua) =
+            zcash_keys::address::Address::decode(&MAIN_NETWORK, test_vector.unified_addr).unwrap()
+        else {
+            panic!("Couldn't decode test_vector UA")
+        };
+        let mut serialized_ua = Vec::new();
+        write_unified_address_to_raw_encoding(&ua, &mut serialized_ua).unwrap();
+        (ua, serialized_ua)
+    }
     #[test]
     fn parse_version0_memo() {
-        let version_zero_memo = {
-            let mut a: [u8; 511] = [1; 511];
-            a[0] = 0u8;
-            a
-        };
-        let parsed_memo = parse_zingo_memo(version_zero_memo);
-        matches!(parsed_memo, Ok(ParsedMemo::Version0 { uas: _uas }));
+        for test_vector in zingomemo_vectors::UA_TEST_VECTORS {
+            let (_ua, serialized_ua) = get_serialiazed_ua(test_vector);
+        }
     }
     #[test]
     fn round_trip_ser_deser() {
-        for test_vector in test_vectors::UA_TEST_VECTORS {
-            let zcash_keys::address::Address::Unified(ua) =
-                zcash_keys::address::Address::decode(&MAIN_NETWORK, test_vector.unified_addr)
-                    .unwrap()
-            else {
-                panic!("Couldn't decode test_vector UA")
-            };
-            let mut serialized_ua = Vec::new();
-            write_unified_address_to_raw_encoding(&ua, &mut serialized_ua).unwrap();
+        for test_vector in zingomemo_vectors::UA_TEST_VECTORS {
+            let (ua, serialized_ua) = get_serialiazed_ua(test_vector);
             assert_eq!(
                 ua,
                 read_unified_address_from_raw_encoding(&*serialized_ua).unwrap()
