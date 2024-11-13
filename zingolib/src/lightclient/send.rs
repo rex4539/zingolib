@@ -378,7 +378,8 @@ pub mod send_with_proposal {
                 &client,
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         }
 
         #[ignore = "live testnet: testnet relies on NU6"]
@@ -425,7 +426,8 @@ pub mod send_with_proposal {
                 &client,
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         }
 
         #[tokio::test]
@@ -555,7 +557,8 @@ pub mod send_with_proposal {
                 &client,
                 false,
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 }
