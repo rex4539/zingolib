@@ -73,8 +73,8 @@ pub enum ProposeShieldError {
     /// error in parsed addresses
     #[error("{0}")]
     Receiver(zcash_client_backend::zip321::Zip321Error),
-    #[error("{0}")]
     /// error in using trait to create shielding proposal
+    #[error("{0}")]
     Component(
         zcash_client_backend::data_api::error::Error<
             TxMapTraitError,
@@ -86,6 +86,9 @@ pub enum ProposeShieldError {
             zcash_primitives::transaction::fees::zip317::FeeError,
         >,
     ),
+    ///
+    #[error("Not enough transparent funds to shield.")]
+    Insufficient,
 }
 
 impl LightWallet {
@@ -157,6 +160,18 @@ impl LightWallet {
             0,
         )
         .map_err(ProposeShieldError::Component)?;
+
+        for (_step_number, step) in proposed_shield.steps().iter().enumerate() {
+            if step
+                .balance()
+                .proposed_change()
+                .iter()
+                .fold(0, |total_out, output| total_out + output.value().into_u64())
+                == 0
+            {
+                return Err(ProposeShieldError::Insufficient);
+            }
+        }
 
         Ok(proposed_shield)
     }
