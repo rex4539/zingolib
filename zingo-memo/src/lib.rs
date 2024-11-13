@@ -117,7 +117,8 @@ pub fn write_unified_address_to_raw_encoding<W: Write>(
     writer: W,
 ) -> io::Result<()> {
     let mainnet_encoded_ua = ua.encode(&zcash_primitives::consensus::MAIN_NETWORK);
-    let (_mainnet, address) = Address::decode(&mainnet_encoded_ua).unwrap();
+    let (_mainnet, address) =
+        Address::decode(&mainnet_encoded_ua).expect("Freshly encoded ua to decode!");
     let receivers = address.items();
     Vector::write(writer, &receivers, |mut w, receiver| {
         let (typecode, data): (u32, &[u8]) = match receiver {
@@ -202,6 +203,16 @@ mod tests {
     use super::*;
     use zcash_primitives::consensus::MAIN_NETWORK;
 
+    #[test]
+    fn parse_version0_memo() {
+        let version_zero_memo = {
+            let mut a: [u8; 511] = [1; 511];
+            a[0] = 0u8;
+            a
+        };
+        let parsed_memo = parse_zingo_memo(version_zero_memo);
+        matches!(parsed_memo, Ok(ParsedMemo::Version0 { uas: _uas }));
+    }
     #[test]
     fn round_trip_ser_deser() {
         for test_vector in test_vectors::UA_TEST_VECTORS {
