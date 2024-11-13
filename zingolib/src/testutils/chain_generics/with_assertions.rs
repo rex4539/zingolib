@@ -133,7 +133,7 @@ where
 /// NOTICE this function bumps the chain and syncs the client
 /// only compatible with zip317
 /// returns the total fee for the transfer
-pub async fn propose_shield_bump_sync<CC>(
+pub async fn assure_propose_shield_bump_sync<CC>(
     environment: &mut CC,
     client: &LightClient,
     test_mempool: bool,
