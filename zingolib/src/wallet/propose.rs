@@ -161,7 +161,7 @@ impl LightWallet {
         )
         .map_err(ProposeShieldError::Component)?;
 
-        for (_step_number, step) in proposed_shield.steps().iter().enumerate() {
+        for step in proposed_shield.steps().iter() {
             if step
                 .balance()
                 .proposed_change()
