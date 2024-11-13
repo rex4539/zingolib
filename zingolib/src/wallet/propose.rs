@@ -68,6 +68,7 @@ pub enum ProposeSendError {
 }
 
 /// Errors that can result from do_propose
+#[allow(missing_docs)] // error types document themselves
 #[derive(Debug, thiserror::Error)]
 pub enum ProposeShieldError {
     /// error in parsed addresses
@@ -86,7 +87,6 @@ pub enum ProposeShieldError {
             zcash_primitives::transaction::fees::zip317::FeeError,
         >,
     ),
-    ///
     #[error("Not enough transparent funds to shield.")]
     Insufficient,
 }
