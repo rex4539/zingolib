@@ -202,9 +202,17 @@ mod test_vectors;
 mod tests {
     use super::test_vectors as zingomemo_vectors;
     use super::*;
+    use rand::{self, Rng};
     use test_vectors::TestVector;
     use zcash_primitives::consensus::MAIN_NETWORK;
 
+    fn get_some_number_of_ephemeral_indexes() -> Vec<u32> {
+        // Generate a random number of elements between 0 and 10
+        let count = rand::thread_rng().gen_range(0..=10);
+
+        // Create a vector of increasing natural numbers
+        (0..count).collect::<Vec<u32>>()
+    }
     fn get_serialiazed_ua(test_vector: &TestVector) -> (UnifiedAddress, Vec<u8>) {
         let zcash_keys::address::Address::Unified(ua) =
             zcash_keys::address::Address::decode(&MAIN_NETWORK, test_vector.unified_addr).unwrap()
@@ -216,9 +224,30 @@ mod tests {
         (ua, serialized_ua)
     }
     #[test]
-    fn parse_version0_memo() {
+    fn parse_version_n_zingomemo() {
         for test_vector in zingomemo_vectors::UA_TEST_VECTORS {
-            let (_ua, serialized_ua) = get_serialiazed_ua(test_vector);
+            let (ua, _serialized_ua) = get_serialiazed_ua(test_vector);
+            // version0
+            #[allow(deprecated)]
+            let version0_bytes = create_wallet_internal_memo_version_0(&[ua.clone()]).unwrap();
+            let success_parse = parse_zingo_memo(version0_bytes).expect("To succeed in parse.");
+            if let ParsedMemo::Version0 { uas } = success_parse {
+                assert_eq!(uas[0], ua);
+            };
+            // version1
+            let random_rejection_indexes = get_some_number_of_ephemeral_indexes();
+            let version1_bytes =
+                create_wallet_internal_memo_version_1(&[ua.clone()], &random_rejection_indexes)
+                    .expect("To create version 1 bytes");
+            let success_parse = parse_zingo_memo(version1_bytes).expect("To succeed in parse.");
+            if let ParsedMemo::Version1 {
+                uas,
+                rejection_address_indexes,
+            } = success_parse
+            {
+                assert_eq!(uas[0], ua);
+                assert_eq!(rejection_address_indexes, random_rejection_indexes);
+            };
         }
     }
     #[test]
