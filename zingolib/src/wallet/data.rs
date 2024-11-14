@@ -495,6 +495,8 @@ pub mod finsight {
 /// A "snapshot" of the state of the items in the wallet at the time the summary was constructed.
 /// Not to be used for internal logic in the system.
 pub mod summaries {
+    use std::collections::HashMap;
+
     use crate::config::ChainType;
     use chrono::DateTime;
     use json::JsonValue;
@@ -687,6 +689,78 @@ pub mod summaries {
         /// Implicitly dispatch to the wrapped data
         pub fn iter(&self) -> std::slice::Iter<ValueTransfer> {
             self.0.iter()
+        }
+
+        /// Creates value transfers for all notes in a transaction that are sent to another
+        /// recipient.  A value transfer is a group of all notes to a specific receiver in a transaction.
+        /// The value transfer list is sorted by the output index of the notes.
+        pub fn create_send_value_transfers(
+            transaction_summary: &TransactionSummary,
+        ) -> Vec<ValueTransfer> {
+            let mut value_transfers: Vec<ValueTransfer> = Vec::new();
+            let mut addresses =
+                HashMap::with_capacity(transaction_summary.outgoing_tx_data().len());
+            transaction_summary
+                .outgoing_tx_data()
+                .iter()
+                .for_each(|outgoing_tx_data| {
+                    let address = if let Some(ua) = outgoing_tx_data.recipient_ua.clone() {
+                        ua
+                    } else {
+                        outgoing_tx_data.recipient_address.clone()
+                    };
+                    // hash map is used to create unique list of addresses as duplicates are not inserted twice
+                    addresses.insert(address, outgoing_tx_data.output_index);
+                });
+            let mut addresses_vec = addresses.into_iter().collect::<Vec<_>>();
+            addresses_vec.sort_by_key(|x| x.1);
+            addresses_vec.iter().for_each(|(address, _output_index)| {
+                let outgoing_data_to_address: Vec<OutgoingTxData> = transaction_summary
+                    .outgoing_tx_data()
+                    .iter()
+                    .filter(|outgoing_tx_data| {
+                        let query_address = if let Some(ua) = outgoing_tx_data.recipient_ua.clone()
+                        {
+                            ua
+                        } else {
+                            outgoing_tx_data.recipient_address.clone()
+                        };
+                        query_address == address.clone()
+                    })
+                    .cloned()
+                    .collect();
+                let value: u64 = outgoing_data_to_address
+                    .iter()
+                    .map(|outgoing_tx_data| outgoing_tx_data.value)
+                    .sum();
+                let memos: Vec<String> = outgoing_data_to_address
+                    .iter()
+                    .filter_map(|outgoing_tx_data| {
+                        if let Memo::Text(memo_text) = outgoing_tx_data.memo.clone() {
+                            Some(memo_text.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                value_transfers.push(
+                    ValueTransferBuilder::new()
+                        .txid(transaction_summary.txid())
+                        .datetime(transaction_summary.datetime())
+                        .status(transaction_summary.status())
+                        .blockheight(transaction_summary.blockheight())
+                        .transaction_fee(transaction_summary.fee())
+                        .zec_price(transaction_summary.zec_price())
+                        .kind(ValueTransferKind::Sent(SentValueTransfer::Send))
+                        .value(value)
+                        .recipient_address(Some(address.clone()))
+                        .pool_received(None)
+                        .memos(memos)
+                        .build()
+                        .expect("all fields should be populated"),
+                );
+            });
+            return value_transfers;
         }
     }
 
