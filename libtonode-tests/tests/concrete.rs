@@ -207,33 +207,34 @@ mod fast {
             .unwrap();
 
         println!(
-            "Addresses: {}, {}, {}",
+            "Addresses: {}, {}",
             alice,
-            bob.transparent().unwrap().encode(&faucet.config().chain),
-            charlie
-                .transparent()
-                .unwrap()
-                .encode(&faucet.config().chain)
+            bob.encode(&faucet.config().chain),
         );
 
         let payments = vec![
             Payment::new(
                 ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
                 NonNegativeAmount::from_u64(1_000).unwrap(),
-                Some(Memo::encode(
-                    &Memo::from_str("Hello to faucet from bob #1").unwrap(),
-                )),
+                Some(Memo::encode(&Memo::from_str("Alice->Bob #1").unwrap())),
                 None,
                 None,
                 vec![],
             )
             .unwrap(),
             Payment::new(
-                ZcashAddress::from_str(&charlie.encode(&faucet.config().chain)).unwrap(),
+                ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
                 NonNegativeAmount::from_u64(1_000).unwrap(),
-                Some(Memo::encode(
-                    &Memo::from_str("Hello to faucet from charlie #2").unwrap(),
-                )),
+                Some(Memo::encode(&Memo::from_str("Alice->Bob #2").unwrap())),
+                None,
+                None,
+                vec![],
+            )
+            .unwrap(),
+            Payment::new(
+                ZcashAddress::from_str(&alice).unwrap(),
+                NonNegativeAmount::from_u64(1_000).unwrap(),
+                Some(Memo::encode(&Memo::from_str("Bob->Alice #3").unwrap())),
                 None,
                 None,
                 vec![],
@@ -244,70 +245,66 @@ mod fast {
         let transaction_requests = vec![
             TransactionRequest::new(vec![payments[0].clone()]).unwrap(),
             TransactionRequest::new(vec![payments[1].clone()]).unwrap(),
+            TransactionRequest::new(vec![payments[2].clone()]).unwrap(),
         ];
 
-        dbg!(recipient
+        recipient
             .propose_send(transaction_requests[0].clone())
             .await
-            .unwrap());
+            .unwrap();
 
-        dbg!(recipient
+        recipient
             .complete_and_broadcast_stored_proposal()
             .await
-            .unwrap());
+            .unwrap();
 
         increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
             .await
             .unwrap();
 
-        // println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-        // dbg!(&recipient.do_balance().await);
-        // dbg!(&recipient.value_transfers().await);
-
-        dbg!(recipient
+        recipient
             .propose_send(transaction_requests[1].clone())
             .await
-            .unwrap());
+            .unwrap();
 
-        dbg!(recipient
+        recipient
             .complete_and_broadcast_stored_proposal()
             .await
-            .unwrap());
+            .unwrap();
+
+        faucet
+            .propose_send(transaction_requests[2].clone())
+            .await
+            .unwrap();
 
         increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
             .await
             .unwrap();
-        // println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-        // dbg!(&recipient.do_balance().await);
-        // dbg!(&recipient.value_transfers().await);
 
         let value_transfers = &recipient
-            .received_messages_from(&bob.encode(&faucet.config().chain))
+            .received_messages_from(&bob.encode(&recipient.config().chain))
             .await;
+
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
 
         println!("VALUE TRANSFERS");
         dbg!(value_transfers);
 
+        println!("Kinds");
         for vt in value_transfers.iter() {
             dbg!(vt.kind());
         }
 
         assert_eq!(value_transfers.0[1].memos().len(), 1);
-        assert_eq!(
-            value_transfers.0[1].memos()[0],
-            "Hello to faucet from bob #1"
-        );
-        assert_eq!(
-            value_transfers.0[2].memos()[0],
-            "Hello to faucet from charlie #2"
-        );
+        assert_eq!(value_transfers.0[1].memos()[0], "Alice->Bob #1");
+        assert_eq!(value_transfers.0[2].memos()[0], "Alice->Bob #2");
+        assert_eq!(value_transfers.0[3].memos()[0], "Bob->Alice #3");
 
         assert!(value_transfers
             .iter()
             .any(|vt| vt.kind() == ValueTransferKind::Sent(SentValueTransfer::Send)));
-        // assert!(value_transfers.iter().any(|vt| vt.kind()
-        //     == ValueTransferKind::Sent(SentValueTransfer::Send)
-        //     && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
     }
 
     pub mod tex {
