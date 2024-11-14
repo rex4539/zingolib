@@ -189,7 +189,18 @@ mod fast {
             scenarios::orchard_funded_recipient(10_000_000).await;
 
         let alice = get_base_address(&recipient, PoolType::ORCHARD).await;
-        let bob = get_base_address(&faucet, PoolType::ORCHARD).await;
+        let bob = faucet
+            .wallet
+            .wallet_capability()
+            .new_address(
+                ReceiverSelection {
+                    orchard: true,
+                    sapling: true,
+                    transparent: true,
+                },
+                false,
+            )
+            .unwrap();
 
         let charlie = faucet
             .wallet
@@ -207,7 +218,7 @@ mod fast {
         println!(
             "Addresses: {}, {}, {}",
             alice,
-            bob,
+            bob.transparent().unwrap().encode(&faucet.config().chain),
             charlie
                 .transparent()
                 .unwrap()
@@ -216,7 +227,7 @@ mod fast {
 
         let payments = vec![
             Payment::new(
-                ZcashAddress::from_str(&bob).unwrap(),
+                ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
                 NonNegativeAmount::from_u64(1_000).unwrap(),
                 Some(Memo::encode(
                     &Memo::from_str("Hello to faucet from bob #1").unwrap(),
@@ -279,7 +290,9 @@ mod fast {
         // dbg!(&recipient.do_balance().await);
         // dbg!(&recipient.value_transfers().await);
 
-        let value_transfers = &recipient.value_transfers().await;
+        let value_transfers = &recipient
+            .received_messages_from(&bob.encode(&faucet.config().chain))
+            .await;
 
         println!("VALUE TRANSFERS");
         dbg!(value_transfers);
