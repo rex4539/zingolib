@@ -306,10 +306,10 @@ mod fast {
             dbg!(vt.kind());
         }
 
-        assert_eq!(value_transfers.0[1].memos().len(), 1);
+        assert_eq!(value_transfers.0[0].memos().len(), 1);
+        assert!(value_transfers.0[0].memos()[0].contains(&bob.encode(&recipient.config().chain)));
         assert!(value_transfers.0[1].memos()[0].contains(&alice));
         assert!(value_transfers.0[2].memos()[0].contains(&alice));
-        assert!(value_transfers.0[3].memos()[0].contains(&bob.encode(&recipient.config().chain)));
 
         assert!(value_transfers
             .iter()
