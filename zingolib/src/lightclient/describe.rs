@@ -6,10 +6,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
 use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
-use zcash_primitives::{
-    consensus::{BlockHeight, NetworkConstants},
-    memo::Memo,
-};
+use zcash_primitives::consensus::{BlockHeight, NetworkConstants};
 
 use crate::{
     config::margin_fee,
@@ -30,7 +27,6 @@ use crate::{
                 TransactionSummaryBuilder, ValueTransfer, ValueTransferBuilder, ValueTransferKind,
                 ValueTransfers,
             },
-            OutgoingTxData,
         },
         keys::address_from_pubkeyhash,
         notes::{query::OutputQuery, Output, OutputInterface},

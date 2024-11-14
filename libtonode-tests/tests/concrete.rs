@@ -118,10 +118,9 @@ mod fast {
     use std::str::FromStr;
 
     use bip0039::Mnemonic;
-    use zcash_address::{test_vectors, AddressKind, ZcashAddress};
+    use zcash_address::{AddressKind, ZcashAddress};
     use zcash_client_backend::{
         encoding::AddressCodec,
-        proto::proposal::MemoBytes,
         zip321::{Payment, TransactionRequest},
         PoolType, ShieldedProtocol,
     };
@@ -132,21 +131,13 @@ mod fast {
     use zingo_status::confirmation_status::ConfirmationStatus;
     use zingolib::{
         config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS,
-        data::receivers::{transaction_request_from_receivers, Receiver},
-        mocks::proposal::PaymentBuilder,
-        testutils::{lightclient::get_base_address, send_value_between_clients_and_sync},
-        wallet::{data::summaries::SentValueTransfer, keys::unified::ReceiverSelection},
-    };
-    use zingolib::{
-        mocks::proposal::TransactionRequestBuilder, wallet::notes::OutputInterface as _,
-    };
-    use zingolib::{
-        testutils::lightclient::from_inputs, wallet::data::summaries::SelfSendValueTransfer,
-    };
-
-    use zingolib::{
-        utils::conversion::txid_from_hex_encoded_str, wallet::data::summaries::ValueTransferKind,
-        wallet::notes::ShieldedNoteInterface,
+        testutils::lightclient::{from_inputs, get_base_address},
+        utils::conversion::txid_from_hex_encoded_str,
+        wallet::{
+            data::summaries::{SelfSendValueTransfer, SentValueTransfer, ValueTransferKind},
+            keys::unified::ReceiverSelection,
+            notes::{OutputInterface as _, ShieldedNoteInterface},
+        },
     };
 
     use super::*;
