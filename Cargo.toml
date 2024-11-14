@@ -39,7 +39,7 @@ base64 = "0.13.0"
 bls12_381 = "0.8"
 build_utils = { path = "./build_utils" }
 byteorder = "1"
-bytes = "0.4"
+bytes = "1"
 chrono = "0.4"
 clap = "4.4"
 concat-idents = "1.1.3"
