@@ -120,7 +120,6 @@ mod fast {
     use bip0039::Mnemonic;
     use zcash_address::{AddressKind, ZcashAddress};
     use zcash_client_backend::{
-        encoding::AddressCodec,
         zip321::{Payment, TransactionRequest},
         PoolType, ShieldedProtocol,
     };
@@ -193,7 +192,7 @@ mod fast {
             )
             .unwrap();
 
-        let charlie = faucet
+        let _charlie = faucet
             .wallet
             .wallet_capability()
             .new_address(
@@ -212,44 +211,62 @@ mod fast {
             bob.encode(&faucet.config().chain),
         );
 
-        let payments = vec![
-            Payment::new(
-                ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
-                NonNegativeAmount::from_u64(1_000).unwrap(),
-                Some(Memo::encode(&Memo::from_str("Alice->Bob #1").unwrap())),
-                None,
-                None,
-                vec![],
-            )
-            .unwrap(),
-            Payment::new(
-                ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
-                NonNegativeAmount::from_u64(1_000).unwrap(),
-                Some(Memo::encode(&Memo::from_str("Alice->Bob #2").unwrap())),
-                None,
-                None,
-                vec![],
-            )
-            .unwrap(),
-            Payment::new(
-                ZcashAddress::from_str(&alice).unwrap(),
-                NonNegativeAmount::from_u64(1_000).unwrap(),
-                Some(Memo::encode(&Memo::from_str("Bob->Alice #3").unwrap())),
-                None,
-                None,
-                vec![],
-            )
-            .unwrap(),
-        ];
+        let alice_to_bob = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(&("Alice->Bob #1\nReply to\n".to_string() + &alice)).unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
 
-        let transaction_requests = vec![
-            TransactionRequest::new(vec![payments[0].clone()]).unwrap(),
-            TransactionRequest::new(vec![payments[1].clone()]).unwrap(),
-            TransactionRequest::new(vec![payments[2].clone()]).unwrap(),
-        ];
+        let alice_to_bob_2 = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(&("Alice->Bob #2\nReply to\n".to_string() + &alice)).unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        let bob_to_alice = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&alice).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(
+                    &("Alice->Bob #2\nReply to\n".to_string()
+                        + &bob.encode(&faucet.config().chain)),
+                )
+                .unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        recipient.propose_send(alice_to_bob.clone()).await.unwrap();
 
         recipient
-            .propose_send(transaction_requests[0].clone())
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        recipient
+            .propose_send(alice_to_bob_2.clone())
             .await
             .unwrap();
 
@@ -262,18 +279,10 @@ mod fast {
             .await
             .unwrap();
 
-        recipient
-            .propose_send(transaction_requests[1].clone())
-            .await
-            .unwrap();
-
-        recipient
-            .complete_and_broadcast_stored_proposal()
-            .await
-            .unwrap();
+        faucet.propose_send(bob_to_alice.clone()).await.unwrap();
 
         faucet
-            .propose_send(transaction_requests[2].clone())
+            .complete_and_broadcast_stored_proposal()
             .await
             .unwrap();
 
@@ -298,9 +307,9 @@ mod fast {
         }
 
         assert_eq!(value_transfers.0[1].memos().len(), 1);
-        assert_eq!(value_transfers.0[1].memos()[0], "Alice->Bob #1");
-        assert_eq!(value_transfers.0[2].memos()[0], "Alice->Bob #2");
-        assert_eq!(value_transfers.0[3].memos()[0], "Bob->Alice #3");
+        assert!(value_transfers.0[1].memos()[0].contains(&alice));
+        assert!(value_transfers.0[2].memos()[0].contains(&alice));
+        assert!(value_transfers.0[3].memos()[0].contains(&bob.encode(&recipient.config().chain)));
 
         assert!(value_transfers
             .iter()
