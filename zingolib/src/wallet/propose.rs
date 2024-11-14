@@ -68,13 +68,14 @@ pub enum ProposeSendError {
 }
 
 /// Errors that can result from do_propose
+#[allow(missing_docs)] // error types document themselves
 #[derive(Debug, thiserror::Error)]
 pub enum ProposeShieldError {
     /// error in parsed addresses
     #[error("{0}")]
     Receiver(zcash_client_backend::zip321::Zip321Error),
-    #[error("{0}")]
     /// error in using trait to create shielding proposal
+    #[error("{0}")]
     Component(
         zcash_client_backend::data_api::error::Error<
             TxMapTraitError,
@@ -86,6 +87,8 @@ pub enum ProposeShieldError {
             zcash_primitives::transaction::fees::zip317::FeeError,
         >,
     ),
+    #[error("Not enough transparent funds to shield.")]
+    Insufficient,
 }
 
 impl LightWallet {
@@ -158,6 +161,18 @@ impl LightWallet {
         )
         .map_err(ProposeShieldError::Component)?;
 
+        for step in proposed_shield.steps().iter() {
+            if step
+                .balance()
+                .proposed_change()
+                .iter()
+                .fold(0, |total_out, output| total_out + output.value().into_u64())
+                == 0
+            {
+                return Err(ProposeShieldError::Insufficient);
+            }
+        }
+
         Ok(proposed_shield)
     }
 }
@@ -176,9 +191,7 @@ mod test {
     #[tokio::test]
     async fn example_mainnet_hhcclaltpcckcsslpcnetblr_80b5594ac_propose_100_000_to_self() {
         let wallet = examples::NetworkSeedVersion::Mainnet(
-            examples::MainnetSeedVersion::HHCCLALTPCCKCSSLPCNETBLR(
-                examples::HHCCLALTPCCKCSSLPCNETBLRVersion::Latest,
-            ),
+            examples::MainnetSeedVersion::HotelHumor(examples::HotelHumorVersion::Latest),
         )
         .load_example_wallet()
         .await;
