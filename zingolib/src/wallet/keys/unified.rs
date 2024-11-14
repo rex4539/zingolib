@@ -255,8 +255,7 @@ impl crate::wallet::LightWallet {
     }
 }
 /// TODO: Add Doc Comment Here!
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ReceiverSelection {
     /// TODO: Add Doc Comment Here!
     pub orchard: bool,

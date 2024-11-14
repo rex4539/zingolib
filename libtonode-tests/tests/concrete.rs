@@ -120,6 +120,7 @@ mod fast {
     use bip0039::Mnemonic;
     use zcash_address::{test_vectors, AddressKind, ZcashAddress};
     use zcash_client_backend::{
+        encoding::AddressCodec,
         proto::proposal::MemoBytes,
         zip321::{Payment, TransactionRequest},
         PoolType, ShieldedProtocol,
@@ -134,7 +135,7 @@ mod fast {
         data::receivers::{transaction_request_from_receivers, Receiver},
         mocks::proposal::PaymentBuilder,
         testutils::{lightclient::get_base_address, send_value_between_clients_and_sync},
-        wallet::data::summaries::SentValueTransfer,
+        wallet::{data::summaries::SentValueTransfer, keys::unified::ReceiverSelection},
     };
     use zingolib::{
         mocks::proposal::TransactionRequestBuilder, wallet::notes::OutputInterface as _,
@@ -184,20 +185,41 @@ mod fast {
 
     #[tokio::test]
     async fn message_thread() {
-        let (_regtest_manager, _cph, _faucet, recipient, _txid) =
+        let (regtest_manager, _cph, faucet, recipient, _txid) =
             scenarios::orchard_funded_recipient(10_000_000).await;
 
-        let faucet = get_base_address(&_faucet, PoolType::ORCHARD).await;
-        let r = get_base_address(&recipient, PoolType::ORCHARD).await;
+        let alice = get_base_address(&recipient, PoolType::ORCHARD).await;
+        let bob = get_base_address(&faucet, PoolType::ORCHARD).await;
 
-        println!("Addresses: r: {}, faucet: {}", r, faucet);
+        let charlie = faucet
+            .wallet
+            .wallet_capability()
+            .new_address(
+                ReceiverSelection {
+                    orchard: true,
+                    sapling: true,
+                    transparent: true,
+                },
+                false,
+            )
+            .unwrap();
+
+        println!(
+            "Addresses: {}, {}, {}",
+            alice,
+            bob,
+            charlie
+                .transparent()
+                .unwrap()
+                .encode(&faucet.config().chain)
+        );
 
         let payments = vec![
             Payment::new(
-                ZcashAddress::from_str(&faucet).unwrap(),
+                ZcashAddress::from_str(&bob).unwrap(),
                 NonNegativeAmount::from_u64(1_000).unwrap(),
                 Some(Memo::encode(
-                    &Memo::from_str("Hello to faucet from r #1").unwrap(),
+                    &Memo::from_str("Hello to faucet from bob #1").unwrap(),
                 )),
                 None,
                 None,
@@ -205,10 +227,10 @@ mod fast {
             )
             .unwrap(),
             Payment::new(
-                ZcashAddress::from_str(&faucet).unwrap(),
+                ZcashAddress::from_str(&charlie.encode(&faucet.config().chain)).unwrap(),
                 NonNegativeAmount::from_u64(1_000).unwrap(),
                 Some(Memo::encode(
-                    &Memo::from_str("Hello to faucet from r #2").unwrap(),
+                    &Memo::from_str("Hello to faucet from charlie #2").unwrap(),
                 )),
                 None,
                 None,
@@ -222,49 +244,59 @@ mod fast {
             TransactionRequest::new(vec![payments[1].clone()]).unwrap(),
         ];
 
-        recipient
+        dbg!(recipient
             .propose_send(transaction_requests[0].clone())
             .await
-            .unwrap();
+            .unwrap());
 
-        recipient
+        dbg!(recipient
             .complete_and_broadcast_stored_proposal()
             .await
-            .unwrap();
+            .unwrap());
 
-        increase_height_and_wait_for_client(&_regtest_manager, &recipient, 1)
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
             .await
             .unwrap();
 
-        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-        dbg!(&recipient.do_balance().await);
-        dbg!(&recipient.value_transfers().await);
+        // println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        // dbg!(&recipient.do_balance().await);
+        // dbg!(&recipient.value_transfers().await);
 
-        recipient
+        dbg!(recipient
             .propose_send(transaction_requests[1].clone())
             .await
-            .unwrap();
+            .unwrap());
 
-        recipient
+        dbg!(recipient
             .complete_and_broadcast_stored_proposal()
             .await
-            .unwrap();
+            .unwrap());
 
-        increase_height_and_wait_for_client(&_regtest_manager, &recipient, 1)
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
             .await
             .unwrap();
-        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-        dbg!(&recipient.do_balance().await);
-        dbg!(&recipient.received_messages_from(&r).await);
+        // println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        // dbg!(&recipient.do_balance().await);
+        // dbg!(&recipient.value_transfers().await);
 
-        let value_transfers = &recipient.received_messages_from(&r).await;
-
-        dbg!(value_transfers);
+        let value_transfers = &recipient.value_transfers().await;
 
         println!("VALUE TRANSFERS");
+        dbg!(value_transfers);
+
         for vt in value_transfers.iter() {
             dbg!(vt.kind());
         }
+
+        assert_eq!(value_transfers.0[1].memos().len(), 1);
+        assert_eq!(
+            value_transfers.0[1].memos()[0],
+            "Hello to faucet from bob #1"
+        );
+        assert_eq!(
+            value_transfers.0[2].memos()[0],
+            "Hello to faucet from charlie #2"
+        );
 
         assert!(value_transfers
             .iter()

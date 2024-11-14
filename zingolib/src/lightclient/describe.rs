@@ -435,7 +435,7 @@ impl LightClient {
                     }
 
                     // in the case Zennies For Zingo! is active
-                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
+                    value_transfers.append(&mut ValueTransfers::create_send_value_transfers(tx));
                 }
                 TransactionKind::Received => {
                     // create 1 received value tansfer for each pool received to
@@ -534,7 +534,7 @@ impl LightClient {
                 TransactionKind::Sent(SendType::Send) => {
                     // create 1 sent value transfer for each non-self recipient address
                     // if recipient_ua is available it overrides recipient_address
-                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
+                    value_transfers.append(&mut ValueTransfers::create_send_value_transfers(tx));
 
                     // create 1 memo-to-self if a sending transaction receives any number of memos
                     if tx.orchard_notes().iter().any(|note| note.memo().is_some())
@@ -688,7 +688,7 @@ impl LightClient {
                     }
 
                     // in the case Zennies For Zingo! is active
-                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
+                    value_transfers.append(&mut ValueTransfers::create_send_value_transfers(tx));
                 }
                 TransactionKind::Received => {
                     // create 1 received value tansfer for each pool received to
