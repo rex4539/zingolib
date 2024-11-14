@@ -271,86 +271,17 @@ impl LightClient {
         }
     }
 
-    /// Provides a list of value transfers related to this capability
-    /// A value transfer is a group of all notes to a specific receiver in a transaction.
-    pub async fn value_transfers(&self) -> ValueTransfers {
-        fn create_send_value_transfers(
-            value_transfers: &mut Vec<ValueTransfer>,
-            transaction_summary: &TransactionSummary,
-        ) {
-            let mut addresses =
-                HashMap::with_capacity(transaction_summary.outgoing_tx_data().len());
-            transaction_summary
-                .outgoing_tx_data()
-                .iter()
-                .for_each(|outgoing_tx_data| {
-                    let address = if let Some(ua) = outgoing_tx_data.recipient_ua.clone() {
-                        ua
-                    } else {
-                        outgoing_tx_data.recipient_address.clone()
-                    };
-                    // hash map is used to create unique list of addresses as duplicates are not inserted twice
-                    addresses.insert(address, outgoing_tx_data.output_index);
-                });
-            let mut addresses_vec = addresses.into_iter().collect::<Vec<_>>();
-            addresses_vec.sort_by_key(|x| x.1);
-            addresses_vec.iter().for_each(|(address, _output_index)| {
-                let outgoing_data_to_address: Vec<OutgoingTxData> = transaction_summary
-                    .outgoing_tx_data()
-                    .iter()
-                    .filter(|outgoing_tx_data| {
-                        let query_address = if let Some(ua) = outgoing_tx_data.recipient_ua.clone()
-                        {
-                            ua
-                        } else {
-                            outgoing_tx_data.recipient_address.clone()
-                        };
-                        query_address == address.clone()
-                    })
-                    .cloned()
-                    .collect();
-                let value: u64 = outgoing_data_to_address
-                    .iter()
-                    .map(|outgoing_tx_data| outgoing_tx_data.value)
-                    .sum();
-                let memos: Vec<String> = outgoing_data_to_address
-                    .iter()
-                    .filter_map(|outgoing_tx_data| {
-                        if let Memo::Text(memo_text) = outgoing_tx_data.memo.clone() {
-                            Some(memo_text.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                value_transfers.push(
-                    ValueTransferBuilder::new()
-                        .txid(transaction_summary.txid())
-                        .datetime(transaction_summary.datetime())
-                        .status(transaction_summary.status())
-                        .blockheight(transaction_summary.blockheight())
-                        .transaction_fee(transaction_summary.fee())
-                        .zec_price(transaction_summary.zec_price())
-                        .kind(ValueTransferKind::Sent(SentValueTransfer::Send))
-                        .value(value)
-                        .recipient_address(Some(address.clone()))
-                        .pool_received(None)
-                        .memos(memos)
-                        .build()
-                        .expect("all fields should be populated"),
-                );
-            });
-        }
-
+    /// Provides a list of ValueTransfers associated with the sender
+    pub async fn received_messages_from(&self, sender: &str) -> ValueTransfers {
         let mut value_transfers: Vec<ValueTransfer> = Vec::new();
         let transaction_summaries = self.transaction_summaries().await;
 
-        for tx in transaction_summaries.iter() {
+        for tx in transaction_summaries.iter().rev() {
             match tx.kind() {
                 TransactionKind::Sent(SendType::Send) => {
                     // create 1 sent value transfer for each non-self recipient address
                     // if recipient_ua is available it overrides recipient_address
-                    create_send_value_transfers(&mut value_transfers, tx);
+                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
 
                     // create 1 memo-to-self if a sending transaction receives any number of memos
                     if tx.orchard_notes().iter().any(|note| note.memo().is_some())
@@ -504,7 +435,260 @@ impl LightClient {
                     }
 
                     // in the case Zennies For Zingo! is active
-                    create_send_value_transfers(&mut value_transfers, tx);
+                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
+                }
+                TransactionKind::Received => {
+                    // create 1 received value tansfer for each pool received to
+                    if !tx.orchard_notes().is_empty() {
+                        let value: u64 =
+                            tx.orchard_notes().iter().map(|output| output.value()).sum();
+                        let memos: Vec<String> = tx
+                            .orchard_notes()
+                            .iter()
+                            .filter_map(|note| note.memo().map(|memo| memo.to_string()))
+                            .collect();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Received)
+                                .value(value)
+                                .recipient_address(None)
+                                .pool_received(Some(
+                                    PoolType::Shielded(ShieldedProtocol::Orchard).to_string(),
+                                ))
+                                .memos(memos)
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+                    if !tx.sapling_notes().is_empty() {
+                        let value: u64 =
+                            tx.sapling_notes().iter().map(|output| output.value()).sum();
+                        let memos: Vec<String> = tx
+                            .sapling_notes()
+                            .iter()
+                            .filter_map(|note| note.memo().map(|memo| memo.to_string()))
+                            .collect();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Received)
+                                .value(value)
+                                .recipient_address(None)
+                                .pool_received(Some(
+                                    PoolType::Shielded(ShieldedProtocol::Sapling).to_string(),
+                                ))
+                                .memos(memos)
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+                    if !tx.transparent_coins().is_empty() {
+                        let value: u64 = tx
+                            .transparent_coins()
+                            .iter()
+                            .map(|output| output.value())
+                            .sum();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Received)
+                                .value(value)
+                                .recipient_address(None)
+                                .pool_received(Some(PoolType::Transparent.to_string()))
+                                .memos(Vec::new())
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+                }
+            };
+        }
+        // value_transfers.sort_by_key(|vt| vt.blockheight());
+        ValueTransfers(value_transfers)
+    }
+
+    /// Provides a list of value transfers related to this capability
+    /// A value transfer is a group of all notes to a specific receiver in a transaction.
+    pub async fn value_transfers(&self) -> ValueTransfers {
+        let mut value_transfers: Vec<ValueTransfer> = Vec::new();
+        let transaction_summaries = self.transaction_summaries().await;
+
+        for tx in transaction_summaries.iter() {
+            match tx.kind() {
+                TransactionKind::Sent(SendType::Send) => {
+                    // create 1 sent value transfer for each non-self recipient address
+                    // if recipient_ua is available it overrides recipient_address
+                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
+
+                    // create 1 memo-to-self if a sending transaction receives any number of memos
+                    if tx.orchard_notes().iter().any(|note| note.memo().is_some())
+                        || tx.sapling_notes().iter().any(|note| note.memo().is_some())
+                    {
+                        let memos: Vec<String> = tx
+                            .orchard_notes()
+                            .iter()
+                            .filter_map(|note| note.memo().map(|memo| memo.to_string()))
+                            .chain(
+                                tx.sapling_notes()
+                                    .iter()
+                                    .filter_map(|note| note.memo().map(|memo| memo.to_string())),
+                            )
+                            .collect();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                                    SelfSendValueTransfer::MemoToSelf,
+                                )))
+                                .value(0)
+                                .recipient_address(None)
+                                .pool_received(None)
+                                .memos(memos)
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+                }
+                TransactionKind::Sent(SendType::Shield) => {
+                    // create 1 shielding value transfer for each pool shielded to
+                    if !tx.orchard_notes().is_empty() {
+                        let value: u64 =
+                            tx.orchard_notes().iter().map(|output| output.value()).sum();
+                        let memos: Vec<String> = tx
+                            .orchard_notes()
+                            .iter()
+                            .filter_map(|note| note.memo().map(|memo| memo.to_string()))
+                            .collect();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                                    SelfSendValueTransfer::Shield,
+                                )))
+                                .value(value)
+                                .recipient_address(None)
+                                .pool_received(Some(
+                                    PoolType::Shielded(ShieldedProtocol::Orchard).to_string(),
+                                ))
+                                .memos(memos)
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+                    if !tx.sapling_notes().is_empty() {
+                        let value: u64 =
+                            tx.sapling_notes().iter().map(|output| output.value()).sum();
+                        let memos: Vec<String> = tx
+                            .sapling_notes()
+                            .iter()
+                            .filter_map(|note| note.memo().map(|memo| memo.to_string()))
+                            .collect();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                                    SelfSendValueTransfer::Shield,
+                                )))
+                                .value(value)
+                                .recipient_address(None)
+                                .pool_received(Some(
+                                    PoolType::Shielded(ShieldedProtocol::Sapling).to_string(),
+                                ))
+                                .memos(memos)
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+                }
+                TransactionKind::Sent(SendType::SendToSelf) => {
+                    // create 1 memo-to-self if a sending transaction receives any number of memos
+                    // otherwise, create 1 send-to-self value transfer so every transaction creates at least 1 value transfer
+                    // eventually we may replace send-to-self with a range of kinds such as deshield and migrate etc.
+                    if tx.orchard_notes().iter().any(|note| note.memo().is_some())
+                        || tx.sapling_notes().iter().any(|note| note.memo().is_some())
+                    {
+                        let memos: Vec<String> = tx
+                            .orchard_notes()
+                            .iter()
+                            .filter_map(|note| note.memo().map(|memo| memo.to_string()))
+                            .chain(
+                                tx.sapling_notes()
+                                    .iter()
+                                    .filter_map(|note| note.memo().map(|memo| memo.to_string())),
+                            )
+                            .collect();
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                                    SelfSendValueTransfer::MemoToSelf,
+                                )))
+                                .value(0)
+                                .recipient_address(None)
+                                .pool_received(None)
+                                .memos(memos)
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    } else {
+                        value_transfers.push(
+                            ValueTransferBuilder::new()
+                                .txid(tx.txid())
+                                .datetime(tx.datetime())
+                                .status(tx.status())
+                                .blockheight(tx.blockheight())
+                                .transaction_fee(tx.fee())
+                                .zec_price(tx.zec_price())
+                                .kind(ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                                    SelfSendValueTransfer::Basic,
+                                )))
+                                .value(0)
+                                .recipient_address(None)
+                                .pool_received(None)
+                                .memos(vec![])
+                                .build()
+                                .expect("all fields should be populated"),
+                        );
+                    }
+
+                    // in the case Zennies For Zingo! is active
+                    value_transfers = ValueTransfers::create_send_value_transfers(tx);
                 }
                 TransactionKind::Received => {
                     // create 1 received value tansfer for each pool received to

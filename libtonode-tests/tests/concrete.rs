@@ -115,17 +115,29 @@ fn check_view_capability_bounds(
 }
 
 mod fast {
+    use std::str::FromStr;
+
     use bip0039::Mnemonic;
-    use zcash_address::{AddressKind, ZcashAddress};
+    use zcash_address::{test_vectors, AddressKind, ZcashAddress};
     use zcash_client_backend::{
+        proto::proposal::MemoBytes,
         zip321::{Payment, TransactionRequest},
         PoolType, ShieldedProtocol,
     };
-    use zcash_primitives::transaction::{components::amount::NonNegativeAmount, TxId};
+    use zcash_primitives::{
+        memo::Memo,
+        transaction::{components::amount::NonNegativeAmount, TxId},
+    };
     use zingo_status::confirmation_status::ConfirmationStatus;
-    use zingolib::wallet::notes::OutputInterface as _;
     use zingolib::{
-        config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS, wallet::data::summaries::SentValueTransfer,
+        config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS,
+        data::receivers::{transaction_request_from_receivers, Receiver},
+        mocks::proposal::PaymentBuilder,
+        testutils::{lightclient::get_base_address, send_value_between_clients_and_sync},
+        wallet::data::summaries::SentValueTransfer,
+    };
+    use zingolib::{
+        mocks::proposal::TransactionRequestBuilder, wallet::notes::OutputInterface as _,
     };
     use zingolib::{
         testutils::lightclient::from_inputs, wallet::data::summaries::SelfSendValueTransfer,
@@ -168,6 +180,98 @@ mod fast {
         assert!(value_transfers.iter().any(|vt| vt.kind()
             == ValueTransferKind::Sent(SentValueTransfer::Send)
             && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
+    }
+
+    #[tokio::test]
+    async fn message_thread() {
+        let (_regtest_manager, _cph, _faucet, recipient, _txid) =
+            scenarios::orchard_funded_recipient(10_000_000).await;
+
+        let faucet = get_base_address(&_faucet, PoolType::ORCHARD).await;
+        let r = get_base_address(&recipient, PoolType::ORCHARD).await;
+
+        println!("Addresses: r: {}, faucet: {}", r, faucet);
+
+        let payments = vec![
+            Payment::new(
+                ZcashAddress::from_str(&faucet).unwrap(),
+                NonNegativeAmount::from_u64(1_000).unwrap(),
+                Some(Memo::encode(
+                    &Memo::from_str("Hello to faucet from r #1").unwrap(),
+                )),
+                None,
+                None,
+                vec![],
+            )
+            .unwrap(),
+            Payment::new(
+                ZcashAddress::from_str(&faucet).unwrap(),
+                NonNegativeAmount::from_u64(1_000).unwrap(),
+                Some(Memo::encode(
+                    &Memo::from_str("Hello to faucet from r #2").unwrap(),
+                )),
+                None,
+                None,
+                vec![],
+            )
+            .unwrap(),
+        ];
+
+        let transaction_requests = vec![
+            TransactionRequest::new(vec![payments[0].clone()]).unwrap(),
+            TransactionRequest::new(vec![payments[1].clone()]).unwrap(),
+        ];
+
+        recipient
+            .propose_send(transaction_requests[0].clone())
+            .await
+            .unwrap();
+
+        recipient
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&_regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        dbg!(&recipient.do_balance().await);
+        dbg!(&recipient.value_transfers().await);
+
+        recipient
+            .propose_send(transaction_requests[1].clone())
+            .await
+            .unwrap();
+
+        recipient
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&_regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        dbg!(&recipient.do_balance().await);
+        dbg!(&recipient.received_messages_from(&r).await);
+
+        let value_transfers = &recipient.received_messages_from(&r).await;
+
+        dbg!(value_transfers);
+
+        println!("VALUE TRANSFERS");
+        for vt in value_transfers.iter() {
+            dbg!(vt.kind());
+        }
+
+        assert!(value_transfers
+            .iter()
+            .any(|vt| vt.kind() == ValueTransferKind::Sent(SentValueTransfer::Send)));
+        // assert!(value_transfers.iter().any(|vt| vt.kind()
+        //     == ValueTransferKind::Sent(SentValueTransfer::Send)
+        //     && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
     }
 
     pub mod tex {
