@@ -200,6 +200,12 @@ where
                 ParsedMemo::Version0 { uas } => {
                     add_recipient_unified_address(parameters, uas, outgoing_data);
                 }
+                ParsedMemo::Version1 {
+                    uas: _,
+                    rejection_address_indexes: _,
+                } => {
+                    todo!("v1 encoded memos unsuppported!")
+                }
                 _ => panic!(
                     "memo version not supported. please ensure that your software is up-to-date."
                 ),
