@@ -192,7 +192,7 @@ mod fast {
             )
             .unwrap();
 
-        let _charlie = faucet
+        let charlie = faucet
             .wallet
             .wallet_capability()
             .new_address(
@@ -237,12 +237,42 @@ mod fast {
         .unwrap()])
         .unwrap();
 
+        let alice_to_charlie = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&alice).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(&("Alice->Charlie #2\nReply to\n".to_string() + &alice)).unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        let charlie_to_alice = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&alice).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(
+                    &("Charlie->Alice #2\nReply to\n".to_string()
+                        + &charlie.encode(&faucet.config().chain)),
+                )
+                .unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
         let bob_to_alice = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&alice).unwrap(),
             NonNegativeAmount::from_u64(1_000).unwrap(),
             Some(Memo::encode(
                 &Memo::from_str(
-                    &("Alice->Bob #2\nReply to\n".to_string()
+                    &("Bob->Alice #2\nReply to\n".to_string()
                         + &bob.encode(&faucet.config().chain)),
                 )
                 .unwrap(),
@@ -290,30 +320,69 @@ mod fast {
             .await
             .unwrap();
 
-        let value_transfers = &recipient
-            .received_messages_from(&bob.encode(&recipient.config().chain))
-            .await;
+        recipient
+            .propose_send(alice_to_charlie.clone())
+            .await
+            .unwrap();
+
+        recipient
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        faucet.propose_send(charlie_to_alice.clone()).await.unwrap();
+
+        faucet
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
 
         increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
             .await
             .unwrap();
 
-        println!("VALUE TRANSFERS");
-        dbg!(value_transfers);
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
 
-        println!("Kinds");
-        for vt in value_transfers.iter() {
-            dbg!(vt.kind());
-        }
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
 
-        assert_eq!(value_transfers.0[0].memos().len(), 1);
-        assert!(value_transfers.0[0].memos()[0].contains(&bob.encode(&recipient.config().chain)));
-        assert!(value_transfers.0[1].memos()[0].contains(&alice));
-        assert!(value_transfers.0[2].memos()[0].contains(&alice));
+        let value_transfers_bob = &recipient
+            .received_messages_from(&bob.encode(&recipient.config().chain))
+            .await;
 
-        assert!(value_transfers
-            .iter()
-            .any(|vt| vt.kind() == ValueTransferKind::Sent(SentValueTransfer::Send)));
+        let value_transfers_charlie = &recipient
+            .received_messages_from(&charlie.encode(&recipient.config().chain))
+            .await;
+        let all_vts = &recipient.value_transfers().await;
+
+        // println!("VALUE TRANSFERS FOR BOB");
+        // dbg!(value_transfers_from_bob);
+
+        println!("VALUE TRANSFERS FOR CHARLIE");
+        dbg!(value_transfers_charlie);
+
+        // println!("ALL VTS");
+        // dbg!(all_vts);
+
+        // println!("Kinds");
+        // for vt in value_transfers_bob.iter() {
+        //     dbg!(vt.kind());
+        // }
+
+        // println!(
+        //     "VALUE TRANSFERS LENGTH: {}",
+        //     value_transfers_bob.0.len()
+        // );
+        // assert_eq!(value_transfers_bob.0[0].memos().len(), 1);
+        // assert!(value_transfers.0[0].memos()[0].contains(&bob.encode(&recipient.config().chain)));
+        // assert!(value_transfers.0[1].memos()[0].contains(&alice));
+        // assert!(value_transfers.0[2].memos()[0].contains(&alice));
+
+        assert_eq!(value_transfers_bob.0.len(), 3);
+        assert_eq!(value_transfers_charlie.0.len(), 2); // Somehow this fails, should be 2 instead of 1
     }
 
     pub mod tex {

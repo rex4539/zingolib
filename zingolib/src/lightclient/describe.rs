@@ -271,6 +271,32 @@ impl LightClient {
     pub async fn received_messages_from(&self, sender: &str) -> ValueTransfers {
         let mut value_transfers = self.value_transfers().await.0;
         value_transfers.reverse();
+
+        value_transfers.retain(|vt| {
+            println!(
+                "COMPARING AGAINST: {:.20}.., {:?}",
+                &sender[..20],
+                vt.memos()
+            );
+            if vt.memos().len() == 0 {
+                return false;
+            }
+
+            if vt.recipient_address() == Some(sender) {
+                return true;
+            } else {
+                for memo in vt.memos() {
+                    if memo.contains("Charlie") {
+                        dbg!(vt);
+                    }
+                    if memo.contains(sender) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+
         ValueTransfers(value_transfers)
     }
 
