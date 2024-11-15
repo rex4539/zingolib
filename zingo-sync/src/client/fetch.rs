@@ -12,7 +12,7 @@ use zcash_client_backend::proto::{
     },
 };
 use zcash_primitives::{
-    consensus::{BlockHeight, BranchId, Parameters},
+    consensus::{self, BlockHeight, BranchId},
     transaction::{Transaction, TxId},
 };
 
@@ -27,7 +27,7 @@ use crate::client::FetchRequest;
 pub async fn fetch(
     mut fetch_request_receiver: UnboundedReceiver<FetchRequest>,
     mut client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: impl Parameters,
+    consensus_parameters: impl consensus::Parameters,
 ) -> Result<(), ()> {
     let mut fetch_request_queue: Vec<FetchRequest> = Vec::new();
 
@@ -41,7 +41,7 @@ pub async fn fetch(
         let fetch_request = select_fetch_request(&mut fetch_request_queue);
 
         if let Some(request) = fetch_request {
-            fetch_from_server(&mut client, &parameters, request)
+            fetch_from_server(&mut client, &consensus_parameters, request)
                 .await
                 .unwrap();
         }
@@ -97,7 +97,7 @@ fn select_fetch_request(fetch_request_queue: &mut Vec<FetchRequest>) -> Option<F
 //
 async fn fetch_from_server(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: &impl Parameters,
+    parameters: &impl consensus::Parameters,
     fetch_request: FetchRequest,
 ) -> Result<(), ()> {
     match fetch_request {
@@ -172,7 +172,7 @@ async fn get_tree_state(
 
 async fn get_transaction(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: &impl Parameters,
+    parameters: &impl consensus::Parameters,
     txid: TxId,
 ) -> Result<(Transaction, BlockHeight), ()> {
     let request = tonic::Request::new(TxFilter {
