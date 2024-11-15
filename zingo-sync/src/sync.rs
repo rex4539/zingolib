@@ -73,7 +73,7 @@ where
 
     let mut interval = tokio::time::interval(Duration::from_millis(30));
     loop {
-        interval.tick().await; // TODO: tokio select to recieve scan results before tick
+        interval.tick().await; // TODO: tokio select to receive scan results before tick
 
         // if a scan worker is idle, send it a new scan task
         if scanner.is_worker_idle() {
