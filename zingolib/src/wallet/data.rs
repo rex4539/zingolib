@@ -760,7 +760,7 @@ pub mod summaries {
                         .expect("all fields should be populated"),
                 );
             });
-            return value_transfers;
+            value_transfers
         }
     }
 

@@ -279,19 +279,19 @@ impl LightClient {
         match filter {
             Some(s) => {
                 value_transfers.retain(|vt| {
-                    if vt.memos().len() == 0 {
+                    if vt.memos().is_empty() {
                         return false;
                     }
 
                     if vt.recipient_address() == Some(s) {
-                        return true;
+                        true
                     } else {
                         for memo in vt.memos() {
                             if memo.contains(s) {
                                 return true;
                             }
                         }
-                        return false;
+                        false
                     }
                 });
             }
