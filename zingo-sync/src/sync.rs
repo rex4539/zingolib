@@ -19,9 +19,8 @@ use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
 };
-use zcash_primitives::consensus::{BlockHeight, NetworkUpgrade, Parameters};
+use zcash_primitives::consensus::{self, BlockHeight, NetworkUpgrade};
 
-use futures::future::try_join_all;
 use tokio::sync::mpsc;
 use zcash_primitives::transaction::TxId;
 
@@ -32,25 +31,26 @@ const BATCH_SIZE: u32 = 10;
 /// Syncs a wallet to the latest state of the blockchain
 pub async fn sync<P, W>(
     client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>, // TODO: change underlying service for generic
-    parameters: &P,
+    consensus_parameters: &P,
     wallet: &mut W,
 ) -> Result<(), ()>
 where
-    P: Parameters + Sync + Send + 'static,
+    P: consensus::Parameters + Sync + Send + 'static,
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
 {
     tracing::info!("Syncing wallet...");
 
-    let mut handles = Vec::new();
-
     // create channel for sending fetch requests and launch fetcher task
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
-    let fetcher_handle = tokio::spawn(fetch(fetch_request_receiver, client, parameters.clone()));
-    handles.push(fetcher_handle);
+    let fetcher_handle = tokio::spawn(fetch(
+        fetch_request_receiver,
+        client,
+        consensus_parameters.clone(),
+    ));
 
     update_scan_ranges(
         fetch_request_sender.clone(),
-        parameters,
+        consensus_parameters,
         wallet.get_birthday().unwrap(),
         wallet.get_sync_state_mut().unwrap(),
     )
@@ -63,7 +63,7 @@ where
     let mut scanner = Scanner::new(
         scan_results_sender,
         fetch_request_sender.clone(),
-        parameters.clone(),
+        consensus_parameters.clone(),
         ufvks.clone(),
     );
     scanner.spawn_workers();
@@ -79,6 +79,8 @@ where
         if scanner.is_worker_idle() {
             if let Some(scan_range) = prepare_next_scan_range(wallet.get_sync_state_mut().unwrap())
             {
+                // TODO: Can previous_wallet_block have the same value
+                // for more than one call to get_wallet_block?
                 let previous_wallet_block = wallet
                     .get_wallet_block(scan_range.block_range().start - 1)
                     .ok();
@@ -96,7 +98,7 @@ where
             Ok((scan_range, scan_results)) => process_scan_results(
                 wallet,
                 fetch_request_sender.clone(),
-                parameters,
+                consensus_parameters,
                 &scanning_keys,
                 scan_range,
                 scan_results,
@@ -113,7 +115,7 @@ where
         process_scan_results(
             wallet,
             fetch_request_sender.clone(),
-            parameters,
+            consensus_parameters,
             &scanning_keys,
             scan_range,
             scan_results,
@@ -123,7 +125,7 @@ where
     }
 
     drop(fetch_request_sender);
-    try_join_all(handles).await.unwrap();
+    fetcher_handle.await.unwrap().unwrap();
 
     Ok(())
 }
@@ -136,7 +138,7 @@ async fn update_scan_ranges<P>(
     sync_state: &mut SyncState,
 ) -> Result<(), ()>
 where
-    P: Parameters,
+    P: consensus::Parameters,
 {
     let chain_height = client::get_chain_height(fetch_request_sender)
         .await
@@ -162,6 +164,7 @@ where
     };
 
     if wallet_height > chain_height {
+        // TODO:  Isn't this a possible state if there's been a reorg?
         panic!("wallet is ahead of server!")
     }
 
@@ -196,8 +199,8 @@ fn prepare_next_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
     })?;
 
     // if scan range is larger than BATCH_SIZE, split off and return a batch from the lower end and update scan ranges
-    if let Some((lower_range, higher_range)) = selected_scan_range
-        .split_at(selected_scan_range.block_range().start + BlockHeight::from_u32(BATCH_SIZE))
+    if let Some((lower_range, higher_range)) =
+        selected_scan_range.split_at(selected_scan_range.block_range().start + BATCH_SIZE)
     {
         let lower_range_ignored =
             ScanRange::from_parts(lower_range.block_range().clone(), ScanPriority::Ignored);
@@ -226,7 +229,7 @@ async fn process_scan_results<P, W>(
     scan_results: ScanResults,
 ) -> Result<(), ()>
 where
-    P: Parameters,
+    P: consensus::Parameters,
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
 {
     update_wallet_data(wallet, scan_results).unwrap();
@@ -269,7 +272,7 @@ async fn link_nullifiers<P, W>(
     scanning_keys: &ScanningKeys,
 ) -> Result<(), ()>
 where
-    P: Parameters,
+    P: consensus::Parameters,
     W: SyncBlocks + SyncTransactions + SyncNullifiers,
 {
     // locate spends
