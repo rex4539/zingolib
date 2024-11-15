@@ -268,7 +268,7 @@ impl LightClient {
     }
 
     /// Provides a list of ValueTransfers associated with the sender
-    pub async fn received_messages_from(&self, sender: Option<&str>) -> ValueTransfers {
+    pub async fn messages_to_from(&self, sender: Option<&str>) -> ValueTransfers {
         let mut value_transfers = self.value_transfers().await.0;
         value_transfers.reverse();
 
