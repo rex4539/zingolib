@@ -10,8 +10,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use append_only_vec::AppendOnlyVec;
 use bip0039::Mnemonic;
-use byteorder::{ReadBytesExt, WriteBytesExt};
-use bytes::LittleEndian;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use getset::{Getters, Setters};
 
 use orchard::note_encryption::OrchardDomain;
