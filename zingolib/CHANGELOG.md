@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `commands`:
-  - `MessagesFilterCommand`: For listing `ValueTransfers` containing memos related to an optional `sender` parameter.
+  - `MessagesFilterCommand`: For listing `ValueTransfers` containing memos related to an optional `sender` parameter. Returns a `JsonValue` object.
 - `lightclient::messages_containing`: used by `MessagesFilterCommand`.
 - `tests`:
   - `message_thread` test.
