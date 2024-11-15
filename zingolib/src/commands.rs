@@ -1313,10 +1313,9 @@ impl Command for MessagesFilterCommand {
         }
 
         RT.block_on(async move {
-            format!(
-                "{}",
-                lightclient.messages_containing(args.first().copied()).await
-            )
+            json::JsonValue::from(lightclient.messages_containing(args.first().copied()).await)
+                .pretty(2)
+                .to_string()
         })
     }
 }
