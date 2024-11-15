@@ -267,16 +267,16 @@ impl LightClient {
         }
     }
 
-    /// Provides a list of ValueTransfers associated with the sender
-    pub async fn messages_to_from(&self, sender: Option<&str>) -> ValueTransfers {
+    /// Provides a list of ValueTransfers associated with the sender, or containing the string
+    pub async fn messages_containing(&self, filter: Option<&str>) -> ValueTransfers {
         let mut value_transfers = self.value_transfers().await.0;
         value_transfers.reverse();
 
-        if sender.is_none() {
+        if filter.is_none() {
             return ValueTransfers(value_transfers);
         }
 
-        match sender {
+        match filter {
             Some(s) => {
                 value_transfers.retain(|vt| {
                     if vt.memos().len() == 0 {

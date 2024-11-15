@@ -342,13 +342,13 @@ mod fast {
             .unwrap();
 
         let value_transfers_bob = &recipient
-            .messages_to_from(Some(&bob.encode(&recipient.config().chain)))
+            .messages_containing(Some(&bob.encode(&recipient.config().chain)))
             .await;
 
         let value_transfers_charlie = &recipient
-            .messages_to_from(Some(&charlie.encode(&recipient.config().chain)))
+            .messages_containing(Some(&charlie.encode(&recipient.config().chain)))
             .await;
-        let all_vts = &recipient.messages_to_from(None).await;
+        let all_vts = &recipient.messages_containing(None).await;
 
         println!("ALL VTS");
         dbg!(all_vts);

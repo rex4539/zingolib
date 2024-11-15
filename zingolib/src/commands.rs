@@ -1287,17 +1287,18 @@ impl Command for ValueTransfersCommand {
     }
 }
 
-struct MessagesToFromAddressCommand {}
-impl Command for MessagesToFromAddressCommand {
+struct MessagesFilterCommand {}
+impl Command for MessagesFilterCommand {
     fn help(&self) -> &'static str {
         indoc! {r#"
             List memo-containing value transfers sent to/from wallet. If an address is provided,
-            only messages to/from that address will be provided. Otherwise, all memos are displayed. 
+            only messages to/from that address will be provided. If a string is provided,
+            messages containing that string are displayed. Otherwise, all memos are displayed. 
             Currently, for recieved messages, this relies on the reply-to address contained in the memo. 
             A value transfer is a group of all notes to a specific receiver in a transaction.
 
             Usage:
-            messages [address]
+            messages [address]/[string]
         "#}
     }
 
@@ -1314,7 +1315,7 @@ impl Command for MessagesToFromAddressCommand {
         RT.block_on(async move {
             format!(
                 "{}",
-                lightclient.messages_to_from(args.first().copied()).await
+                lightclient.messages_containing(args.first().copied()).await
             )
         })
     }
@@ -1819,7 +1820,7 @@ pub fn get_commands() -> HashMap<&'static str, Box<dyn Command>> {
         ),
         ("value_to_address", Box::new(ValueToAddressCommand {})),
         ("sends_to_address", Box::new(SendsToAddressCommand {})),
-        ("messages", Box::new(MessagesToFromAddressCommand {})),
+        ("messages", Box::new(MessagesFilterCommand {})),
         (
             "memobytes_to_address",
             Box::new(MemoBytesToAddressCommand {}),
