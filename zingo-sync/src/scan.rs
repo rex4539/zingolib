@@ -3,8 +3,9 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
 };
 
-use incrementalmerkletree::Position;
 use tokio::sync::mpsc;
+
+use incrementalmerkletree::Position;
 use zcash_client_backend::{data_api::scanning::ScanRange, proto::compact_formats::CompactBlock};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::{
@@ -50,7 +51,7 @@ impl InitialScanData {
                     prev.sapling_commitment_tree_size(),
                     prev.orchard_commitment_tree_size(),
                 )
-            } else if let Some(chain_metadata) = first_block.chain_metadata.clone() {
+            } else if let Some(chain_metadata) = &first_block.chain_metadata {
                 // calculate initial tree size by subtracting number of outputs in block from the blocks final tree size
                 let sapling_output_count: u32 = first_block
                     .vtx
