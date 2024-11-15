@@ -272,10 +272,6 @@ impl LightClient {
         let mut value_transfers = self.value_transfers().await.0;
         value_transfers.reverse();
 
-        if filter.is_none() {
-            return ValueTransfers(value_transfers);
-        }
-
         match filter {
             Some(s) => {
                 value_transfers.retain(|vt| {
