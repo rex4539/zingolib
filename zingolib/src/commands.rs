@@ -1306,7 +1306,7 @@ impl Command for MessagesToFromAddressCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        if !args.len() > 1 {
+        if args.len() > 1 {
             return "Error: invalid arguments\nTry 'help messages' for correct usage and examples"
                 .to_string();
         }
