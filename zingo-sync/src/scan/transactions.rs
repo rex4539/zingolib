@@ -295,7 +295,7 @@ impl ToBase58Check for [u8] {
 /// Sha256(Sha256(value))
 fn double_sha256(payload: &[u8]) -> Vec<u8> {
     let h1 = <sha2::Sha256 as sha2::Digest>::digest(payload);
-    let h2 = <sha2::Sha256 as sha2::Digest>::digest(&h1);
+    let h2 = <sha2::Sha256 as sha2::Digest>::digest(h1);
     h2.to_vec()
 }
 //
