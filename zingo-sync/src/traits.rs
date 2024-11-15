@@ -81,6 +81,9 @@ pub trait SyncTransactions: SyncWallet {
 pub trait SyncNullifiers: SyncWallet {
     // TODO: add method to get wallet data for writing defualt implementations on other methods
 
+    // /// Get wallet nullifier map
+    // fn get_nullifiers(&self) -> Result<&NullifierMap, Self::Error>;
+
     /// Get mutable reference to wallet nullifier map
     fn get_nullifiers_mut(&mut self) -> Result<&mut NullifierMap, Self::Error>;
 
