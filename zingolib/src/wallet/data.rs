@@ -1393,12 +1393,12 @@ pub mod summaries {
                 self.value,
                 fee,
                 zec_price,
+                orchard_nullifier_summaries,
+                sapling_nullifier_summaries,
                 orchard_notes,
                 sapling_notes,
                 transparent_coins,
                 outgoing_tx_data_summaries,
-                orchard_nullifier_summaries,
-                sapling_nullifier_summaries,
             )
         }
     }
@@ -1479,12 +1479,12 @@ pub mod summaries {
         value: Option<u64>,
         fee: Option<Option<u64>>,
         zec_price: Option<Option<f64>>,
+        orchard_nullifiers: Option<Vec<String>>,
+        sapling_nullifiers: Option<Vec<String>>,
         orchard_notes: Option<Vec<OrchardNoteSummary>>,
         sapling_notes: Option<Vec<SaplingNoteSummary>>,
         transparent_coins: Option<Vec<TransparentCoinSummary>>,
         outgoing_tx_data: Option<Vec<OutgoingTxData>>,
-        orchard_nullifiers: Option<Vec<String>>,
-        sapling_nullifiers: Option<Vec<String>>,
     }
 
     impl DetailedTransactionSummaryBuilder {
@@ -1499,12 +1499,12 @@ pub mod summaries {
                 value: None,
                 fee: None,
                 zec_price: None,
+                orchard_nullifiers: None,
+                sapling_nullifiers: None,
                 orchard_notes: None,
                 sapling_notes: None,
                 transparent_coins: None,
                 outgoing_tx_data: None,
-                orchard_nullifiers: None,
-                sapling_nullifiers: None,
             }
         }
 
@@ -1516,12 +1516,12 @@ pub mod summaries {
         build_method!(value, u64);
         build_method!(fee, Option<u64>);
         build_method!(zec_price, Option<f64>);
+        build_method!(orchard_nullifiers, Vec<String>);
+        build_method!(sapling_nullifiers, Vec<String>);
         build_method!(orchard_notes, Vec<OrchardNoteSummary>);
         build_method!(sapling_notes, Vec<SaplingNoteSummary>);
         build_method!(transparent_coins, Vec<TransparentCoinSummary>);
         build_method!(outgoing_tx_data, Vec<OutgoingTxData>);
-        build_method!(orchard_nullifiers, Vec<String>);
-        build_method!(sapling_nullifiers, Vec<String>);
 
         /// Builds DetailedTransactionSummary from builder
         pub fn build(&self) -> Result<DetailedTransactionSummary, BuildError> {
@@ -1550,6 +1550,14 @@ pub mod summaries {
                 zec_price: self
                     .zec_price
                     .ok_or(BuildError::MissingField("zec_price".to_string()))?,
+                orchard_nullifiers: self
+                    .orchard_nullifiers
+                    .clone()
+                    .ok_or(BuildError::MissingField("orchard_nullifiers".to_string()))?,
+                sapling_nullifiers: self
+                    .sapling_nullifiers
+                    .clone()
+                    .ok_or(BuildError::MissingField("sapling_nullifiers".to_string()))?,
                 orchard_notes: self
                     .orchard_notes
                     .clone()
@@ -1566,14 +1574,6 @@ pub mod summaries {
                     .outgoing_tx_data
                     .clone()
                     .ok_or(BuildError::MissingField("outgoing_tx_data".to_string()))?,
-                orchard_nullifiers: self
-                    .orchard_nullifiers
-                    .clone()
-                    .ok_or(BuildError::MissingField("orchard_nullifiers".to_string()))?,
-                sapling_nullifiers: self
-                    .sapling_nullifiers
-                    .clone()
-                    .ok_or(BuildError::MissingField("sapling_nullifiers".to_string()))?,
             })
         }
     }
