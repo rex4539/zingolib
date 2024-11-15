@@ -295,7 +295,7 @@ impl LightClient {
                     }
                 });
             }
-            None => {}
+            None => value_transfers.retain(|vt| !vt.memos().is_empty()),
         }
 
         ValueTransfers(value_transfers)
