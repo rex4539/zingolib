@@ -271,7 +271,6 @@ impl LightClient {
     pub async fn messages_containing(&self, filter: Option<&str>) -> ValueTransfers {
         let mut value_transfers = self.value_transfers().await.0;
         value_transfers.reverse();
-
         match filter {
             Some(s) => {
                 value_transfers.retain(|vt| {
@@ -303,7 +302,7 @@ impl LightClient {
         let mut value_transfers: Vec<ValueTransfer> = Vec::new();
         let transaction_summaries = self.transaction_summaries().await;
 
-        for tx in transaction_summaries.iter() {
+        for tx in transaction_summaries.iter().rev() {
             match tx.kind() {
                 TransactionKind::Sent(SendType::Send) => {
                     // create 1 sent value transfer for each non-self recipient address

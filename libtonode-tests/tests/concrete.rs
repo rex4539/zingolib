@@ -348,12 +348,25 @@ mod fast {
         let value_transfers_charlie = &recipient
             .messages_containing(Some(&charlie.encode(&recipient.config().chain)))
             .await;
-        let all_vts = &recipient.messages_containing(None).await;
 
-        println!("ALL VTS");
-        dbg!(all_vts);
+        let all_vts = &recipient.value_transfers().await;
+        let all_messages = &recipient.messages_containing(None).await;
+
         assert_eq!(value_transfers_bob.0.len(), 3);
         assert_eq!(value_transfers_charlie.0.len(), 2);
+
+        // Also asserting the order now (sorry juanky)
+        // ALL MESSAGES (First one should be the oldest one)
+        assert!(all_messages
+            .0
+            .windows(2)
+            .all(|pair| { pair[0].blockheight() <= pair[1].blockheight() }));
+
+        // ALL VTS (First one should be the most recent one)
+        assert!(all_vts
+            .0
+            .windows(2)
+            .all(|pair| { pair[0].blockheight() >= pair[1].blockheight() }));
     }
 
     pub mod tex {
