@@ -10,7 +10,7 @@ use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
 use crate::primitives::SyncState;
 use crate::scan::error::{ContinuityError, ScanError};
-use crate::scan::task::{ScanTask, Scanner};
+use crate::scan::task::Scanner;
 use crate::scan::transactions::scan_transactions;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
@@ -77,7 +77,6 @@ where
         interval.tick().await;
 
         match scan_results_receiver.try_recv() {
-            // <<<<<<< HEAD
             Ok((scan_range, scan_results)) => {
                 process_scan_results(
                     wallet,
@@ -89,15 +88,19 @@ where
                 )
                 .await
                 .unwrap();
-
-                if scanner.is_worker_idle() {
-                    create_scan_task(wallet, &scanner).unwrap();
-                }
             }
             Err(TryRecvError::Empty) => {
-                if scanner.is_worker_idle() {
-                    create_scan_task(wallet, &scanner).unwrap();
-                }
+                // if let Some(worker) = scanner.idle_worker() {
+                //     let scan_task = create_scan_task(wallet).unwrap();
+                //     if let Some(task) = scan_task {
+                //         worker.add_scan_task(task).unwrap();
+                //     } else {
+                //         // when no more ranges are available to scan, shutdown idle worker
+                //         if let Some(sender) = worker.scan_task_sender().take() {
+                //             drop(sender);
+                //         }
+                //     }
+                // }
 
                 // TODO: if all workers have handle taken, drop scanner.
             }
@@ -107,27 +110,6 @@ where
 
     drop(fetch_request_sender);
     fetcher_handle.await.unwrap().unwrap();
-
-    Ok(())
-}
-
-fn create_scan_task<P, W>(wallet: &mut W, scanner: &Scanner<P>) -> Result<(), ()>
-where
-    P: consensus::Parameters + Sync + Send + 'static,
-    W: SyncWallet + SyncBlocks,
-{
-    if let Some(scan_range) = select_scan_range(wallet.get_sync_state_mut().unwrap()) {
-        let previous_wallet_block = wallet
-            .get_wallet_block(scan_range.block_range().start - 1)
-            .ok();
-
-        scanner
-            .add_scan_task(ScanTask::from_parts(scan_range, previous_wallet_block))
-            .unwrap();
-    } else {
-        // when no more ranges are available to scan, shutdown idle workers
-        scanner.shutdown_idle_workers();
-    }
 
     Ok(())
 }
@@ -193,7 +175,7 @@ where
 /// Selects and prepares the next scan range for scanning.
 /// Sets the range for scanning to `Ignored` priority in the wallet [sync_state] but returns the scan range with its initial priority.
 /// Returns `None` if there are no more ranges to scan.
-fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
+pub(crate) fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
     let scan_ranges = sync_state.scan_ranges_mut();
 
     // TODO: placeholder for algorythm that determines highest priority range to scan
