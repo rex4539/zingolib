@@ -71,7 +71,7 @@ where
         }
     }
 
-    pub(crate) fn idle_worker(&mut self) -> Option<&mut ScanWorker<P>> {
+    fn idle_worker(&mut self) -> Option<&mut ScanWorker<P>> {
         if let Some(idle_worker) = self.workers.iter_mut().find(|worker| !worker.is_scanning()) {
             Some(idle_worker)
         } else {
@@ -91,9 +91,7 @@ where
             if let Some(scan_task) = ScanTask::create(wallet).unwrap() {
                 worker.add_scan_task(scan_task).unwrap();
             } else {
-                if let Some(sender) = worker.scan_task_sender.take() {
-                    drop(sender);
-                }
+                worker.shutdown();
             }
         }
     }
@@ -133,11 +131,13 @@ where
 
     fn run(&mut self) -> Result<(), ()> {
         let (scan_task_sender, mut scan_task_receiver) = mpsc::unbounded_channel::<ScanTask>();
+
         let is_scanning = self.is_scanning.clone();
         let scan_results_sender = self.scan_results_sender.clone();
         let fetch_request_sender = self.fetch_request_sender.clone();
         let consensus_parameters = self.consensus_parameters.clone();
         let ufvks = self.ufvks.clone();
+
         let handle = tokio::spawn(async move {
             while let Some(scan_task) = scan_task_receiver.recv().await {
                 is_scanning.store(true, atomic::Ordering::Release);
@@ -179,6 +179,12 @@ where
             .unwrap();
 
         Ok(())
+    }
+
+    fn shutdown(&mut self) {
+        if let Some(sender) = self.scan_task_sender.take() {
+            drop(sender);
+        }
     }
 }
 

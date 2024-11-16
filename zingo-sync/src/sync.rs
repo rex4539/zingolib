@@ -90,17 +90,7 @@ where
                 .unwrap();
             }
             Err(TryRecvError::Empty) => {
-                // if let Some(worker) = scanner.idle_worker() {
-                //     let scan_task = create_scan_task(wallet).unwrap();
-                //     if let Some(task) = scan_task {
-                //         worker.add_scan_task(task).unwrap();
-                //     } else {
-                //         // when no more ranges are available to scan, shutdown idle worker
-                //         if let Some(sender) = worker.scan_task_sender().take() {
-                //             drop(sender);
-                //         }
-                //     }
-                // }
+                scanner.update(wallet);
 
                 // TODO: if all workers have handle taken, drop scanner.
             }
