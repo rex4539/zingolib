@@ -173,6 +173,18 @@ mod fast {
             && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
     }
 
+    /// Test sending and receiving messages between three parties.
+    ///
+    /// This test case consists of the following sequence of events:
+    ///
+    /// 1. Alice sends a message to Bob.
+    /// 2. Alice sends another message to Bob.
+    /// 3. Bob sends a message to Alice.
+    /// 4. Alice sends a message to Charlie.
+    /// 5. Charlie sends a message to Alice.
+    ///
+    /// After the messages are sent, the test checks that the `messages_containing` method
+    /// returns the expected messages for each party in the correct order.
     #[tokio::test]
     async fn message_thread() {
         let (regtest_manager, _cph, faucet, recipient, _txid) =
@@ -204,12 +216,6 @@ mod fast {
                 false,
             )
             .unwrap();
-
-        println!(
-            "Addresses: {}, {}",
-            alice,
-            bob.encode(&faucet.config().chain),
-        );
 
         let alice_to_bob = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
