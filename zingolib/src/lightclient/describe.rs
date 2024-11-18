@@ -10,22 +10,17 @@ use zcash_primitives::consensus::NetworkConstants;
 
 use crate::{
     config::margin_fee,
-    wallet::data::summaries::{
-        SelfSendValueTransfer, SentValueTransfer, TransactionSummaryInterface,
-    },
-};
-
-use super::{AccountBackupInfo, LightClient, PoolBalances, UserBalances};
-use crate::{
     error::ZingoLibError,
+    lightclient::{AccountBackupInfo, LightClient, PoolBalances, UserBalances},
     wallet::{
         data::{
             finsight,
             summaries::{
                 basic_transaction_summary_parts, DetailedTransactionSummaries,
-                DetailedTransactionSummaryBuilder, TransactionSummaries, TransactionSummary,
-                TransactionSummaryBuilder, ValueTransfer, ValueTransferBuilder, ValueTransferKind,
-                ValueTransfers,
+                DetailedTransactionSummaryBuilder, SelfSendValueTransfer, SentValueTransfer,
+                TransactionSummaries, TransactionSummary, TransactionSummaryBuilder,
+                TransactionSummaryInterface, ValueTransfer, ValueTransferBuilder,
+                ValueTransferKind, ValueTransfers,
             },
         },
         keys::address_from_pubkeyhash,
