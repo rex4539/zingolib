@@ -6,10 +6,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
 use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
-use zcash_primitives::{
-    consensus::NetworkConstants,
-    memo::Memo,
-};
+use zcash_primitives::{consensus::NetworkConstants, memo::Memo};
 
 use crate::{
     config::margin_fee,
