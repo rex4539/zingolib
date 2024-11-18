@@ -1269,7 +1269,7 @@ impl Command for ValueTransfersCommand {
             A value transfer is a group of all notes to a specific receiver in a transaction.
 
             Usage:
-            valuetransfers
+            valuetransfers [bool]
         "#}
     }
 
@@ -1278,12 +1278,18 @@ impl Command for ValueTransfersCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        if !args.is_empty() {
+        if !args.len() > 1 {
             return "Error: invalid arguments\nTry 'help valuetransfers' for correct usage and examples"
                 .to_string();
         }
 
-        RT.block_on(async move { format!("{}", lightclient.value_transfers().await) })
+        let newer_first = args
+            .first()
+            .map(|s| s.parse())
+            .unwrap_or(Ok(true))
+            .unwrap_or(true);
+
+        RT.block_on(async move { format!("{}", lightclient.value_transfers(newer_first).await) })
     }
 }
 

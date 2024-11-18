@@ -160,7 +160,7 @@ mod fast {
             .await
             .unwrap();
 
-        let value_transfers = &recipient.value_transfers().await;
+        let value_transfers = &recipient.value_transfers(true).await;
 
         dbg!(value_transfers);
 
@@ -355,8 +355,12 @@ mod fast {
             .messages_containing(Some(&charlie.encode(&recipient.config().chain)))
             .await;
 
-        let all_vts = &recipient.value_transfers().await;
+        let all_vts = &recipient.value_transfers(true).await;
         let all_messages = &recipient.messages_containing(None).await;
+
+        for vt in all_vts.0.iter() {
+            dbg!(vt.blockheight());
+        }
 
         assert_eq!(value_transfers_bob.0.len(), 3);
         assert_eq!(value_transfers_charlie.0.len(), 2);
@@ -435,7 +439,7 @@ mod fast {
                     .len(),
                 3usize
             );
-            let val_tranfers = dbg!(sender.value_transfers().await);
+            let val_tranfers = dbg!(sender.value_transfers(true).await);
             // This fails, as we don't scan sends to tex correctly yet
             assert_eq!(
                 val_tranfers.0[0].recipient_address().unwrap(),
@@ -972,7 +976,7 @@ mod slow {
         );
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers().await).pretty(4)
+            JsonValue::from(recipient.value_transfers(true).await).pretty(4)
         );
     }
     #[tokio::test]
@@ -1391,7 +1395,7 @@ mod slow {
         println!("{}", recipient.do_list_transactions().await.pretty(2));
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers().await).pretty(2)
+            JsonValue::from(recipient.value_transfers(true).await).pretty(2)
         );
         recipient.do_rescan().await.unwrap();
         println!(
@@ -1401,7 +1405,7 @@ mod slow {
         println!("{}", recipient.do_list_transactions().await.pretty(2));
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers().await).pretty(2)
+            JsonValue::from(recipient.value_transfers(true).await).pretty(2)
         );
         // TODO: Add asserts!
     }
@@ -1824,7 +1828,7 @@ mod slow {
 
         println!(
             "{}",
-            JsonValue::from(faucet.value_transfers().await).pretty(4)
+            JsonValue::from(faucet.value_transfers(true).await).pretty(4)
         );
         println!(
             "{}",
@@ -2441,10 +2445,10 @@ mod slow {
                 .await
                 .unwrap();
             let pre_rescan_transactions = recipient.do_list_transactions().await;
-            let pre_rescan_summaries = recipient.value_transfers().await;
+            let pre_rescan_summaries = recipient.value_transfers(true).await;
             recipient.do_rescan().await.unwrap();
             let post_rescan_transactions = recipient.do_list_transactions().await;
-            let post_rescan_summaries = recipient.value_transfers().await;
+            let post_rescan_summaries = recipient.value_transfers(true).await;
             assert_eq!(pre_rescan_transactions, post_rescan_transactions);
             assert_eq!(pre_rescan_summaries, post_rescan_summaries);
             let mut outgoing_metadata = pre_rescan_transactions
@@ -3731,7 +3735,7 @@ mod slow {
         zingolib::testutils::increase_server_height(&regtest_manager, 1).await;
 
         let _synciiyur = recipient.do_sync(false).await;
-        // let summ_sim = recipient.list_value_transfers().await;
+        // let summ_sim = recipient.list_value_transfers(true).await;
         let bala_sim = recipient.do_balance().await;
 
         recipient.clear_state().await;
@@ -3750,10 +3754,10 @@ mod slow {
             }
         }
 
-        // let summ_int = recipient.list_value_transfers().await;
+        // let summ_int = recipient.list_value_transfers(true).await;
         // let bala_int = recipient.do_balance().await;
         let _synciiyur = recipient.do_sync(false).await;
-        // let summ_syn = recipient.list_value_transfers().await;
+        // let summ_syn = recipient.list_value_transfers(true).await;
         let bala_syn = recipient.do_balance().await;
 
         dbg!(

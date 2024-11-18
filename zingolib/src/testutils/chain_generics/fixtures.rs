@@ -58,24 +58,24 @@ where
     )
     .await;
 
-    assert_eq!(sender.value_transfers().await.0.len(), 3);
+    assert_eq!(sender.value_transfers(true).await.0.len(), 3);
     assert_eq!(
-        sender.value_transfers().await.0[0].kind(),
+        sender.value_transfers(true).await.0[0].kind(),
         ValueTransferKind::Sent(SentValueTransfer::Send)
     );
     assert_eq!(
-        sender.value_transfers().await.0[1].kind(),
+        sender.value_transfers(true).await.0[1].kind(),
         ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
             SelfSendValueTransfer::MemoToSelf
         ))
     );
     assert_eq!(
-        sender.value_transfers().await.0[2].kind(),
+        sender.value_transfers(true).await.0[2].kind(),
         ValueTransferKind::Received
     );
-    assert_eq!(recipient.value_transfers().await.0.len(), 1);
+    assert_eq!(recipient.value_transfers(true).await.0.len(), 1);
     assert_eq!(
-        recipient.value_transfers().await.0[0].kind(),
+        recipient.value_transfers(true).await.0[0].kind(),
         ValueTransferKind::Received
     );
 
@@ -87,18 +87,18 @@ where
     )
     .await;
 
-    assert_eq!(sender.value_transfers().await.0.len(), 4);
+    assert_eq!(sender.value_transfers(true).await.0.len(), 4);
     assert_eq!(
-        sender.value_transfers().await.0[0].kind(),
+        sender.value_transfers(true).await.0[0].kind(),
         ValueTransferKind::Sent(SentValueTransfer::SendToSelf(SelfSendValueTransfer::Basic))
     );
 
     with_assertions::assure_propose_shield_bump_sync(&mut environment, &sender, false)
         .await
         .unwrap();
-    assert_eq!(sender.value_transfers().await.0.len(), 5);
+    assert_eq!(sender.value_transfers(true).await.0.len(), 5);
     assert_eq!(
-        sender.value_transfers().await.0[0].kind(),
+        sender.value_transfers(true).await.0[0].kind(),
         ValueTransferKind::Sent(SentValueTransfer::SendToSelf(SelfSendValueTransfer::Shield))
     );
 }
