@@ -278,6 +278,9 @@ impl LightClient {
                                 }
                             }
                         }
+                        // at this point, all transactions accepted by the mempool have been so recorded: ConfirmationStatus::Mempool
+                        // so we rebroadcast all those which are stuck in ConfirmationStatus::Transmitted
+                        let _ = lc1.broadcast_created_transactions().await;
                     }
                 });
 
@@ -715,23 +718,26 @@ pub mod test {
         lc
     }
 
-    /// this is a live sync test. its execution time scales linearly since last updated
-    #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
-    #[tokio::test]
-    async fn testnet_sync_mskmgdbhotbpetcjwcspgopp() {
-        sync_example_wallet(examples::NetworkSeedVersion::Testnet(
-            examples::TestnetSeedVersion::MobileShuffle(examples::MobileShuffleVersion::Ga74fed621),
-        ))
-        .await;
-    }
-    /// this is a live sync test. its execution time scales linearly since last updated
-    #[ignore = "testnet and mainnet tests should be ignored due to increasingly large execution times"]
-    #[tokio::test]
-    async fn testnet_sync_cbbhrwiilgbrababsshsmtpr() {
-        sync_example_wallet(examples::NetworkSeedVersion::Testnet(
-            examples::TestnetSeedVersion::ChimneyBetter(examples::ChimneyBetterVersion::G2f3830058),
-        ))
-        .await;
+    mod testnet {
+        use super::{examples, sync_example_wallet};
+        /// this is a live sync test. its execution time scales linearly since last updated
+        #[ignore = "live chain experiment"]
+        #[tokio::test]
+        async fn testnet_sync_mskmgdbhotbpetcjwcspgopp() {
+            sync_example_wallet(examples::NetworkSeedVersion::Testnet(
+                examples::TestnetSeedVersion::MobileShuffle(examples::MobileShuffleVersion::Latest),
+            ))
+            .await;
+        }
+        /// this is a live sync test. its execution time scales linearly since last updated
+        #[ignore = "live chain experiment"]
+        #[tokio::test]
+        async fn testnet_sync_cbbhrwiilgbrababsshsmtpr() {
+            sync_example_wallet(examples::NetworkSeedVersion::Testnet(
+                examples::TestnetSeedVersion::ChimneyBetter(examples::ChimneyBetterVersion::Latest),
+            ))
+            .await;
+        }
     }
     /// this is a live sync test. its execution time scales linearly since last updated
     #[tokio::test]
