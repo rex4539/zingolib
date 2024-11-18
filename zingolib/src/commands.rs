@@ -1278,7 +1278,7 @@ impl Command for ValueTransfersCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        if !args.len() > 1 {
+        if args.len() > 1 {
             return "Error: invalid arguments\nTry 'help valuetransfers' for correct usage and examples"
                 .to_string();
         }
