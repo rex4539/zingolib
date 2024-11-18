@@ -61,8 +61,11 @@ impl WalletRead for TxMap {
     /// knows about.
     ///
     /// This will return `Ok(None)` if no block data is present in the database.
-    /// IMPL: fully implemented. the target height is always the next block after the last block fetched from the server, and the anchor is a variable depth below.
-    /// IMPL: tested
+    ///
+    /// IMPL:
+    /// fully implemented. the target height is always the next block after the last block fetched from the server, and the anchor is a variable depth below.
+    /// tested
+    /// in a view-only wallet, will return Err(TxMapTraitError::NoSpendCapability)
     fn get_target_and_anchor_heights(
         &self,
         min_confirmations: std::num::NonZeroU32,

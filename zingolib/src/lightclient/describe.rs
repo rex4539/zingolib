@@ -6,26 +6,21 @@ use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
 use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
-use zcash_primitives::consensus::{BlockHeight, NetworkConstants};
+use zcash_primitives::consensus::NetworkConstants;
 
 use crate::{
     config::margin_fee,
-    wallet::data::summaries::{
-        SelfSendValueTransfer, SentValueTransfer, TransactionSummaryInterface,
-    },
-};
-
-use super::{AccountBackupInfo, LightClient, PoolBalances, UserBalances};
-use crate::{
     error::ZingoLibError,
+    lightclient::{AccountBackupInfo, LightClient, PoolBalances, UserBalances},
     wallet::{
         data::{
             finsight,
             summaries::{
                 basic_transaction_summary_parts, DetailedTransactionSummaries,
-                DetailedTransactionSummaryBuilder, TransactionSummaries, TransactionSummary,
-                TransactionSummaryBuilder, ValueTransfer, ValueTransferBuilder, ValueTransferKind,
-                ValueTransfers,
+                DetailedTransactionSummaryBuilder, SelfSendValueTransfer, SentValueTransfer,
+                TransactionSummaries, TransactionSummary, TransactionSummaryBuilder,
+                TransactionSummaryInterface, ValueTransfer, ValueTransferBuilder,
+                ValueTransferKind, ValueTransfers,
             },
         },
         keys::address_from_pubkeyhash,
@@ -124,7 +119,10 @@ impl LightClient {
         };
 
         // anchor height is the highest block height that contains income that are considered spendable.
-        let anchor_height = self.wallet.get_anchor_height().await;
+        let current_height = self
+            .get_latest_block_height()
+            .await
+            .map_err(ZingoLibError::Lightwalletd)?;
 
         self.wallet
             .transactions()
@@ -133,9 +131,7 @@ impl LightClient {
             .transaction_records_by_id
             .iter()
             .for_each(|(_, tx)| {
-                let mature = tx
-                    .status
-                    .is_confirmed_before_or_at(&BlockHeight::from_u32(anchor_height));
+                let mature = tx.status.is_confirmed_before_or_at(&current_height);
                 let incoming = tx.is_incoming_transaction();
 
                 let mut change = 0;
@@ -756,7 +752,6 @@ impl LightClient {
     async fn list_sapling_notes(
         &self,
         all_notes: bool,
-        anchor_height: BlockHeight,
     ) -> (Vec<JsonValue>, Vec<JsonValue>, Vec<JsonValue>) {
         let mut unspent_sapling_notes: Vec<JsonValue> = vec![];
         let mut pending_spent_sapling_notes: Vec<JsonValue> = vec![];
@@ -769,7 +764,7 @@ impl LightClient {
                         None
                     } else {
                         let address = LightWallet::note_address::<sapling_crypto::note_encryption::SaplingDomain>(&self.config.chain, note_metadata, &self.wallet.wallet_capability());
-                        let spendable = transaction_metadata.status.is_confirmed_after_or_at(&anchor_height) && note_metadata.spending_tx_status().is_none();
+                        let spendable = transaction_metadata.status.is_confirmed() && note_metadata.spending_tx_status().is_none();
 
                         let created_block:u32 = transaction_metadata.status.get_height().into();
                         // this object should be created by the DomainOuput trait if this doesnt get deprecated
@@ -801,7 +796,6 @@ impl LightClient {
     async fn list_orchard_notes(
         &self,
         all_notes: bool,
-        anchor_height: BlockHeight,
     ) -> (Vec<JsonValue>, Vec<JsonValue>, Vec<JsonValue>) {
         let mut unspent_orchard_notes: Vec<JsonValue> = vec![];
         let mut pending_spent_orchard_notes: Vec<JsonValue> = vec![];
@@ -813,7 +807,7 @@ impl LightClient {
                         None
                     } else {
                         let address = LightWallet::note_address::<OrchardDomain>(&self.config.chain, note_metadata, &self.wallet.wallet_capability());
-                        let spendable = transaction_metadata.status.is_confirmed_after_or_at(&anchor_height) && note_metadata.spending_tx_status().is_none();
+                        let spendable = transaction_metadata.status.is_confirmed() && note_metadata.spending_tx_status().is_none();
 
                         let created_block:u32 = transaction_metadata.status.get_height().into();
                         Some(object!{
@@ -911,13 +905,12 @@ impl LightClient {
     ///  * TODO:   This fn must (on success) return an Ok(Vec\<Notes\>) where Notes is a 3 variant enum....
     ///  * TODO:   type-associated to the variants of the enum must impl From\<Type\> for JsonValue
     ///  * TODO:  DEPRECATE in favor of list_outputs
+    #[cfg(any(test, feature = "test-elevation"))]
     pub async fn do_list_notes(&self, all_notes: bool) -> JsonValue {
-        let anchor_height = BlockHeight::from_u32(self.wallet.get_anchor_height().await);
-
         let (mut unspent_sapling_notes, mut spent_sapling_notes, mut pending_spent_sapling_notes) =
-            self.list_sapling_notes(all_notes, anchor_height).await;
+            self.list_sapling_notes(all_notes).await;
         let (mut unspent_orchard_notes, mut spent_orchard_notes, mut pending_spent_orchard_notes) =
-            self.list_orchard_notes(all_notes, anchor_height).await;
+            self.list_orchard_notes(all_notes).await;
         let (
             mut unspent_transparent_notes,
             mut spent_transparent_notes,
