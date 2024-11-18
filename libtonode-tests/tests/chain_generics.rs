@@ -5,8 +5,8 @@ mod chain_generics {
     use zcash_client_backend::ShieldedProtocol::Sapling;
 
     use zingolib::testutils::chain_generics::fixtures;
+    use zingolib::testutils::chain_generics::libtonode::LibtonodeEnvironment;
 
-    use conduct_chain::LibtonodeEnvironment;
     #[tokio::test]
     async fn generate_a_range_of_value_transfers() {
         fixtures::create_various_value_transfers::<LibtonodeEnvironment>().await;
@@ -313,79 +313,5 @@ mod chain_generics {
     async fn simpool_no_fund_1_000_000_to_orchard() {
         fixtures::to_pool_unfunded_error::<LibtonodeEnvironment>(Shielded(Orchard), 1_000_000)
             .await;
-    }
-    mod conduct_chain {
-        use zcash_client_backend::PoolType;
-
-        use zcash_client_backend::ShieldedProtocol::Sapling;
-
-        use zingolib::config::RegtestNetwork;
-        use zingolib::lightclient::LightClient;
-        use zingolib::testutils::chain_generics::conduct_chain::ConductChain;
-        use zingolib::testutils::scenarios::setup::ScenarioBuilder;
-
-        pub(crate) struct LibtonodeEnvironment {
-            regtest_network: RegtestNetwork,
-            scenario_builder: ScenarioBuilder,
-        }
-
-        /// known issues include --slow
-        /// these tests cannot portray the full range of network weather.
-        impl ConductChain for LibtonodeEnvironment {
-            async fn setup() -> Self {
-                let regtest_network = RegtestNetwork::all_upgrades_active();
-                let scenario_builder = ScenarioBuilder::build_configure_launch(
-                    Some(PoolType::Shielded(Sapling)),
-                    None,
-                    None,
-                    &regtest_network,
-                )
-                .await;
-                LibtonodeEnvironment {
-                    regtest_network,
-                    scenario_builder,
-                }
-            }
-
-            async fn create_faucet(&mut self) -> LightClient {
-                self.scenario_builder
-                    .client_builder
-                    .build_faucet(false, self.regtest_network)
-                    .await
-            }
-
-            fn zingo_config(&mut self) -> zingolib::config::ZingoConfig {
-                self.scenario_builder
-                    .client_builder
-                    .make_unique_data_dir_and_load_config(self.regtest_network)
-            }
-
-            async fn bump_chain(&mut self) {
-                let start_height = self
-                    .scenario_builder
-                    .regtest_manager
-                    .get_current_height()
-                    .unwrap();
-                let target = start_height + 1;
-                self.scenario_builder
-                    .regtest_manager
-                    .generate_n_blocks(1)
-                    .expect("Called for side effect, failed!");
-                assert_eq!(
-                    self.scenario_builder
-                        .regtest_manager
-                        .get_current_height()
-                        .unwrap(),
-                    target
-                );
-            }
-
-            fn get_chain_height(&mut self) -> u32 {
-                self.scenario_builder
-                    .regtest_manager
-                    .get_current_height()
-                    .unwrap()
-            }
-        }
     }
 }
