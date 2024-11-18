@@ -7,7 +7,7 @@ use tokio::runtime::Runtime;
 
 use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
 use zcash_primitives::{
-    consensus::{BlockHeight, NetworkConstants},
+    consensus::NetworkConstants,
     memo::Memo,
 };
 
