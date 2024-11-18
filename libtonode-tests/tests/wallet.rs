@@ -212,11 +212,13 @@ mod load_wallet {
             regtest_network,
         )
         .await;
+
         zingolib::testutils::increase_height_and_wait_for_client(&regtest_manager, &faucet, 1)
             .await
             .unwrap();
 
         check_client_balances!(faucet, o: 0 s: 2_500_000_000u64 t: 0u64);
+
         let pending_txid = *from_inputs::quick_send(
             &faucet,
             vec![(
@@ -242,52 +244,58 @@ mod load_wallet {
             faucet.do_list_notes(true).await["unspent_orchard_notes"].len(),
             1
         );
+
         // Create a new client using the faucet's wallet
+        let faucet_reloaded = {
+            let mut wallet_location = regtest_manager.zingo_datadir;
+            wallet_location.pop();
+            wallet_location.push("zingo_client_1");
+            // Create zingo config
+            let zingo_config =
+                ZingoConfig::build(zingolib::config::ChainType::Regtest(regtest_network))
+                    .set_wallet_dir(wallet_location.clone())
+                    .create();
+            wallet_location.push("zingo-wallet.dat");
+            let read_buffer = File::open(wallet_location.clone()).unwrap();
 
-        // Create zingo config
-        let mut wallet_location = regtest_manager.zingo_datadir;
-        wallet_location.pop();
-        wallet_location.push("zingo_client_1");
-        let zingo_config =
-            ZingoConfig::build(zingolib::config::ChainType::Regtest(regtest_network))
-                .set_wallet_dir(wallet_location.clone())
-                .create();
-        wallet_location.push("zingo-wallet.dat");
-        let read_buffer = File::open(wallet_location.clone()).unwrap();
+            // Create wallet from faucet zingo-wallet.dat
+            let faucet_wallet =
+                zingolib::wallet::LightWallet::read_internal(read_buffer, &zingo_config)
+                    .await
+                    .unwrap();
 
-        // Create wallet from faucet zingo-wallet.dat
-        let faucet_wallet =
-            zingolib::wallet::LightWallet::read_internal(read_buffer, &zingo_config)
+            // Create client based on config and wallet of faucet
+            LightClient::create_from_wallet_async(faucet_wallet)
                 .await
-                .unwrap();
+                .unwrap()
+        };
 
-        // Create client based on config and wallet of faucet
-        let faucet_copy = LightClient::create_from_wallet_async(faucet_wallet)
-            .await
-            .unwrap();
         assert_eq!(
-            &faucet_copy.do_seed_phrase().await.unwrap(),
+            &faucet_reloaded.do_seed_phrase().await.unwrap(),
             &faucet.do_seed_phrase().await.unwrap()
         ); // Sanity check identity
+
+        // assert that the unconfirmed unspent orchard note was dropped
         assert_eq!(
-            faucet.do_list_notes(true).await["unspent_orchard_notes"].len(),
-            1
-        );
-        assert_eq!(
-            faucet_copy.do_list_notes(true).await["unspent_orchard_notes"].len(),
+            faucet_reloaded.do_list_notes(true).await["unspent_orchard_notes"].len(),
             0
         );
-        assert!(!faucet_copy
+
+        // assert that the unconfirmed transaction was dropped
+        assert!(!faucet_reloaded
             .transaction_summaries()
             .await
             .iter()
             .any(|transaction_summary| transaction_summary.txid() == pending_txid));
+
+        // sanity-check that the other transactions in the wallet are identical.
         let mut faucet_transactions = faucet.do_list_transactions().await;
+        let mut faucet_reloaded_transactions = faucet_reloaded.do_list_transactions().await;
+
         faucet_transactions.pop();
         faucet_transactions.pop();
-        let mut faucet_copy_transactions = faucet_copy.do_list_transactions().await;
-        faucet_copy_transactions.pop();
-        assert_eq!(faucet_transactions, faucet_copy_transactions);
+        faucet_reloaded_transactions.pop();
+        assert_eq!(faucet_transactions, faucet_reloaded_transactions);
     }
 
     #[tokio::test]
