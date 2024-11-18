@@ -12,6 +12,8 @@ mod load_wallet {
     use zingolib::lightclient::send::send_with_proposal::QuickSendError;
     use zingolib::lightclient::LightClient;
     use zingolib::lightclient::PoolBalances;
+    use zingolib::testutils::chain_generics::conduct_chain::ConductChain as _;
+    use zingolib::testutils::chain_generics::libtonode::LibtonodeEnvironment;
     use zingolib::testutils::lightclient::from_inputs;
     use zingolib::testutils::paths::get_cargo_manifest_dir;
     use zingolib::testutils::scenarios;
@@ -206,16 +208,13 @@ mod load_wallet {
 
     #[tokio::test]
     async fn pending_notes_are_not_saved() {
-        let regtest_network = RegtestNetwork::all_upgrades_active();
-        let (regtest_manager, _cph, faucet, recipient) = scenarios::faucet_recipient(
-            PoolType::Shielded(ShieldedProtocol::Sapling),
-            regtest_network,
-        )
-        .await;
+        let mut environment = LibtonodeEnvironment::setup().await;
 
-        zingolib::testutils::increase_height_and_wait_for_client(&regtest_manager, &faucet, 1)
-            .await
-            .unwrap();
+        let faucet = environment.create_faucet().await;
+        let recipient = environment.create_client().await;
+
+        environment.bump_chain().await;
+        faucet.do_sync(false).await.unwrap();
 
         check_client_balances!(faucet, o: 0 s: 2_500_000_000u64 t: 0u64);
 
@@ -247,14 +246,15 @@ mod load_wallet {
 
         // Create a new client using the faucet's wallet
         let faucet_reloaded = {
-            let mut wallet_location = regtest_manager.zingo_datadir;
+            let mut wallet_location = environment.scenario_builder.regtest_manager.zingo_datadir;
             wallet_location.pop();
             wallet_location.push("zingo_client_1");
             // Create zingo config
-            let zingo_config =
-                ZingoConfig::build(zingolib::config::ChainType::Regtest(regtest_network))
-                    .set_wallet_dir(wallet_location.clone())
-                    .create();
+            let zingo_config = ZingoConfig::build(zingolib::config::ChainType::Regtest(
+                environment.regtest_network,
+            ))
+            .set_wallet_dir(wallet_location.clone())
+            .create();
             wallet_location.push("zingo-wallet.dat");
             let read_buffer = File::open(wallet_location.clone()).unwrap();
 

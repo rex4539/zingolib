@@ -11,8 +11,10 @@ use crate::testutils::scenarios::setup::ScenarioBuilder;
 
 /// includes utilities for connecting to zcashd regtest
 pub struct LibtonodeEnvironment {
-    regtest_network: RegtestNetwork,
-    scenario_builder: ScenarioBuilder,
+    /// internal RegtestNetwork
+    pub regtest_network: RegtestNetwork,
+    /// internal ScenarioBuilder
+    pub scenario_builder: ScenarioBuilder,
 }
 
 /// known issues include --slow
@@ -52,7 +54,6 @@ impl ConductChain for LibtonodeEnvironment {
             .regtest_manager
             .get_current_height()
             .unwrap();
-        let target = start_height + 1;
         self.scenario_builder
             .regtest_manager
             .generate_n_blocks(1)
@@ -62,7 +63,7 @@ impl ConductChain for LibtonodeEnvironment {
                 .regtest_manager
                 .get_current_height()
                 .unwrap(),
-            target
+            start_height + 1
         );
     }
 
