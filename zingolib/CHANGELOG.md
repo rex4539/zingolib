@@ -18,3 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `LightClient::value_transfers::create_send_value_transfers` (in-function definition) -> `ValueTransfers::create_send_value_transfers`
+
+### Removed
+
+- `lightclient.do_list_notes` is deprecated

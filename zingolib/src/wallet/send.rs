@@ -5,7 +5,6 @@ use zcash_address::AddressKind;
 use zcash_client_backend::proposal::Proposal;
 use zcash_proofs::prover::LocalTxProver;
 
-use std::cmp;
 use std::ops::DerefMut as _;
 
 use zcash_client_backend::zip321::TransactionRequest;
@@ -46,34 +45,6 @@ impl SendProgress {
 }
 
 impl LightWallet {
-    /// Determines the target height for a transaction, and the offset from which to
-    /// select anchors, based on the current synchronised block chain.
-    pub(crate) async fn get_target_height_and_anchor_offset(&self) -> Option<(u32, usize)> {
-        let range = {
-            let blocks = self.last_100_blocks.read().await;
-            (
-                blocks.last().map(|block| block.height as u32),
-                blocks.first().map(|block| block.height as u32),
-            )
-        };
-        match range {
-            (Some(min_height), Some(max_height)) => {
-                let target_height = max_height + 1;
-
-                // Select an anchor ANCHOR_OFFSET back from the target block,
-                // unless that would be before the earliest block we have.
-                let anchor_height = cmp::max(
-                    target_height
-                        .saturating_sub(self.transaction_context.config.reorg_buffer_offset),
-                    min_height,
-                );
-
-                Some((target_height, (target_height - anchor_height) as usize))
-            }
-            _ => None,
-        }
-    }
-
     // Reset the send progress status to blank
     pub(crate) async fn reset_send_progress(&self) {
         let mut g = self.send_progress.write().await;

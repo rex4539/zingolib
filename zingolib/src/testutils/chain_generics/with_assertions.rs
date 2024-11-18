@@ -1,7 +1,9 @@
 //! lightclient functions with added assertions. used for tests.
 
+use std::num::NonZeroU32;
+
 use crate::{lightclient::LightClient, testutils::lightclient::lookup_stati as lookup_statuses};
-use zcash_client_backend::PoolType;
+use zcash_client_backend::{data_api::WalletRead as _, PoolType};
 
 use crate::testutils::{
     assertions::{assert_recipient_total_lte_to_proposal_total, lookup_fees_with_proposal_check},
@@ -40,8 +42,12 @@ where
 
     let send_height = sender
         .wallet
-        .get_target_height_and_anchor_offset()
+        .transaction_context
+        .transaction_metadata_set
+        .read()
         .await
+        .get_target_and_anchor_heights(NonZeroU32::MIN)
+        .expect("sender has a target height")
         .expect("sender has a target height")
         .0;
 
@@ -60,7 +66,7 @@ where
         .expect("record is ok");
 
     lookup_statuses(sender, txids.clone()).await.map(|status| {
-        assert_eq!(status, ConfirmationStatus::Transmitted(send_height.into()));
+        assert_eq!(status, ConfirmationStatus::Transmitted(send_height));
     });
 
     let send_ua_id = sender.do_addresses().await[0]["address"].clone();
@@ -97,10 +103,7 @@ where
                     .transaction_records_by_id;
                 for txid in &txids {
                     let record = records.get(txid).expect("recipient must recognize txid");
-                    assert_eq!(
-                        record.status,
-                        ConfirmationStatus::Mempool(send_height.into()),
-                    )
+                    assert_eq!(record.status, ConfirmationStatus::Mempool(send_height),)
                 }
             }
         }
@@ -145,8 +148,12 @@ where
 
     let send_height = client
         .wallet
-        .get_target_height_and_anchor_offset()
+        .transaction_context
+        .transaction_metadata_set
+        .read()
         .await
+        .get_target_and_anchor_heights(NonZeroU32::MIN)
+        .expect("sender has a target height")
         .expect("sender has a target height")
         .0;
 
@@ -164,7 +171,7 @@ where
         .expect("record is ok");
 
     lookup_statuses(client, txids.clone()).await.map(|status| {
-        assert_eq!(status, ConfirmationStatus::Transmitted(send_height.into()));
+        assert_eq!(status, ConfirmationStatus::Transmitted(send_height));
     });
 
     if test_mempool {

@@ -209,14 +209,6 @@ impl LightWallet {
         self.mnemonic.as_ref()
     }
 
-    /// Get the height of the anchor block
-    pub async fn get_anchor_height(&self) -> u32 {
-        match self.get_target_height_and_anchor_offset().await {
-            Some((height, anchor_offset)) => height - anchor_offset as u32 - 1, // what is the purpose of this -1 ?
-            None => 0,
-        }
-    }
-
     /// TODO: Add Doc Comment Here!
     pub async fn get_birthday(&self) -> u64 {
         let birthday = self.birthday.load(std::sync::atomic::Ordering::SeqCst);
