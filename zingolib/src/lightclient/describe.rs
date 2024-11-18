@@ -794,7 +794,6 @@ impl LightClient {
     async fn list_sapling_notes(
         &self,
         all_notes: bool,
-        anchor_height: BlockHeight,
     ) -> (Vec<JsonValue>, Vec<JsonValue>, Vec<JsonValue>) {
         let mut unspent_sapling_notes: Vec<JsonValue> = vec![];
         let mut pending_spent_sapling_notes: Vec<JsonValue> = vec![];
@@ -807,7 +806,7 @@ impl LightClient {
                         None
                     } else {
                         let address = LightWallet::note_address::<sapling_crypto::note_encryption::SaplingDomain>(&self.config.chain, note_metadata, &self.wallet.wallet_capability());
-                        let spendable = transaction_metadata.status.is_confirmed_after_or_at(&anchor_height) && note_metadata.spending_tx_status().is_none();
+                        let spendable = transaction_metadata.status.is_confirmed() && note_metadata.spending_tx_status().is_none();
 
                         let created_block:u32 = transaction_metadata.status.get_height().into();
                         // this object should be created by the DomainOuput trait if this doesnt get deprecated
@@ -839,7 +838,6 @@ impl LightClient {
     async fn list_orchard_notes(
         &self,
         all_notes: bool,
-        anchor_height: BlockHeight,
     ) -> (Vec<JsonValue>, Vec<JsonValue>, Vec<JsonValue>) {
         let mut unspent_orchard_notes: Vec<JsonValue> = vec![];
         let mut pending_spent_orchard_notes: Vec<JsonValue> = vec![];
@@ -851,7 +849,7 @@ impl LightClient {
                         None
                     } else {
                         let address = LightWallet::note_address::<OrchardDomain>(&self.config.chain, note_metadata, &self.wallet.wallet_capability());
-                        let spendable = transaction_metadata.status.is_confirmed_after_or_at(&anchor_height) && note_metadata.spending_tx_status().is_none();
+                        let spendable = transaction_metadata.status.is_confirmed() && note_metadata.spending_tx_status().is_none();
 
                         let created_block:u32 = transaction_metadata.status.get_height().into();
                         Some(object!{
@@ -951,17 +949,10 @@ impl LightClient {
     ///  * TODO:  DEPRECATE in favor of list_outputs
     #[cfg(any(test, feature = "test-elevation"))]
     pub async fn do_list_notes(&self, all_notes: bool) -> JsonValue {
-        // anchor height is the highest block height that contains income that are considered spendable.
-        let current_height = self
-            .get_latest_block_height()
-            .await
-            .map_err(ZingoLibError::Lightwalletd)
-            .unwrap();
-
         let (mut unspent_sapling_notes, mut spent_sapling_notes, mut pending_spent_sapling_notes) =
-            self.list_sapling_notes(all_notes, current_height).await;
+            self.list_sapling_notes(all_notes).await;
         let (mut unspent_orchard_notes, mut spent_orchard_notes, mut pending_spent_orchard_notes) =
-            self.list_orchard_notes(all_notes, current_height).await;
+            self.list_orchard_notes(all_notes).await;
         let (
             mut unspent_transparent_notes,
             mut spent_transparent_notes,
