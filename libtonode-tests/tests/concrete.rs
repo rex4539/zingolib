@@ -382,6 +382,8 @@ mod fast {
             .all(|pair| { pair[0].blockheight() >= pair[1].blockheight() }));
     }
 
+    /// Tests that value transfers are properly sorted by block height and index.
+    /// It also tests that retrieving the value transfers multiple times in a row returns the same results.
     #[tokio::test]
     async fn value_transfers() {
         let mut environment = LibtonodeEnvironment::setup().await;
@@ -426,19 +428,20 @@ mod fast {
         recipient.do_sync(false).await.unwrap();
 
         let value_transfers = &recipient.value_transfers(true).await;
+        let value_transfers1 = &recipient.value_transfers(true).await;
+        let value_transfers2 = &recipient.value_transfers(true).await;
+        let mut value_transfers3 = recipient.value_transfers(false).await;
+        let mut value_transfers4 = recipient.value_transfers(false).await;
 
         assert_eq!(value_transfers.0[0].memos().len(), 4);
 
-        for vt in value_transfers.0.iter() {
-            dbg!(vt.blockheight());
-        }
+        value_transfers3.0.reverse();
+        value_transfers4.0.reverse();
 
-        for (pos, memo) in value_transfers.0[0].memos().iter().enumerate() {
-            println!("Message #{}: {}", 4 - pos, memo);
-            assert_eq!(memo, &format!("Message #{}", 4 - pos));
-        }
-
-        println!("Total value transfers: {}", value_transfers.0.len());
+        assert_eq!(value_transfers, value_transfers1);
+        assert_eq!(value_transfers, value_transfers2);
+        assert_eq!(value_transfers.0, value_transfers3.0);
+        assert_eq!(value_transfers.0, value_transfers4.0);
     }
 
     pub mod tex {

@@ -298,11 +298,7 @@ impl LightClient {
         let mut value_transfers: Vec<ValueTransfer> = Vec::new();
         let summaries = self.transaction_summaries().await;
 
-        let transaction_summaries = if newer_first {
-            Box::new(summaries.iter().rev()) as Box<dyn Iterator<Item = &TransactionSummary>>
-        } else {
-            Box::new(summaries.iter()) as Box<dyn Iterator<Item = &TransactionSummary>>
-        };
+        let transaction_summaries = summaries.iter();
 
         for tx in transaction_summaries {
             match tx.kind() {
@@ -547,6 +543,18 @@ impl LightClient {
                 }
             };
         }
+
+        // if newer_first {
+        //     Box::new(summaries.iter().rev()) as Box<dyn Iterator<Item = &TransactionSummary>>
+        // } else {
+        //     Box::new(summaries.iter()) as Box<dyn Iterator<Item = &TransactionSummary>>
+        // };
+
+        if newer_first {
+            value_transfers.reverse();
+        }
+
+        // value_transfers.sort_by_key(|vt| vt.blockheight());
 
         ValueTransfers(value_transfers)
     }

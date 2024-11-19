@@ -713,7 +713,7 @@ pub mod summaries {
                     addresses.insert(address, outgoing_tx_data.output_index);
                 });
             let mut addresses_vec = addresses.into_iter().collect::<Vec<_>>();
-            addresses_vec.sort_by_key(|x| x.1);
+            addresses_vec.sort_by_key(|(_address, output_index)| *output_index);
             addresses_vec.iter().for_each(|(address, _output_index)| {
                 let outgoing_data_to_address: Vec<OutgoingTxData> = transaction_summary
                     .outgoing_tx_data()
