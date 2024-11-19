@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `commands`:
   - `MessagesFilterCommand`: For listing `ValueTransfers` containing memos related to an optional `sender` parameter. Returns a `JsonValue` object.
-- `lightclient::messages_containing`: used by `MessagesFilterCommand`.
+  - `ValueTransfersCommand`: takes optional reverse sort argument
+  - `lightclient::messages_containing`: used by `MessagesFilterCommand`.
+- `lightclient::sorted_value_transfers`
 - `tests`:
   - `message_thread` test.
 
