@@ -1286,10 +1286,12 @@ impl Command for ValueTransfersCommand {
         let newer_first = args
             .first()
             .map(|s| s.parse())
-            .unwrap_or(Ok(true))
-            .unwrap_or(true);
+            .unwrap_or(Ok(false))
+            .unwrap_or(false);
 
-        RT.block_on(async move { format!("{}", lightclient.value_transfers(newer_first).await) })
+        RT.block_on(
+            async move { format!("{}", lightclient.sorted_value_transfers(newer_first).await) },
+        )
     }
 }
 
