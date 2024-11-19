@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use log4rs::{
     append::rolling_file::{
         policy::compound::{
@@ -82,6 +82,45 @@ pub fn load_clientconfig(
         ErrorKind::ConnectionRefused,
         "Couldn't resolve server!",
     ))?;
+
+    // Create a Light Client Config
+    let config = ZingoConfig {
+        lightwalletd_uri: Arc::new(RwLock::new(lightwallet_uri)),
+        chain,
+        monitor_mempool,
+        reorg_buffer_offset: REORG_BUFFER_OFFSET,
+        wallet_dir: data_dir,
+        wallet_name: DEFAULT_WALLET_NAME.into(),
+        logfile_name: DEFAULT_LOGFILE_NAME.into(),
+        accept_server_txids: false,
+    };
+
+    Ok(config)
+}
+
+/// Same as load_clientconfig but doesn't panic when the server can't be reached
+pub fn load_clientconfig_serverless(
+    lightwallet_uri: http::Uri,
+    data_dir: Option<PathBuf>,
+    chain: ChainType,
+    monitor_mempool: bool,
+) -> std::io::Result<ZingoConfig> {
+    use std::net::ToSocketAddrs;
+    match format!(
+        "{}:{}",
+        lightwallet_uri.host().unwrap(),
+        lightwallet_uri.port().unwrap()
+    )
+    .to_socket_addrs()
+    {
+        Ok(_) => {
+            info!("Connected to {}", lightwallet_uri);
+        }
+        Err(e) => {
+            info!("Couldn't resolve server: {}", e);
+        }
+    }
+    info!("Connected to {}", lightwallet_uri);
 
     // Create a Light Client Config
     let config = ZingoConfig {
