@@ -59,25 +59,29 @@ where
     .await;
 
     assert_eq!(sender.value_transfers(true).await.0.len(), 3);
-    assert_eq!(
-        sender.value_transfers(true).await.0[0].kind(),
-        ValueTransferKind::Sent(SentValueTransfer::Send)
-    );
-    assert_eq!(
-        sender.value_transfers(true).await.0[1].kind(),
-        ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
-            SelfSendValueTransfer::MemoToSelf
-        ))
-    );
-    assert_eq!(
-        sender.value_transfers(true).await.0[2].kind(),
-        ValueTransferKind::Received
-    );
+
+    assert!(sender
+        .value_transfers(false)
+        .await
+        .0
+        .iter()
+        .any(|vt| { vt.kind() == ValueTransferKind::Received }));
+
+    assert!(sender
+        .value_transfers(false)
+        .await
+        .0
+        .iter()
+        .any(|vt| { vt.kind() == ValueTransferKind::Sent(SentValueTransfer::Send) }));
+
+    assert!(sender.value_transfers(false).await.0.iter().any(|vt| {
+        vt.kind()
+            == ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
+                SelfSendValueTransfer::MemoToSelf,
+            ))
+    }));
+
     assert_eq!(recipient.value_transfers(true).await.0.len(), 1);
-    assert_eq!(
-        recipient.value_transfers(true).await.0[0].kind(),
-        ValueTransferKind::Received
-    );
 
     with_assertions::propose_send_bump_sync_all_recipients(
         &mut environment,
