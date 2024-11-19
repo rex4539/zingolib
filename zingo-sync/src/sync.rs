@@ -15,7 +15,6 @@ use crate::scan::transactions::scan_transactions;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
 
-use tokio::sync::mpsc::error::TryRecvError;
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
@@ -73,11 +72,8 @@ where
 
     let mut interval = tokio::time::interval(Duration::from_millis(30));
     loop {
-        // TODO: add tokio select to optimise receiver
-        interval.tick().await;
-
-        match scan_results_receiver.try_recv() {
-            Ok((scan_range, scan_results)) => {
+        tokio::select! {
+            Some((scan_range, scan_results)) = scan_results_receiver.recv() => {
                 process_scan_results(
                     wallet,
                     fetch_request_sender.clone(),
@@ -89,12 +85,14 @@ where
                 .await
                 .unwrap();
             }
-            Err(TryRecvError::Empty) => {
-                scanner.update(wallet);
 
-                // TODO: if all workers have handle taken, drop scanner.
+            _ = interval.tick() => {
+                scanner.update(wallet).await;
+
+                if sync_complete(&scanner, &scan_results_receiver, wallet) {
+                    break;
+                }
             }
-            Err(TryRecvError::Disconnected) => break,
         }
     }
 
@@ -102,6 +100,26 @@ where
     fetcher_handle.await.unwrap().unwrap();
 
     Ok(())
+}
+
+/// Returns true if sync is complete.
+///
+/// Sync is complete when:
+/// - all scan workers have been shutdown
+/// - there is no unprocessed scan results in the channel
+/// - all scan ranges have `Scanned` priority
+fn sync_complete<P, W>(
+    scanner: &Scanner<P>,
+    scan_results_receiver: &mpsc::UnboundedReceiver<(ScanRange, Result<ScanResults, ScanError>)>,
+    wallet: &W,
+) -> bool
+where
+    P: consensus::Parameters + Sync + Send + 'static,
+    W: SyncWallet,
+{
+    scanner.worker_poolsize() == 0
+        && scan_results_receiver.is_empty()
+        && wallet.get_sync_state().unwrap().fully_scanned()
 }
 
 /// Update scan ranges to include blocks between the last known chain height (wallet height) and the chain height from the server

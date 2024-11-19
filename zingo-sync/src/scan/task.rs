@@ -6,7 +6,10 @@ use std::{
     },
 };
 
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::{
+    sync::mpsc,
+    task::{JoinError, JoinHandle},
+};
 
 use zcash_client_backend::data_api::scanning::ScanRange;
 use zcash_keys::keys::UnifiedFullViewingKey;
@@ -21,10 +24,11 @@ use crate::{
 
 use super::{error::ScanError, scan, ScanResults};
 
-const SCAN_WORKER_POOLSIZE: usize = 2;
+const MAX_WORKER_POOLSIZE: usize = 2;
 
 pub(crate) struct Scanner<P> {
     workers: Vec<ScanWorker<P>>,
+    unique_id: usize,
     scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     consensus_parameters: P,
@@ -42,10 +46,11 @@ where
         consensus_parameters: P,
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
     ) -> Self {
-        let workers: Vec<ScanWorker<P>> = Vec::with_capacity(SCAN_WORKER_POOLSIZE);
+        let workers: Vec<ScanWorker<P>> = Vec::with_capacity(MAX_WORKER_POOLSIZE);
 
         Self {
             workers,
+            unique_id: 0,
             scan_results_sender,
             fetch_request_sender,
             consensus_parameters,
@@ -53,8 +58,16 @@ where
         }
     }
 
+    pub(crate) fn worker_poolsize(&self) -> usize {
+        self.workers.len()
+    }
+
+    /// Spawns a worker.
+    ///
+    /// When the worker is running it will wait for a scan task.
     pub(crate) fn spawn_worker(&mut self) {
         let mut worker = ScanWorker::new(
+            self.unique_id,
             None,
             self.scan_results_sender.clone(),
             self.fetch_request_sender.clone(),
@@ -63,27 +76,49 @@ where
         );
         worker.run().unwrap();
         self.workers.push(worker);
+        self.unique_id += 1;
     }
 
+    /// Spawns the initial pool of workers.
+    ///
+    /// Poolsize is set by [`self::MAX_WORKER_POOLSIZE`].
     pub(crate) fn spawn_workers(&mut self) {
-        for _ in 0..SCAN_WORKER_POOLSIZE {
+        for _ in 0..MAX_WORKER_POOLSIZE {
             self.spawn_worker();
         }
     }
 
-    fn idle_worker(&mut self) -> Option<&mut ScanWorker<P>> {
-        if let Some(idle_worker) = self.workers.iter_mut().find(|worker| !worker.is_scanning()) {
+    fn idle_worker(&self) -> Option<&ScanWorker<P>> {
+        if let Some(idle_worker) = self.workers.iter().find(|worker| !worker.is_scanning()) {
             Some(idle_worker)
         } else {
             None
         }
     }
 
+    async fn shutdown_worker(&mut self, worker_id: usize) -> Result<(), ()> {
+        if let Some(worker_index) = self
+            .workers
+            .iter()
+            .position(|worker| worker.id == worker_id)
+        {
+            let mut worker = self.workers.swap_remove(worker_index);
+            worker
+                .shutdown()
+                .await
+                .expect("worker should not be able to panic");
+        } else {
+            panic!("id not found in worker pool");
+        }
+
+        Ok(())
+    }
+
     /// Updates the scanner.
     ///
-    /// If there is an idle worker, create a new scan task and send to worker.
+    /// If there is an idle worker, create a new scan task and add to worker.
     /// If there are no more range available to scan, shutdown the idle worker.
-    pub(crate) fn update<W>(&mut self, wallet: &mut W)
+    pub(crate) async fn update<W>(&mut self, wallet: &mut W)
     where
         W: SyncWallet + SyncBlocks,
     {
@@ -91,14 +126,21 @@ where
             if let Some(scan_task) = ScanTask::create(wallet).unwrap() {
                 worker.add_scan_task(scan_task).unwrap();
             } else {
-                worker.shutdown();
+                self.shutdown_worker(worker.id)
+                    .await
+                    .expect("worker should be in worker pool");
             }
+        }
+
+        if !wallet.get_sync_state().unwrap().fully_scanned() && self.worker_poolsize() == 0 {
+            panic!("worker pool should not be empty with unscanned ranges!")
         }
     }
 }
 
 struct ScanWorker<P> {
-    handle: Option<JoinHandle<Result<(), ()>>>,
+    id: usize,
+    handle: Option<JoinHandle<()>>,
     is_scanning: Arc<AtomicBool>,
     scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
     scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
@@ -112,6 +154,7 @@ where
     P: consensus::Parameters + Sync + Send + 'static,
 {
     fn new(
+        id: usize,
         scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
         scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
@@ -119,6 +162,7 @@ where
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
     ) -> Self {
         Self {
+            id,
             handle: None,
             is_scanning: Arc::new(AtomicBool::new(false)),
             scan_task_sender,
@@ -129,6 +173,9 @@ where
         }
     }
 
+    /// Runs the worker in a new tokio task.
+    ///
+    /// Waits for a scan task and then calls [`crate::scan::scan`] on the given range.
     fn run(&mut self) -> Result<(), ()> {
         let (scan_task_sender, mut scan_task_receiver) = mpsc::unbounded_channel::<ScanTask>();
 
@@ -153,12 +200,10 @@ where
 
                 scan_results_sender
                     .send((scan_task.scan_range, scan_results))
-                    .unwrap();
+                    .expect("receiver should never be dropped before sender!");
 
                 is_scanning.store(false, atomic::Ordering::Release);
             }
-
-            Ok(())
         });
 
         self.handle = Some(handle);
@@ -181,10 +226,19 @@ where
         Ok(())
     }
 
-    fn shutdown(&mut self) {
+    /// Shuts down worker by dropping the sender to the worker task and awaiting the handle.
+    ///
+    /// This should always be called in the context of the scanner as it must be also be removed from the worker pool.
+    async fn shutdown(&mut self) -> Result<(), JoinError> {
         if let Some(sender) = self.scan_task_sender.take() {
             drop(sender);
         }
+        let handle = self
+            .handle
+            .take()
+            .expect("worker should always have a handle to take!");
+
+        handle.await
     }
 }
 

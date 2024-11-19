@@ -53,7 +53,7 @@ pub trait SyncBlocks: SyncWallet {
         Ok(())
     }
 
-    /// Removes all wallet blocks with block height's within the given [invalid_range] (end exclusive)
+    /// Removes all wallet blocks with block height's within the given `invalid_range` (end exclusive)
     fn remove_wallet_blocks(
         &mut self,
         invalid_range: &Range<BlockHeight>,
@@ -86,7 +86,7 @@ pub trait SyncTransactions: SyncWallet {
         Ok(())
     }
 
-    /// Removes all wallet transactions with block height's within the given [invalid_range] (end exclusive)
+    /// Removes all wallet transactions with block height's within the given `invalid_range` (end exclusive)
     /// Also sets any output's spending_transaction field to `None` if it's spending transaction was removed.
     fn remove_wallet_transactions(
         &mut self,
@@ -154,7 +154,7 @@ pub trait SyncNullifiers: SyncWallet {
         Ok(())
     }
 
-    /// Removes all mapped nullifiers with block height's within the given [invalid_range] (end exclusive)
+    /// Removes all mapped nullifiers with block height's within the given `invalid_range` (end exclusive)
     fn remove_nullifiers(&mut self, invalid_range: &Range<BlockHeight>) -> Result<(), Self::Error> {
         let nullifier_map = self.get_nullifiers_mut()?;
         nullifier_map
