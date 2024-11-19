@@ -107,7 +107,7 @@ where
 /// Update scan ranges to include blocks between the last known chain height (wallet height) and the chain height from the server
 async fn update_scan_ranges<P>(
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    parameters: &P,
+    consensus_parameters: &P,
     wallet_birthday: BlockHeight,
     sync_state: &mut SyncState,
 ) -> Result<(), ()>
@@ -121,7 +121,7 @@ where
     let scan_ranges = sync_state.scan_ranges_mut();
 
     let wallet_height = if scan_ranges.is_empty() {
-        let sapling_activation_height = parameters
+        let sapling_activation_height = consensus_parameters
             .activation_height(NetworkUpgrade::Sapling)
             .expect("sapling activation height should always return Some");
 
@@ -138,7 +138,7 @@ where
     };
 
     if wallet_height > chain_height {
-        // TODO:  Isn't this a possible state if there's been a reorg?
+        // TODO:  truncate wallet to server height in case of reorg
         panic!("wallet is ahead of server!")
     }
 
@@ -158,6 +158,7 @@ where
     // TODO: add logic to combine chain tip scan range with wallet tip scan range
     // TODO: add scan priority logic
     // TODO: replace `ignored` (a.k.a scanning) priority with `verify` to prioritise ranges that were being scanned when sync was interrupted
+    // TODO: split off a verify priority batch from lowest unscanned scan range to prioritise reorg verification on sync start
 
     Ok(())
 }
@@ -199,7 +200,7 @@ pub(crate) fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange>
 async fn process_scan_results<P, W>(
     wallet: &mut W,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    parameters: &P,
+    consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     scan_results: Result<ScanResults, ScanError>,
@@ -211,7 +212,7 @@ where
     match scan_results {
         Ok(results) => {
             update_wallet_data(wallet, results).unwrap();
-            link_nullifiers(wallet, fetch_request_sender, parameters, ufvks)
+            link_nullifiers(wallet, fetch_request_sender, consensus_parameters, ufvks)
                 .await
                 .unwrap();
             remove_irrelevant_data(wallet, &scan_range).unwrap();
@@ -255,6 +256,7 @@ where
     wallet
         .remove_nullifiers(scan_range_to_verify.block_range())
         .unwrap();
+    // TODO: truncate shard tree
 
     Ok(())
 }
