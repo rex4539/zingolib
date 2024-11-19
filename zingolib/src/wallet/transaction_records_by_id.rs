@@ -781,16 +781,6 @@ impl TransactionRecordsById {
                     if let Ok(notes_from_tx) =
                         transaction_record.get_spendable_note_ids_and_values(sources, exclude)
                     {
-                        if transaction_record
-                            .outgoing_tx_data
-                            .iter()
-                            .any(|outgoing_tx_data| outgoing_tx_data.output_index.is_none())
-                        {
-                            missing_output_index.push((
-                                transaction_record.txid,
-                                transaction_record.status.get_height(),
-                            ));
-                        }
                         notes_from_tx
                     } else {
                         missing_output_index.push((
