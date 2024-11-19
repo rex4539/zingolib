@@ -130,7 +130,10 @@ mod fast {
     use zingo_status::confirmation_status::ConfirmationStatus;
     use zingolib::{
         config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS,
-        testutils::lightclient::{from_inputs, get_base_address},
+        testutils::{
+            chain_generics::{conduct_chain::ConductChain, libtonode::LibtonodeEnvironment},
+            lightclient::{from_inputs, get_base_address},
+        },
         utils::conversion::txid_from_hex_encoded_str,
         wallet::{
             data::summaries::{SelfSendValueTransfer, SentValueTransfer, ValueTransferKind},
@@ -377,6 +380,68 @@ mod fast {
             .0
             .windows(2)
             .all(|pair| { pair[0].blockheight() >= pair[1].blockheight() }));
+    }
+
+    /// Tests that value transfers are properly sorted by block height and index.
+    /// It also tests that retrieving the value transfers multiple times in a row returns the same results.
+    #[tokio::test]
+    async fn value_transfers() {
+        let mut environment = LibtonodeEnvironment::setup().await;
+
+        let faucet = environment.create_faucet().await;
+        let recipient = environment.create_client().await;
+
+        environment.bump_chain().await;
+        faucet.do_sync(false).await.unwrap();
+
+        check_client_balances!(faucet, o: 0 s: 2_500_000_000u64 t: 0u64);
+
+        from_inputs::quick_send(
+            &faucet,
+            vec![
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #1"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #2"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #3"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #4"),
+                ),
+            ],
+        )
+        .await
+        .unwrap();
+
+        environment.bump_chain().await;
+        recipient.do_sync(false).await.unwrap();
+
+        let value_transfers = &recipient.value_transfers(true).await;
+        let value_transfers1 = &recipient.value_transfers(true).await;
+        let value_transfers2 = &recipient.value_transfers(true).await;
+        let mut value_transfers3 = recipient.value_transfers(false).await;
+        let mut value_transfers4 = recipient.value_transfers(false).await;
+
+        assert_eq!(value_transfers.0[0].memos().len(), 4);
+
+        value_transfers3.0.reverse();
+        value_transfers4.0.reverse();
+
+        assert_eq!(value_transfers, value_transfers1);
+        assert_eq!(value_transfers, value_transfers2);
+        assert_eq!(value_transfers.0, value_transfers3.0);
+        assert_eq!(value_transfers.0, value_transfers4.0);
     }
 
     pub mod tex {
