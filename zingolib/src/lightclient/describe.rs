@@ -6,31 +6,22 @@ use std::{cmp::Ordering, collections::HashMap};
 use tokio::runtime::Runtime;
 
 use zcash_client_backend::{encoding::encode_payment_address, PoolType, ShieldedProtocol};
-use zcash_primitives::{
-    consensus::{BlockHeight, NetworkConstants},
-    memo::Memo,
-};
+use zcash_primitives::consensus::NetworkConstants;
 
 use crate::{
     config::margin_fee,
-    wallet::data::summaries::{
-        SelfSendValueTransfer, SentValueTransfer, TransactionSummaryInterface,
-    },
-};
-
-use super::{AccountBackupInfo, LightClient, PoolBalances, UserBalances};
-use crate::{
     error::ZingoLibError,
+    lightclient::{AccountBackupInfo, LightClient, PoolBalances, UserBalances},
     wallet::{
         data::{
             finsight,
             summaries::{
                 basic_transaction_summary_parts, DetailedTransactionSummaries,
-                DetailedTransactionSummaryBuilder, TransactionSummaries, TransactionSummary,
-                TransactionSummaryBuilder, ValueTransfer, ValueTransferBuilder, ValueTransferKind,
-                ValueTransfers,
+                DetailedTransactionSummaryBuilder, SelfSendValueTransfer, SentValueTransfer,
+                TransactionSummaries, TransactionSummary, TransactionSummaryBuilder,
+                TransactionSummaryInterface, ValueTransfer, ValueTransferBuilder,
+                ValueTransferKind, ValueTransfers,
             },
-            OutgoingTxData,
         },
         keys::address_from_pubkeyhash,
         notes::{query::OutputQuery, Output, OutputInterface},
@@ -128,7 +119,10 @@ impl LightClient {
         };
 
         // anchor height is the highest block height that contains income that are considered spendable.
-        let anchor_height = self.wallet.get_anchor_height().await;
+        let current_height = self
+            .get_latest_block_height()
+            .await
+            .map_err(ZingoLibError::Lightwalletd)?;
 
         self.wallet
             .transactions()
@@ -137,9 +131,7 @@ impl LightClient {
             .transaction_records_by_id
             .iter()
             .for_each(|(_, tx)| {
-                let mature = tx
-                    .status
-                    .is_confirmed_before_or_at(&BlockHeight::from_u32(anchor_height));
+                let mature = tx.status.is_confirmed_before_or_at(&current_height);
                 let incoming = tx.is_incoming_transaction();
 
                 let mut change = 0;
@@ -271,86 +263,53 @@ impl LightClient {
         }
     }
 
-    /// Provides a list of value transfers related to this capability
-    /// A value transfer is a group of all notes to a specific receiver in a transaction.
-    pub async fn value_transfers(&self) -> ValueTransfers {
-        fn create_send_value_transfers(
-            value_transfers: &mut Vec<ValueTransfer>,
-            transaction_summary: &TransactionSummary,
-        ) {
-            let mut addresses =
-                HashMap::with_capacity(transaction_summary.outgoing_tx_data().len());
-            transaction_summary
-                .outgoing_tx_data()
-                .iter()
-                .for_each(|outgoing_tx_data| {
-                    let address = if let Some(ua) = outgoing_tx_data.recipient_ua.clone() {
-                        ua
+    /// Provides a list of ValueTransfers associated with the sender, or containing the string
+    pub async fn messages_containing(&self, filter: Option<&str>) -> ValueTransfers {
+        let mut value_transfers = self.value_transfers(true).await.0;
+        value_transfers.reverse();
+        match filter {
+            Some(s) => {
+                value_transfers.retain(|vt| {
+                    if vt.memos().is_empty() {
+                        return false;
+                    }
+
+                    if vt.recipient_address() == Some(s) {
+                        true
                     } else {
-                        outgoing_tx_data.recipient_address.clone()
-                    };
-                    // hash map is used to create unique list of addresses as duplicates are not inserted twice
-                    addresses.insert(address, outgoing_tx_data.output_index);
-                });
-            let mut addresses_vec = addresses.into_iter().collect::<Vec<_>>();
-            addresses_vec.sort_by_key(|x| x.1);
-            addresses_vec.iter().for_each(|(address, _output_index)| {
-                let outgoing_data_to_address: Vec<OutgoingTxData> = transaction_summary
-                    .outgoing_tx_data()
-                    .iter()
-                    .filter(|outgoing_tx_data| {
-                        let query_address = if let Some(ua) = outgoing_tx_data.recipient_ua.clone()
-                        {
-                            ua
-                        } else {
-                            outgoing_tx_data.recipient_address.clone()
-                        };
-                        query_address == address.clone()
-                    })
-                    .cloned()
-                    .collect();
-                let value: u64 = outgoing_data_to_address
-                    .iter()
-                    .map(|outgoing_tx_data| outgoing_tx_data.value)
-                    .sum();
-                let memos: Vec<String> = outgoing_data_to_address
-                    .iter()
-                    .filter_map(|outgoing_tx_data| {
-                        if let Memo::Text(memo_text) = outgoing_tx_data.memo.clone() {
-                            Some(memo_text.to_string())
-                        } else {
-                            None
+                        for memo in vt.memos() {
+                            if memo.contains(s) {
+                                return true;
+                            }
                         }
-                    })
-                    .collect();
-                value_transfers.push(
-                    ValueTransferBuilder::new()
-                        .txid(transaction_summary.txid())
-                        .datetime(transaction_summary.datetime())
-                        .status(transaction_summary.status())
-                        .blockheight(transaction_summary.blockheight())
-                        .transaction_fee(transaction_summary.fee())
-                        .zec_price(transaction_summary.zec_price())
-                        .kind(ValueTransferKind::Sent(SentValueTransfer::Send))
-                        .value(value)
-                        .recipient_address(Some(address.clone()))
-                        .pool_received(None)
-                        .memos(memos)
-                        .build()
-                        .expect("all fields should be populated"),
-                );
-            });
+                        false
+                    }
+                });
+            }
+            None => value_transfers.retain(|vt| !vt.memos().is_empty()),
         }
 
-        let mut value_transfers: Vec<ValueTransfer> = Vec::new();
-        let transaction_summaries = self.transaction_summaries().await;
+        ValueTransfers(value_transfers)
+    }
 
-        for tx in transaction_summaries.iter() {
+    /// Provides a list of value transfers related to this capability
+    /// A value transfer is a group of all notes to a specific receiver in a transaction.
+    pub async fn value_transfers(&self, newer_first: bool) -> ValueTransfers {
+        let mut value_transfers: Vec<ValueTransfer> = Vec::new();
+        let summaries = self.transaction_summaries().await;
+
+        let transaction_summaries = if newer_first {
+            Box::new(summaries.iter().rev()) as Box<dyn Iterator<Item = &TransactionSummary>>
+        } else {
+            Box::new(summaries.iter()) as Box<dyn Iterator<Item = &TransactionSummary>>
+        };
+
+        for tx in transaction_summaries {
             match tx.kind() {
                 TransactionKind::Sent(SendType::Send) => {
                     // create 1 sent value transfer for each non-self recipient address
                     // if recipient_ua is available it overrides recipient_address
-                    create_send_value_transfers(&mut value_transfers, tx);
+                    value_transfers.append(&mut ValueTransfers::create_send_value_transfers(tx));
 
                     // create 1 memo-to-self if a sending transaction receives any number of memos
                     if tx.orchard_notes().iter().any(|note| note.memo().is_some())
@@ -504,7 +463,7 @@ impl LightClient {
                     }
 
                     // in the case Zennies For Zingo! is active
-                    create_send_value_transfers(&mut value_transfers, tx);
+                    value_transfers.append(&mut ValueTransfers::create_send_value_transfers(tx));
                 }
                 TransactionKind::Received => {
                     // create 1 received value tansfer for each pool received to
@@ -594,7 +553,7 @@ impl LightClient {
 
     /// TODO: doc comment
     pub async fn value_transfers_json_string(&self) -> String {
-        json::JsonValue::from(self.value_transfers().await).pretty(2)
+        json::JsonValue::from(self.value_transfers(true).await).pretty(2)
     }
 
     /// Provides a list of transaction summaries related to this wallet in order of blockheight
@@ -732,7 +691,7 @@ impl LightClient {
 
     /// TODO: Add Doc Comment Here!
     pub async fn do_total_memobytes_to_address(&self) -> finsight::TotalMemoBytesToAddress {
-        let value_transfers = self.value_transfers().await.0;
+        let value_transfers = self.value_transfers(true).await.0;
         let mut memobytes_by_address = HashMap::new();
         for value_transfer in value_transfers {
             if let ValueTransferKind::Sent(SentValueTransfer::Send) = value_transfer.kind() {
@@ -793,7 +752,6 @@ impl LightClient {
     async fn list_sapling_notes(
         &self,
         all_notes: bool,
-        anchor_height: BlockHeight,
     ) -> (Vec<JsonValue>, Vec<JsonValue>, Vec<JsonValue>) {
         let mut unspent_sapling_notes: Vec<JsonValue> = vec![];
         let mut pending_spent_sapling_notes: Vec<JsonValue> = vec![];
@@ -806,7 +764,7 @@ impl LightClient {
                         None
                     } else {
                         let address = LightWallet::note_address::<sapling_crypto::note_encryption::SaplingDomain>(&self.config.chain, note_metadata, &self.wallet.wallet_capability());
-                        let spendable = transaction_metadata.status.is_confirmed_after_or_at(&anchor_height) && note_metadata.spending_tx_status().is_none();
+                        let spendable = transaction_metadata.status.is_confirmed() && note_metadata.spending_tx_status().is_none();
 
                         let created_block:u32 = transaction_metadata.status.get_height().into();
                         // this object should be created by the DomainOuput trait if this doesnt get deprecated
@@ -838,7 +796,6 @@ impl LightClient {
     async fn list_orchard_notes(
         &self,
         all_notes: bool,
-        anchor_height: BlockHeight,
     ) -> (Vec<JsonValue>, Vec<JsonValue>, Vec<JsonValue>) {
         let mut unspent_orchard_notes: Vec<JsonValue> = vec![];
         let mut pending_spent_orchard_notes: Vec<JsonValue> = vec![];
@@ -850,7 +807,7 @@ impl LightClient {
                         None
                     } else {
                         let address = LightWallet::note_address::<OrchardDomain>(&self.config.chain, note_metadata, &self.wallet.wallet_capability());
-                        let spendable = transaction_metadata.status.is_confirmed_after_or_at(&anchor_height) && note_metadata.spending_tx_status().is_none();
+                        let spendable = transaction_metadata.status.is_confirmed() && note_metadata.spending_tx_status().is_none();
 
                         let created_block:u32 = transaction_metadata.status.get_height().into();
                         Some(object!{
@@ -948,13 +905,12 @@ impl LightClient {
     ///  * TODO:   This fn must (on success) return an Ok(Vec\<Notes\>) where Notes is a 3 variant enum....
     ///  * TODO:   type-associated to the variants of the enum must impl From\<Type\> for JsonValue
     ///  * TODO:  DEPRECATE in favor of list_outputs
+    #[cfg(any(test, feature = "test-elevation"))]
     pub async fn do_list_notes(&self, all_notes: bool) -> JsonValue {
-        let anchor_height = BlockHeight::from_u32(self.wallet.get_anchor_height().await);
-
         let (mut unspent_sapling_notes, mut spent_sapling_notes, mut pending_spent_sapling_notes) =
-            self.list_sapling_notes(all_notes, anchor_height).await;
+            self.list_sapling_notes(all_notes).await;
         let (mut unspent_orchard_notes, mut spent_orchard_notes, mut pending_spent_orchard_notes) =
-            self.list_orchard_notes(all_notes, anchor_height).await;
+            self.list_orchard_notes(all_notes).await;
         let (
             mut unspent_transparent_notes,
             mut spent_transparent_notes,
@@ -990,7 +946,7 @@ impl LightClient {
     }
 
     async fn value_transfer_by_to_address(&self) -> finsight::ValuesSentToAddress {
-        let value_transfers = self.value_transfers().await.0;
+        let value_transfers = self.value_transfers(true).await.0;
         let mut amount_by_address = HashMap::new();
         for value_transfer in value_transfers {
             if let ValueTransferKind::Sent(SentValueTransfer::Send) = value_transfer.kind() {

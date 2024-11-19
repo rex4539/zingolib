@@ -115,25 +115,28 @@ fn check_view_capability_bounds(
 }
 
 mod fast {
+    use std::str::FromStr;
+
     use bip0039::Mnemonic;
     use zcash_address::{AddressKind, ZcashAddress};
     use zcash_client_backend::{
         zip321::{Payment, TransactionRequest},
         PoolType, ShieldedProtocol,
     };
-    use zcash_primitives::transaction::{components::amount::NonNegativeAmount, TxId};
+    use zcash_primitives::{
+        memo::Memo,
+        transaction::{components::amount::NonNegativeAmount, TxId},
+    };
     use zingo_status::confirmation_status::ConfirmationStatus;
-    use zingolib::wallet::notes::OutputInterface as _;
     use zingolib::{
-        config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS, wallet::data::summaries::SentValueTransfer,
-    };
-    use zingolib::{
-        testutils::lightclient::from_inputs, wallet::data::summaries::SelfSendValueTransfer,
-    };
-
-    use zingolib::{
-        utils::conversion::txid_from_hex_encoded_str, wallet::data::summaries::ValueTransferKind,
-        wallet::notes::ShieldedNoteInterface,
+        config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS,
+        testutils::lightclient::{from_inputs, get_base_address},
+        utils::conversion::txid_from_hex_encoded_str,
+        wallet::{
+            data::summaries::{SelfSendValueTransfer, SentValueTransfer, ValueTransferKind},
+            keys::unified::ReceiverSelection,
+            notes::{OutputInterface as _, ShieldedNoteInterface},
+        },
     };
 
     use super::*;
@@ -157,7 +160,7 @@ mod fast {
             .await
             .unwrap();
 
-        let value_transfers = &recipient.value_transfers().await;
+        let value_transfers = &recipient.value_transfers(true).await;
 
         dbg!(value_transfers);
 
@@ -168,6 +171,212 @@ mod fast {
         assert!(value_transfers.iter().any(|vt| vt.kind()
             == ValueTransferKind::Sent(SentValueTransfer::Send)
             && vt.recipient_address() == Some(ZENNIES_FOR_ZINGO_REGTEST_ADDRESS)));
+    }
+
+    /// Test sending and receiving messages between three parties.
+    ///
+    /// This test case consists of the following sequence of events:
+    ///
+    /// 1. Alice sends a message to Bob.
+    /// 2. Alice sends another message to Bob.
+    /// 3. Bob sends a message to Alice.
+    /// 4. Alice sends a message to Charlie.
+    /// 5. Charlie sends a message to Alice.
+    ///
+    /// After the messages are sent, the test checks that the `messages_containing` method
+    /// returns the expected messages for each party in the correct order.
+    #[tokio::test]
+    async fn message_thread() {
+        let (regtest_manager, _cph, faucet, recipient, _txid) =
+            scenarios::orchard_funded_recipient(10_000_000).await;
+
+        let alice = get_base_address(&recipient, PoolType::ORCHARD).await;
+        let bob = faucet
+            .wallet
+            .wallet_capability()
+            .new_address(
+                ReceiverSelection {
+                    orchard: true,
+                    sapling: true,
+                    transparent: true,
+                },
+                false,
+            )
+            .unwrap();
+
+        let charlie = faucet
+            .wallet
+            .wallet_capability()
+            .new_address(
+                ReceiverSelection {
+                    orchard: true,
+                    sapling: true,
+                    transparent: true,
+                },
+                false,
+            )
+            .unwrap();
+
+        let alice_to_bob = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(&("Alice->Bob #1\nReply to\n".to_string() + &alice)).unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        let alice_to_bob_2 = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(&("Alice->Bob #2\nReply to\n".to_string() + &alice)).unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        let alice_to_charlie = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&charlie.encode(&faucet.config().chain)).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(&("Alice->Charlie #2\nReply to\n".to_string() + &alice)).unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        let charlie_to_alice = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&alice).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(
+                    &("Charlie->Alice #2\nReply to\n".to_string()
+                        + &charlie.encode(&faucet.config().chain)),
+                )
+                .unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        let bob_to_alice = TransactionRequest::new(vec![Payment::new(
+            ZcashAddress::from_str(&alice).unwrap(),
+            NonNegativeAmount::from_u64(1_000).unwrap(),
+            Some(Memo::encode(
+                &Memo::from_str(
+                    &("Bob->Alice #2\nReply to\n".to_string()
+                        + &bob.encode(&faucet.config().chain)),
+                )
+                .unwrap(),
+            )),
+            None,
+            None,
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+
+        recipient.propose_send(alice_to_bob.clone()).await.unwrap();
+
+        recipient
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        recipient
+            .propose_send(alice_to_bob_2.clone())
+            .await
+            .unwrap();
+
+        recipient
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        faucet.propose_send(bob_to_alice.clone()).await.unwrap();
+
+        faucet
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        recipient
+            .propose_send(alice_to_charlie.clone())
+            .await
+            .unwrap();
+
+        recipient
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        faucet.propose_send(charlie_to_alice.clone()).await.unwrap();
+
+        faucet
+            .complete_and_broadcast_stored_proposal()
+            .await
+            .unwrap();
+
+        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
+            .await
+            .unwrap();
+
+        let value_transfers_bob = &recipient
+            .messages_containing(Some(&bob.encode(&recipient.config().chain)))
+            .await;
+
+        let value_transfers_charlie = &recipient
+            .messages_containing(Some(&charlie.encode(&recipient.config().chain)))
+            .await;
+
+        let all_vts = &recipient.value_transfers(true).await;
+        let all_messages = &recipient.messages_containing(None).await;
+
+        for vt in all_vts.0.iter() {
+            dbg!(vt.blockheight());
+        }
+
+        assert_eq!(value_transfers_bob.0.len(), 3);
+        assert_eq!(value_transfers_charlie.0.len(), 2);
+
+        // Also asserting the order now (sorry juanky)
+        // ALL MESSAGES (First one should be the oldest one)
+        assert!(all_messages
+            .0
+            .windows(2)
+            .all(|pair| { pair[0].blockheight() <= pair[1].blockheight() }));
+
+        // ALL VTS (First one should be the most recent one)
+        assert!(all_vts
+            .0
+            .windows(2)
+            .all(|pair| { pair[0].blockheight() >= pair[1].blockheight() }));
     }
 
     pub mod tex {
@@ -230,10 +439,10 @@ mod fast {
                     .len(),
                 3usize
             );
-            let val_tranfers = dbg!(sender.value_transfers().await);
+            let val_tranfers = dbg!(sender.value_transfers(true).await);
             // This fails, as we don't scan sends to tex correctly yet
             assert_eq!(
-                val_tranfers.0[2].recipient_address().unwrap(),
+                val_tranfers.0[0].recipient_address().unwrap(),
                 tex_addr_from_first.encode()
             );
         }
@@ -561,10 +770,10 @@ mod fast {
 
     #[tokio::test]
     async fn sync_all_epochs_from_sapling() {
-        let regtest_network = RegtestNetwork::new(1, 1, 3, 5, 7, 9);
+        let regtest_network = RegtestNetwork::new(1, 1, 3, 5, 7, 9, 11);
         let (regtest_manager, _cph, lightclient) =
             scenarios::unfunded_client(regtest_network).await;
-        increase_height_and_wait_for_client(&regtest_manager, &lightclient, 12)
+        increase_height_and_wait_for_client(&regtest_manager, &lightclient, 14)
             .await
             .unwrap();
     }
@@ -616,10 +825,10 @@ mod fast {
     #[ignore]
     #[tokio::test]
     async fn sync_all_epochs() {
-        let regtest_network = RegtestNetwork::new(1, 3, 5, 7, 9, 11);
+        let regtest_network = RegtestNetwork::new(1, 3, 5, 7, 9, 11, 13);
         let (regtest_manager, _cph, lightclient) =
             scenarios::unfunded_client(regtest_network).await;
-        increase_height_and_wait_for_client(&regtest_manager, &lightclient, 12)
+        increase_height_and_wait_for_client(&regtest_manager, &lightclient, 14)
             .await
             .unwrap();
     }
@@ -767,7 +976,7 @@ mod slow {
         );
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers().await).pretty(4)
+            JsonValue::from(recipient.value_transfers(true).await).pretty(4)
         );
     }
     #[tokio::test]
@@ -1186,7 +1395,7 @@ mod slow {
         println!("{}", recipient.do_list_transactions().await.pretty(2));
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers().await).pretty(2)
+            JsonValue::from(recipient.value_transfers(true).await).pretty(2)
         );
         recipient.do_rescan().await.unwrap();
         println!(
@@ -1196,7 +1405,7 @@ mod slow {
         println!("{}", recipient.do_list_transactions().await.pretty(2));
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers().await).pretty(2)
+            JsonValue::from(recipient.value_transfers(true).await).pretty(2)
         );
         // TODO: Add asserts!
     }
@@ -1619,7 +1828,7 @@ mod slow {
 
         println!(
             "{}",
-            JsonValue::from(faucet.value_transfers().await).pretty(4)
+            JsonValue::from(faucet.value_transfers(true).await).pretty(4)
         );
         println!(
             "{}",
@@ -1694,7 +1903,7 @@ mod slow {
     }
     #[tokio::test]
     async fn send_heartwood_sapling_funds() {
-        let regtest_network = RegtestNetwork::new(1, 1, 1, 1, 3, 5);
+        let regtest_network = RegtestNetwork::new(1, 1, 1, 1, 3, 5, 5);
         let (regtest_manager, _cph, faucet, recipient) = scenarios::faucet_recipient(
             PoolType::Shielded(ShieldedProtocol::Sapling),
             regtest_network,
@@ -2236,10 +2445,10 @@ mod slow {
                 .await
                 .unwrap();
             let pre_rescan_transactions = recipient.do_list_transactions().await;
-            let pre_rescan_summaries = recipient.value_transfers().await;
+            let pre_rescan_summaries = recipient.value_transfers(true).await;
             recipient.do_rescan().await.unwrap();
             let post_rescan_transactions = recipient.do_list_transactions().await;
-            let post_rescan_summaries = recipient.value_transfers().await;
+            let post_rescan_summaries = recipient.value_transfers(true).await;
             assert_eq!(pre_rescan_transactions, post_rescan_transactions);
             assert_eq!(pre_rescan_summaries, post_rescan_summaries);
             let mut outgoing_metadata = pre_rescan_transactions
@@ -3526,7 +3735,7 @@ mod slow {
         zingolib::testutils::increase_server_height(&regtest_manager, 1).await;
 
         let _synciiyur = recipient.do_sync(false).await;
-        // let summ_sim = recipient.list_value_transfers().await;
+        // let summ_sim = recipient.list_value_transfers(true).await;
         let bala_sim = recipient.do_balance().await;
 
         recipient.clear_state().await;
@@ -3545,10 +3754,10 @@ mod slow {
             }
         }
 
-        // let summ_int = recipient.list_value_transfers().await;
+        // let summ_int = recipient.list_value_transfers(true).await;
         // let bala_int = recipient.do_balance().await;
         let _synciiyur = recipient.do_sync(false).await;
-        // let summ_syn = recipient.list_value_transfers().await;
+        // let summ_syn = recipient.list_value_transfers(true).await;
         let bala_syn = recipient.do_balance().await;
 
         dbg!(

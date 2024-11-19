@@ -1269,7 +1269,7 @@ impl Command for ValueTransfersCommand {
             A value transfer is a group of all notes to a specific receiver in a transaction.
 
             Usage:
-            valuetransfers
+            valuetransfers [bool]
         "#}
     }
 
@@ -1278,12 +1278,51 @@ impl Command for ValueTransfersCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        if !args.is_empty() {
+        if args.len() > 1 {
             return "Error: invalid arguments\nTry 'help valuetransfers' for correct usage and examples"
                 .to_string();
         }
 
-        RT.block_on(async move { format!("{}", lightclient.value_transfers().await) })
+        let newer_first = args
+            .first()
+            .map(|s| s.parse())
+            .unwrap_or(Ok(true))
+            .unwrap_or(true);
+
+        RT.block_on(async move { format!("{}", lightclient.value_transfers(newer_first).await) })
+    }
+}
+
+struct MessagesFilterCommand {}
+impl Command for MessagesFilterCommand {
+    fn help(&self) -> &'static str {
+        indoc! {r#"
+            List memo-containing value transfers sent to/from wallet. If an address is provided,
+            only messages to/from that address will be provided. If a string is provided,
+            messages containing that string are displayed. Otherwise, all memos are displayed.
+            Currently, for recieved messages, this relies on the reply-to address contained in the memo.
+            A value transfer is a group of all notes to a specific receiver in a transaction.
+
+            Usage:
+            messages [address]/[string]
+        "#}
+    }
+
+    fn short_help(&self) -> &'static str {
+        "List memos for this wallet."
+    }
+
+    fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
+        if args.len() > 1 {
+            return "Error: invalid arguments\nTry 'help messages' for correct usage and examples"
+                .to_string();
+        }
+
+        RT.block_on(async move {
+            json::JsonValue::from(lightclient.messages_containing(args.first().copied()).await)
+                .pretty(2)
+                .to_string()
+        })
     }
 }
 
@@ -1638,48 +1677,6 @@ impl Command for NewAddressCommand {
     }
 }
 
-struct NotesCommand {}
-impl Command for NotesCommand {
-    fn help(&self) -> &'static str {
-        indoc! {r#"
-            Show all shielded notes and transparent coins in this wallet
-            Usage:
-            notes [all]
-
-            If you supply the "all" parameter, all previously spent shielded notes and transparent coins are also included
-
-        "#}
-    }
-
-    fn short_help(&self) -> &'static str {
-        "Show all shielded notes and transparent coins in this wallet"
-    }
-
-    fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        // Parse the args.
-        if args.len() > 1 {
-            return self.short_help().to_string();
-        }
-
-        // Make sure we can parse the amount
-        let all_notes = if args.len() == 1 {
-            match args[0] {
-                "all" => true,
-                a => {
-                    return format!(
-                        "Invalid argument \"{}\". Specify 'all' to include unspent notes",
-                        a
-                    )
-                }
-            }
-        } else {
-            false
-        };
-
-        RT.block_on(async move { lightclient.do_list_notes(all_notes).await.pretty(2) })
-    }
-}
-
 struct QuitCommand {}
 impl Command for QuitCommand {
     fn help(&self) -> &'static str {
@@ -1786,6 +1783,7 @@ pub fn get_commands() -> HashMap<&'static str, Box<dyn Command>> {
         ),
         ("value_to_address", Box::new(ValueToAddressCommand {})),
         ("sends_to_address", Box::new(SendsToAddressCommand {})),
+        ("messages", Box::new(MessagesFilterCommand {})),
         (
             "memobytes_to_address",
             Box::new(MemoBytesToAddressCommand {}),
@@ -1798,7 +1796,6 @@ pub fn get_commands() -> HashMap<&'static str, Box<dyn Command>> {
         ("shield", Box::new(ShieldCommand {})),
         ("save", Box::new(DeprecatedNoCommand {})),
         ("quit", Box::new(QuitCommand {})),
-        ("notes", Box::new(NotesCommand {})),
         ("new", Box::new(NewAddressCommand {})),
         ("defaultfee", Box::new(DefaultFeeCommand {})),
         ("seed", Box::new(SeedCommand {})),
