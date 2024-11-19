@@ -115,7 +115,7 @@ fn check_view_capability_bounds(
 }
 
 mod fast {
-    use std::{fs::File, str::FromStr};
+    use std::str::FromStr;
 
     use bip0039::Mnemonic;
     use zcash_address::{AddressKind, ZcashAddress};
@@ -129,7 +129,7 @@ mod fast {
     };
     use zingo_status::confirmation_status::ConfirmationStatus;
     use zingolib::{
-        config::{ZingoConfig, ZENNIES_FOR_ZINGO_REGTEST_ADDRESS},
+        config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS,
         testutils::{
             chain_generics::{conduct_chain::ConductChain, libtonode::LibtonodeEnvironment},
             lightclient::{from_inputs, get_base_address},
