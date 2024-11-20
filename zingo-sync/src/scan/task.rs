@@ -11,7 +11,7 @@ use tokio::{
     task::{JoinError, JoinHandle},
 };
 
-use zcash_client_backend::data_api::scanning::ScanRange;
+use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::{consensus, zip32::AccountId};
 
@@ -26,7 +26,30 @@ use super::{error::ScanError, scan, ScanResults};
 
 const MAX_WORKER_POOLSIZE: usize = 2;
 
+pub(crate) enum ScannerState {
+    Verification,
+    Scan,
+    Shutdown,
+}
+
+impl ScannerState {
+    pub(crate) fn verify(&mut self) {
+        if let ScannerState::Verification = *self {
+            *self = ScannerState::Scan
+        } else {
+            panic!(
+                "ScanState is not Verification variant. Verification should only complete once!"
+            );
+        }
+    }
+
+    fn shutdown(&mut self) {
+        *self = ScannerState::Shutdown
+    }
+}
+
 pub(crate) struct Scanner<P> {
+    state: ScannerState,
     workers: Vec<ScanWorker<P>>,
     unique_id: usize,
     scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
@@ -49,6 +72,7 @@ where
         let workers: Vec<ScanWorker<P>> = Vec::with_capacity(MAX_WORKER_POOLSIZE);
 
         Self {
+            state: ScannerState::Verification,
             workers,
             unique_id: 0,
             scan_results_sender,
@@ -56,6 +80,10 @@ where
             consensus_parameters,
             ufvks,
         }
+    }
+
+    pub(crate) fn state_mut(&mut self) -> &mut ScannerState {
+        &mut self.state
     }
 
     pub(crate) fn worker_poolsize(&self) -> usize {
@@ -117,19 +145,56 @@ where
 
     /// Updates the scanner.
     ///
+    /// If verification is still in progress, do not create scan tasks.
     /// If there is an idle worker, create a new scan task and add to worker.
-    /// If there are no more range available to scan, shutdown the idle worker.
+    /// If there are no more range available to scan, shutdown the idle workers.
     pub(crate) async fn update<W>(&mut self, wallet: &mut W)
     where
         W: SyncWallet + SyncBlocks,
     {
-        if let Some(worker) = self.idle_worker() {
-            if let Some(scan_task) = ScanTask::create(wallet).unwrap() {
-                worker.add_scan_task(scan_task).unwrap();
-            } else {
-                self.shutdown_worker(worker.id)
-                    .await
-                    .expect("worker should be in worker pool");
+        match self.state {
+            ScannerState::Verification => {
+                if !wallet
+                    .get_sync_state()
+                    .unwrap()
+                    .scan_ranges()
+                    .iter()
+                    .any(|scan_range| scan_range.priority() == ScanPriority::Verify)
+                {
+                    // under these conditions the `Verify` scan range is currently being scanned.
+                    // the reason why the logic looks for no `Verify` ranges in the sync state is because it is set to `Ignored`
+                    // during scanning.
+                    // if we were to continue to add new tasks and a re-org had occured the sync state would be unrecoverable.
+                    return;
+                }
+
+                // scan the range with `Verify` priority
+                if let Some(worker) = self.idle_worker() {
+                    let scan_task = ScanTask::create(wallet)
+                        .unwrap()
+                        .expect("scan range with `Verify` priority must exist!");
+
+                    assert_eq!(scan_task.scan_range.priority(), ScanPriority::Verify);
+                    worker.add_scan_task(scan_task).unwrap();
+                }
+            }
+            ScannerState::Scan => {
+                // create scan tasks until all ranges are scanned or currently scanning
+                if let Some(worker) = self.idle_worker() {
+                    if let Some(scan_task) = ScanTask::create(wallet).unwrap() {
+                        worker.add_scan_task(scan_task).unwrap();
+                    } else {
+                        self.state.shutdown();
+                    }
+                }
+            }
+            ScannerState::Shutdown => {
+                // shutdown idle workers
+                while let Some(worker) = self.idle_worker() {
+                    self.shutdown_worker(worker.id)
+                        .await
+                        .expect("worker should be in worker pool");
+                }
             }
         }
 

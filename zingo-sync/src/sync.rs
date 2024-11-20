@@ -10,7 +10,7 @@ use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
 use crate::primitives::SyncState;
 use crate::scan::error::{ContinuityError, ScanError};
-use crate::scan::task::Scanner;
+use crate::scan::task::{Scanner, ScannerState};
 use crate::scan::transactions::scan_transactions;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
@@ -81,6 +81,7 @@ where
                     &ufvks,
                     scan_range,
                     scan_results,
+                    scanner.state_mut(),
                 )
                 .await
                 .unwrap();
@@ -184,7 +185,7 @@ where
 }
 
 /// Selects and prepares the next scan range for scanning.
-/// Sets the range for scanning to `Ignored` priority in the wallet [sync_state] but returns the scan range with its initial priority.
+/// Sets the range for scanning to `Ignored` priority in the wallet `sync_state` but returns the scan range with its initial priority.
 /// Returns `None` if there are no more ranges to scan.
 pub(crate) fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
     let scan_ranges = sync_state.scan_ranges_mut();
@@ -224,6 +225,7 @@ async fn process_scan_results<P, W>(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     scan_results: Result<ScanResults, ScanError>,
+    scanner_state: &mut ScannerState,
 ) -> Result<(), SyncError>
 where
     P: consensus::Parameters,
@@ -231,6 +233,10 @@ where
 {
     match scan_results {
         Ok(results) => {
+            if scan_range.priority() == ScanPriority::Verify {
+                scanner_state.verify();
+            }
+
             update_wallet_data(wallet, results).unwrap();
             link_nullifiers(wallet, fetch_request_sender, consensus_parameters, ufvks)
                 .await
