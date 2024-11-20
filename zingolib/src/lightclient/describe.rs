@@ -263,10 +263,23 @@ impl LightClient {
         }
     }
 
-    /// Provides a list of ValueTransfers associated with the sender, or containing the string
+    /// Provides a list of ValueTransfers associated with the sender, or containing the string.
     pub async fn messages_containing(&self, filter: Option<&str>) -> ValueTransfers {
         let mut value_transfers = self.sorted_value_transfers(true).await.0;
         value_transfers.reverse();
+        // TODO: REMOVE
+        for vt in value_transfers.iter() {
+            for memo in vt.memos() {
+                println!("MEMO: {}", memo.len());
+            }
+        }
+
+        // Filter out VTs where all memos are empty.
+        value_transfers.retain(|vt| {
+            return vt.memos().iter().all(|memo| {
+                return memo.len() > 0;
+            });
+        });
         match filter {
             Some(s) => {
                 value_transfers.retain(|vt| {
