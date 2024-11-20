@@ -40,16 +40,22 @@ impl TransactionContext {
         &self,
         wallet_height: BlockHeight,
     ) -> Result<(), Vec<(TxId, BlockHeight)>> {
-        self.transaction_metadata_set
+        let tmdsrl = &self
+            .transaction_metadata_set
             .read()
             .await
-            .transaction_records_by_id
+            .transaction_records_by_id;
+        tmdsrl
             .get_spendable_note_ids_and_values(
                 &[ShieldedProtocol::Sapling, ShieldedProtocol::Orchard],
                 wallet_height,
                 &[],
             )
             .map(|_| ())
+            .map_err(|mut vec| {
+                vec.extend_from_slice(&tmdsrl.missing_outgoing_output_indexes());
+                vec
+            })
     }
 }
 
