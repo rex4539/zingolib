@@ -130,7 +130,10 @@ mod fast {
     use zingo_status::confirmation_status::ConfirmationStatus;
     use zingolib::{
         config::ZENNIES_FOR_ZINGO_REGTEST_ADDRESS,
-        testutils::lightclient::{from_inputs, get_base_address},
+        testutils::{
+            chain_generics::{conduct_chain::ConductChain, libtonode::LibtonodeEnvironment},
+            lightclient::{from_inputs, get_base_address},
+        },
         utils::conversion::txid_from_hex_encoded_str,
         wallet::{
             data::summaries::{SelfSendValueTransfer, SentValueTransfer, ValueTransferKind},
@@ -160,7 +163,7 @@ mod fast {
             .await
             .unwrap();
 
-        let value_transfers = &recipient.value_transfers(true).await;
+        let value_transfers = &recipient.sorted_value_transfers(true).await;
 
         dbg!(value_transfers);
 
@@ -355,7 +358,7 @@ mod fast {
             .messages_containing(Some(&charlie.encode(&recipient.config().chain)))
             .await;
 
-        let all_vts = &recipient.value_transfers(true).await;
+        let all_vts = &recipient.sorted_value_transfers(true).await;
         let all_messages = &recipient.messages_containing(None).await;
 
         for vt in all_vts.0.iter() {
@@ -377,6 +380,68 @@ mod fast {
             .0
             .windows(2)
             .all(|pair| { pair[0].blockheight() >= pair[1].blockheight() }));
+    }
+
+    /// Tests that value transfers are properly sorted by block height and index.
+    /// It also tests that retrieving the value transfers multiple times in a row returns the same results.
+    #[tokio::test]
+    async fn value_transfers() {
+        let mut environment = LibtonodeEnvironment::setup().await;
+
+        let faucet = environment.create_faucet().await;
+        let recipient = environment.create_client().await;
+
+        environment.bump_chain().await;
+        faucet.do_sync(false).await.unwrap();
+
+        check_client_balances!(faucet, o: 0 s: 2_500_000_000u64 t: 0u64);
+
+        from_inputs::quick_send(
+            &faucet,
+            vec![
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #1"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #2"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #3"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Message #4"),
+                ),
+            ],
+        )
+        .await
+        .unwrap();
+
+        environment.bump_chain().await;
+        recipient.do_sync(false).await.unwrap();
+
+        let value_transfers = &recipient.sorted_value_transfers(true).await;
+        let value_transfers1 = &recipient.sorted_value_transfers(true).await;
+        let value_transfers2 = &recipient.sorted_value_transfers(true).await;
+        let mut value_transfers3 = recipient.sorted_value_transfers(false).await;
+        let mut value_transfers4 = recipient.sorted_value_transfers(false).await;
+
+        assert_eq!(value_transfers.0[0].memos().len(), 4);
+
+        value_transfers3.0.reverse();
+        value_transfers4.0.reverse();
+
+        assert_eq!(value_transfers, value_transfers1);
+        assert_eq!(value_transfers, value_transfers2);
+        assert_eq!(value_transfers.0, value_transfers3.0);
+        assert_eq!(value_transfers.0, value_transfers4.0);
     }
 
     pub mod tex {
@@ -439,7 +504,7 @@ mod fast {
                     .len(),
                 3usize
             );
-            let val_tranfers = dbg!(sender.value_transfers(true).await);
+            let val_tranfers = dbg!(sender.sorted_value_transfers(true).await);
             // This fails, as we don't scan sends to tex correctly yet
             assert_eq!(
                 val_tranfers.0[0].recipient_address().unwrap(),
@@ -976,7 +1041,7 @@ mod slow {
         );
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers(true).await).pretty(4)
+            JsonValue::from(recipient.sorted_value_transfers(true).await).pretty(4)
         );
     }
     #[tokio::test]
@@ -1395,7 +1460,7 @@ mod slow {
         println!("{}", recipient.do_list_transactions().await.pretty(2));
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers(true).await).pretty(2)
+            JsonValue::from(recipient.sorted_value_transfers(true).await).pretty(2)
         );
         recipient.do_rescan().await.unwrap();
         println!(
@@ -1405,7 +1470,7 @@ mod slow {
         println!("{}", recipient.do_list_transactions().await.pretty(2));
         println!(
             "{}",
-            JsonValue::from(recipient.value_transfers(true).await).pretty(2)
+            JsonValue::from(recipient.sorted_value_transfers(true).await).pretty(2)
         );
         // TODO: Add asserts!
     }
@@ -1828,7 +1893,7 @@ mod slow {
 
         println!(
             "{}",
-            JsonValue::from(faucet.value_transfers(true).await).pretty(4)
+            JsonValue::from(faucet.sorted_value_transfers(true).await).pretty(4)
         );
         println!(
             "{}",
@@ -2445,10 +2510,10 @@ mod slow {
                 .await
                 .unwrap();
             let pre_rescan_transactions = recipient.do_list_transactions().await;
-            let pre_rescan_summaries = recipient.value_transfers(true).await;
+            let pre_rescan_summaries = recipient.sorted_value_transfers(true).await;
             recipient.do_rescan().await.unwrap();
             let post_rescan_transactions = recipient.do_list_transactions().await;
-            let post_rescan_summaries = recipient.value_transfers(true).await;
+            let post_rescan_summaries = recipient.sorted_value_transfers(true).await;
             assert_eq!(pre_rescan_transactions, post_rescan_transactions);
             assert_eq!(pre_rescan_summaries, post_rescan_summaries);
             let mut outgoing_metadata = pre_rescan_transactions

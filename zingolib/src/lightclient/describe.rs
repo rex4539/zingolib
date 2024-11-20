@@ -265,7 +265,7 @@ impl LightClient {
 
     /// Provides a list of ValueTransfers associated with the sender, or containing the string
     pub async fn messages_containing(&self, filter: Option<&str>) -> ValueTransfers {
-        let mut value_transfers = self.value_transfers(true).await.0;
+        let mut value_transfers = self.sorted_value_transfers(true).await.0;
         value_transfers.reverse();
         match filter {
             Some(s) => {
@@ -292,17 +292,23 @@ impl LightClient {
         ValueTransfers(value_transfers)
     }
 
+    /// Provides a list of value transfers sorted
+    /// A value transfer is a group of all notes to a specific receiver in a transaction.
+    pub async fn sorted_value_transfers(&self, newer_first: bool) -> ValueTransfers {
+        let mut value_transfers = self.value_transfers().await;
+        if newer_first {
+            value_transfers.0.reverse();
+        }
+        value_transfers
+    }
+
     /// Provides a list of value transfers related to this capability
     /// A value transfer is a group of all notes to a specific receiver in a transaction.
-    pub async fn value_transfers(&self, newer_first: bool) -> ValueTransfers {
+    pub async fn value_transfers(&self) -> ValueTransfers {
         let mut value_transfers: Vec<ValueTransfer> = Vec::new();
         let summaries = self.transaction_summaries().await;
 
-        let transaction_summaries = if newer_first {
-            Box::new(summaries.iter().rev()) as Box<dyn Iterator<Item = &TransactionSummary>>
-        } else {
-            Box::new(summaries.iter()) as Box<dyn Iterator<Item = &TransactionSummary>>
-        };
+        let transaction_summaries = summaries.iter();
 
         for tx in transaction_summaries {
             match tx.kind() {
@@ -547,13 +553,12 @@ impl LightClient {
                 }
             };
         }
-
         ValueTransfers(value_transfers)
     }
 
     /// TODO: doc comment
     pub async fn value_transfers_json_string(&self) -> String {
-        json::JsonValue::from(self.value_transfers(true).await).pretty(2)
+        json::JsonValue::from(self.sorted_value_transfers(true).await).pretty(2)
     }
 
     /// Provides a list of transaction summaries related to this wallet in order of blockheight
@@ -691,7 +696,7 @@ impl LightClient {
 
     /// TODO: Add Doc Comment Here!
     pub async fn do_total_memobytes_to_address(&self) -> finsight::TotalMemoBytesToAddress {
-        let value_transfers = self.value_transfers(true).await.0;
+        let value_transfers = self.sorted_value_transfers(true).await.0;
         let mut memobytes_by_address = HashMap::new();
         for value_transfer in value_transfers {
             if let ValueTransferKind::Sent(SentValueTransfer::Send) = value_transfer.kind() {
@@ -946,7 +951,7 @@ impl LightClient {
     }
 
     async fn value_transfer_by_to_address(&self) -> finsight::ValuesSentToAddress {
-        let value_transfers = self.value_transfers(true).await.0;
+        let value_transfers = self.sorted_value_transfers(false).await.0;
         let mut amount_by_address = HashMap::new();
         for value_transfer in value_transfers {
             if let ValueTransferKind::Sent(SentValueTransfer::Send) = value_transfer.kind() {

@@ -1286,10 +1286,12 @@ impl Command for ValueTransfersCommand {
         let newer_first = args
             .first()
             .map(|s| s.parse())
-            .unwrap_or(Ok(true))
-            .unwrap_or(true);
+            .unwrap_or(Ok(false))
+            .unwrap_or(false);
 
-        RT.block_on(async move { format!("{}", lightclient.value_transfers(newer_first).await) })
+        RT.block_on(
+            async move { format!("{}", lightclient.sorted_value_transfers(newer_first).await) },
+        )
     }
 }
 
@@ -1677,6 +1679,46 @@ impl Command for NewAddressCommand {
     }
 }
 
+struct NotesCommand {}
+impl Command for NotesCommand {
+    fn help(&self) -> &'static str {
+        indoc! {r#"
+            Show all shielded notes and transparent coins in this wallet
+            Usage:
+            notes [all]
+            If you supply the "all" parameter, all previously spent shielded notes and transparent coins are also included
+        "#}
+    }
+
+    fn short_help(&self) -> &'static str {
+        "Show all shielded notes and transparent coins in this wallet"
+    }
+
+    fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
+        // Parse the args.
+        if args.len() > 1 {
+            return self.short_help().to_string();
+        }
+
+        // Make sure we can parse the amount
+        let all_notes = if args.len() == 1 {
+            match args[0] {
+                "all" => true,
+                a => {
+                    return format!(
+                        "Invalid argument \"{}\". Specify 'all' to include unspent notes",
+                        a
+                    )
+                }
+            }
+        } else {
+            false
+        };
+
+        RT.block_on(async move { lightclient.do_list_notes(all_notes).await.pretty(2) })
+    }
+}
+
 struct QuitCommand {}
 impl Command for QuitCommand {
     fn help(&self) -> &'static str {
@@ -1796,6 +1838,7 @@ pub fn get_commands() -> HashMap<&'static str, Box<dyn Command>> {
         ("shield", Box::new(ShieldCommand {})),
         ("save", Box::new(DeprecatedNoCommand {})),
         ("quit", Box::new(QuitCommand {})),
+        ("notes", Box::new(NotesCommand {})),
         ("new", Box::new(NewAddressCommand {})),
         ("defaultfee", Box::new(DefaultFeeCommand {})),
         ("seed", Box::new(SeedCommand {})),
