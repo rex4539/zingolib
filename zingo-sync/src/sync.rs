@@ -2,7 +2,7 @@
 
 use std::cmp;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::ops::Range;
+use std::ops::{Add, Range};
 use std::time::Duration;
 
 use crate::client::fetch::fetch;
@@ -125,8 +125,92 @@ where
         && wallet.get_sync_state().unwrap().fully_scanned()
 }
 
-/// Update scan ranges to include blocks between the last known chain height (wallet height) and the chain height from the server
+/// Update scan ranges for scanning
 async fn update_scan_ranges<P>(
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    consensus_parameters: &P,
+    wallet_birthday: BlockHeight,
+    sync_state: &mut SyncState,
+) -> Result<(), ()>
+where
+    P: consensus::Parameters,
+{
+    create_scan_range(
+        fetch_request_sender,
+        consensus_parameters,
+        wallet_birthday,
+        sync_state,
+    )
+    .await?;
+
+    reset_scan_ranges(sync_state)?;
+
+    set_verification_scan_range(sync_state)?;
+
+    // TODO: add logic to combine ranges, especially for chain tip
+    // TODO: set chain tip range
+    // TODO: add scan priority logic
+
+    Ok(())
+}
+
+fn reset_scan_ranges(sync_state: &mut SyncState) -> Result<(), ()> {
+    let scan_ranges = sync_state.scan_ranges_mut();
+    let stale_verify_scan_ranges = scan_ranges
+        .iter()
+        .filter(|range| range.priority() == ScanPriority::Verify)
+        .cloned()
+        .collect::<Vec<_>>();
+    let previously_scanning_scan_ranges = scan_ranges
+        .iter()
+        .filter(|range| range.priority() == ScanPriority::Ignored)
+        .cloned()
+        .collect::<Vec<_>>();
+    for scan_range in stale_verify_scan_ranges {
+        set_scan_priority(sync_state, scan_range.block_range(), ScanPriority::Historic).unwrap();
+    }
+    // a range that was previously scanning when sync was last interupted should be set to `ChainTip` which is the
+    // highest priority that is not `Verify`.
+    for scan_range in previously_scanning_scan_ranges {
+        set_scan_priority(sync_state, scan_range.block_range(), ScanPriority::ChainTip).unwrap();
+    }
+
+    Ok(())
+}
+
+fn set_verification_scan_range(sync_state: &mut SyncState) -> Result<(), ()> {
+    let scan_ranges = sync_state.scan_ranges_mut();
+    if let Some((index, lowest_unscanned_range)) =
+        scan_ranges.iter().enumerate().find(|(_, scan_range)| {
+            scan_range.priority() != ScanPriority::Ignored
+                && scan_range.priority() != ScanPriority::Scanned
+        })
+    {
+        let block_range_to_verify = Range {
+            start: lowest_unscanned_range.block_range().start,
+            end: lowest_unscanned_range
+                .block_range()
+                .start
+                .add(VERIFY_BLOCK_RANGE_SIZE),
+        };
+        let split_ranges = split_out_scan_range(
+            lowest_unscanned_range,
+            block_range_to_verify,
+            ScanPriority::Verify,
+        );
+
+        assert!(split_ranges.len() == 2);
+
+        sync_state
+            .scan_ranges_mut()
+            .splice(index..=index, split_ranges);
+    }
+
+    Ok(())
+}
+
+/// Create scan range between the last known chain height (wallet height) and the chain height from the server
+async fn create_scan_range<P>(
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     consensus_parameters: &P,
     wallet_birthday: BlockHeight,
@@ -163,23 +247,18 @@ where
         panic!("wallet is ahead of server!")
     }
 
-    let chain_tip_scan_range = ScanRange::from_parts(
+    let new_scan_range = ScanRange::from_parts(
         Range {
             start: wallet_height,
             end: chain_height + 1,
         },
         ScanPriority::Historic,
     );
-    scan_ranges.push(chain_tip_scan_range);
+    scan_ranges.push(new_scan_range);
 
     if scan_ranges.is_empty() {
-        panic!("scan ranges should never be empty after updating")
+        panic!("scan ranges should never be empty after updating");
     }
-
-    // TODO: add logic to combine chain tip scan range with wallet tip scan range
-    // TODO: add scan priority logic
-    // TODO: replace `ignored` (a.k.a scanning) priority with `verify` to prioritise ranges that were being scanned when sync was interrupted
-    // TODO: split off a verify priority batch from lowest unscanned scan range to prioritise reorg verification on sync start
 
     Ok(())
 }
@@ -258,8 +337,7 @@ where
                 let sync_state = wallet.get_sync_state_mut().unwrap();
                 set_scan_priority(sync_state, scan_range.block_range(), scan_range.priority())
                     .unwrap(); // reset scan range to initial priority in wallet sync state
-                let scan_range_to_verify =
-                    verify_scan_range_tip(sync_state, height.saturating_sub(1));
+                let scan_range_to_verify = verify_scan_range_tip(sync_state, height - 1);
                 invalidate_scan_range(wallet, scan_range_to_verify).unwrap();
             } else {
                 scan_results?;
@@ -275,6 +353,7 @@ fn invalidate_scan_range<W>(wallet: &mut W, scan_range_to_verify: ScanRange) -> 
 where
     W: SyncBlocks + SyncTransactions + SyncNullifiers,
 {
+    // TODO: wallet should truncate not remove
     wallet
         .remove_wallet_blocks(scan_range_to_verify.block_range())
         .unwrap();
@@ -428,10 +507,7 @@ fn verify_scan_range_tip(sync_state: &mut SyncState, block_height: BlockHeight) 
     }
 
     let block_range_to_verify = Range {
-        start: scan_range
-            .block_range()
-            .end
-            .saturating_sub(VERIFY_BLOCK_RANGE_SIZE),
+        start: scan_range.block_range().end - VERIFY_BLOCK_RANGE_SIZE,
         end: scan_range.block_range().end,
     };
     let split_ranges =
@@ -485,13 +561,13 @@ fn determine_block_range(block_height: BlockHeight) -> Range<BlockHeight> {
     Range { start, end }
 }
 
-/// Takes a scan range and splits it at [block_range.start] and [block_range.end], returning a vec of scan ranges where
-/// the scan range with the specified [block_range] has the given [scan_priority].
+/// Takes a scan range and splits it at `block_range.start` and `block_range.end`, returning a vec of scan ranges where
+/// the scan range with the specified `block_range` has the given `scan_priority`.
 ///
-/// If [block_range] goes beyond the bounds of [scan_range.block_range()] no splitting will occur at the upper and/or
+/// If `block_range` goes beyond the bounds of `scan_range.block_range()` no splitting will occur at the upper and/or
 /// lower bound but the priority will still be updated
 ///
-/// Panics if no blocks in [block_range] are contained within [scan_range.block_range()]
+/// Panics if no blocks in `block_range` are contained within `scan_range.block_range()`
 fn split_out_scan_range(
     scan_range: &ScanRange,
     block_range: Range<BlockHeight>,
@@ -561,8 +637,8 @@ where
         .map(|tx| tx.block_height())
         .collect::<Vec<_>>();
     wallet.get_wallet_blocks_mut().unwrap().retain(|height, _| {
-        *height >= scan_range.block_range().end.saturating_sub(1)
-            || *height >= wallet_height.saturating_sub(100)
+        *height >= scan_range.block_range().end - 1
+            || *height >= wallet_height - 100
             || wallet_transaction_heights.contains(height)
     });
     wallet
@@ -579,9 +655,9 @@ where
     Ok(())
 }
 
-/// Sets the scan range in [sync_state] with [block_range] to the given [scan_priority].
+/// Sets the scan range in `sync_state` with `block_range` to the given `scan_priority`.
 ///
-/// Panics if no scan range is found in [sync_state] with a block range of exactly [block_range].
+/// Panics if no scan range is found in `sync_state` with a block range of exactly `block_range`.
 fn set_scan_priority(
     sync_state: &mut SyncState,
     block_range: &Range<BlockHeight>,
