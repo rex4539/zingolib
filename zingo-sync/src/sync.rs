@@ -90,12 +90,14 @@ where
                 scanner.update(wallet).await;
 
                 if sync_complete(&scanner, &scan_results_receiver, wallet) {
+                    tracing::info!("Sync complete.");
                     break;
                 }
             }
         }
     }
 
+    drop(scanner);
     drop(fetch_request_sender);
     fetcher_handle.await.unwrap().unwrap();
 
@@ -241,8 +243,10 @@ where
             )
             .unwrap();
             // TODO: also combine adjacent scanned ranges together
+            tracing::info!("Scan results processed.");
         }
         Err(ScanError::ContinuityError(ContinuityError::HashDiscontinuity { height, .. })) => {
+            tracing::info!("Re-org detected.");
             if height == scan_range.block_range().start {
                 // error handling in case of re-org where first block prev_hash in scan range does not match previous wallet block hash
                 let sync_state = wallet.get_sync_state_mut().unwrap();
