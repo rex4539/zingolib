@@ -359,7 +359,7 @@ where
                 set_scan_priority(sync_state, scan_range.block_range(), scan_range.priority())
                     .unwrap(); // reset scan range to initial priority in wallet sync state
                 let scan_range_to_verify = verify_scan_range_tip(sync_state, height - 1);
-                invalidate_scan_range(wallet, scan_range_to_verify).unwrap();
+                truncate_wallet_data(wallet, scan_range_to_verify.block_range().start - 1).unwrap();
             } else {
                 scan_results?;
             }
@@ -370,21 +370,17 @@ where
     Ok(())
 }
 
-fn invalidate_scan_range<W>(wallet: &mut W, scan_range_to_verify: ScanRange) -> Result<(), ()>
+/// Removes all wallet data above the given `truncate_height`.
+fn truncate_wallet_data<W>(wallet: &mut W, truncate_height: BlockHeight) -> Result<(), ()>
 where
-    W: SyncBlocks + SyncTransactions + SyncNullifiers,
+    W: SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
 {
-    // TODO: wallet should truncate not remove
+    wallet.truncate_wallet_blocks(truncate_height).unwrap();
     wallet
-        .remove_wallet_blocks(scan_range_to_verify.block_range())
+        .truncate_wallet_transactions(truncate_height)
         .unwrap();
-    wallet
-        .remove_wallet_transactions(scan_range_to_verify.block_range())
-        .unwrap();
-    wallet
-        .remove_nullifiers(scan_range_to_verify.block_range())
-        .unwrap();
-    // TODO: truncate shard tree
+    wallet.truncate_nullifiers(truncate_height).unwrap();
+    wallet.truncate_shard_trees(truncate_height).unwrap();
 
     Ok(())
 }
@@ -510,8 +506,8 @@ where
     Ok(())
 }
 
-/// Splits out the highest VERIFY_BLOCK_RANGE_SIZE blocks from the scan range containing the given block height
-/// and sets it's priority to `verify`.
+/// Splits out the highest VERIFY_BLOCK_RANGE_SIZE blocks from the scan range containing the given `block height`
+/// and sets it's priority to `Verify`.
 /// Returns a clone of the scan range to be verified.
 ///
 /// Panics if the scan range containing the given block height is not of priority `Scanned`

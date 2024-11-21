@@ -2,7 +2,6 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
-use std::ops::Range;
 
 use zcash_client_backend::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::BlockHeight;
@@ -53,13 +52,10 @@ pub trait SyncBlocks: SyncWallet {
         Ok(())
     }
 
-    /// Removes all wallet blocks with block height's within the given `invalid_range` (end exclusive)
-    fn remove_wallet_blocks(
-        &mut self,
-        invalid_range: &Range<BlockHeight>,
-    ) -> Result<(), Self::Error> {
+    /// Removes all wallet blocks above the given `block_height`.
+    fn truncate_wallet_blocks(&mut self, truncate_height: BlockHeight) -> Result<(), Self::Error> {
         self.get_wallet_blocks_mut()?
-            .retain(|_, block| !invalid_range.contains(&block.block_height()));
+            .retain(|block_height, _| block_height.clone() <= truncate_height);
 
         Ok(())
     }
@@ -86,17 +82,17 @@ pub trait SyncTransactions: SyncWallet {
         Ok(())
     }
 
-    /// Removes all wallet transactions with block height's within the given `invalid_range` (end exclusive)
+    /// Removes all wallet transactions above the given `block_height`.
     /// Also sets any output's spending_transaction field to `None` if it's spending transaction was removed.
-    fn remove_wallet_transactions(
+    fn truncate_wallet_transactions(
         &mut self,
-        invalid_range: &Range<BlockHeight>,
+        truncate_height: BlockHeight,
     ) -> Result<(), Self::Error> {
-        // Replace with `extract_if()` when it's in stable rust
+        // TODO: Replace with `extract_if()` when it's in stable rust
         let invalid_txids: Vec<TxId> = self
             .get_wallet_transactions()?
             .values()
-            .filter(|tx| invalid_range.contains(&tx.block_height()))
+            .filter(|tx| tx.block_height() > truncate_height)
             .map(|tx| tx.transaction().txid())
             .collect();
 
@@ -154,15 +150,15 @@ pub trait SyncNullifiers: SyncWallet {
         Ok(())
     }
 
-    /// Removes all mapped nullifiers with block height's within the given `invalid_range` (end exclusive)
-    fn remove_nullifiers(&mut self, invalid_range: &Range<BlockHeight>) -> Result<(), Self::Error> {
+    /// Removes all mapped nullifiers above the given `block_height`.
+    fn truncate_nullifiers(&mut self, truncate_height: BlockHeight) -> Result<(), Self::Error> {
         let nullifier_map = self.get_nullifiers_mut()?;
         nullifier_map
             .sapling_mut()
-            .retain(|_, (block_height, _)| !invalid_range.contains(block_height));
+            .retain(|_, (block_height, _)| block_height.clone() <= truncate_height);
         nullifier_map
             .orchard_mut()
-            .retain(|_, (block_height, _)| !invalid_range.contains(block_height));
+            .retain(|_, (block_height, _)| block_height.clone() <= truncate_height);
 
         Ok(())
     }
@@ -200,5 +196,28 @@ pub trait SyncShardTrees: SyncWallet {
         Ok(())
     }
 
-    // TODO: check if shard tree needs to be invalidated due to re-org or leaves can be inserted to replace invalid parts of commitment tree
+    /// Removes all shard tree data above the given `block_height`.
+    fn truncate_shard_trees(&mut self, truncate_height: BlockHeight) -> Result<(), Self::Error> {
+        // TODO: investigate resetting the shard completely when truncate height is 0
+        if self
+            .get_shard_trees_mut()?
+            .sapling_mut()
+            .truncate_to_checkpoint(&truncate_height)
+            .unwrap()
+            == false
+        {
+            panic!("max checkpoints should always be higher than verification window!");
+        }
+        if self
+            .get_shard_trees_mut()?
+            .orchard_mut()
+            .truncate_to_checkpoint(&truncate_height)
+            .unwrap()
+            == false
+        {
+            panic!("max checkpoints should always be higher than verification window!");
+        }
+
+        Ok(())
+    }
 }
