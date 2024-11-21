@@ -269,11 +269,8 @@ impl LightClient {
         value_transfers.reverse();
 
         // Filter out VTs where all memos are empty.
-        value_transfers.retain(|vt| {
-            return vt.memos().iter().all(|memo| {
-                return memo.len() > 0;
-            });
-        });
+        value_transfers.retain(|vt| vt.memos().iter().any(|memo| !memo.is_empty()));
+
         match filter {
             Some(s) => {
                 value_transfers.retain(|vt| {

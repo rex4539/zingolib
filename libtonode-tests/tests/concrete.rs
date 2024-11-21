@@ -210,11 +210,34 @@ mod fast {
         environment.bump_chain().await;
         recipient.do_sync(false).await.unwrap();
 
-        let value_transfers = &recipient.sorted_value_transfers(true).await;
-        let messages = &recipient.messages_containing(None).await;
-        dbg!(messages);
+        let no_messages = &recipient.messages_containing(None).await;
 
-        assert_eq!(messages.0[0].memos().len(), 0);
+        assert_eq!(no_messages.0.len(), 0);
+
+        from_inputs::quick_send(
+            &faucet,
+            vec![
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some("Hello"),
+                ),
+                (
+                    get_base_address_macro!(recipient, "unified").as_str(),
+                    5_000,
+                    Some(""),
+                ),
+            ],
+        )
+        .await
+        .unwrap();
+
+        environment.bump_chain().await;
+        recipient.do_sync(false).await.unwrap();
+
+        let single_message = &recipient.messages_containing(None).await;
+
+        assert_eq!(single_message.0.len(), 1);
     }
 
     /// Test sending and receiving messages between three parties.
