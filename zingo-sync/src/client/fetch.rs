@@ -121,6 +121,9 @@ async fn fetch_from_server(
             let transaction = get_transaction(client, parameters, txid).await.unwrap();
             sender.send(transaction).unwrap();
         }
+        FetchRequest::TransparentOutputs(sender, txid) => {
+            tracing::info!("Fetching transparent outputs. {:?}", txid);
+        }
     }
 
     Ok(())

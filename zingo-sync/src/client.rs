@@ -8,7 +8,7 @@ use zcash_client_backend::{
     data_api::chain::ChainState,
     proto::{
         compact_formats::CompactBlock,
-        service::{BlockId, TreeState},
+        service::{BlockId, GetAddressUtxosReplyList, TreeState},
     },
 };
 use zcash_primitives::{
@@ -27,10 +27,15 @@ pub enum FetchRequest {
     ChainTip(oneshot::Sender<BlockId>),
     /// Gets the specified range of compact blocks from the server (end exclusive).
     CompactBlockRange(oneshot::Sender<Vec<CompactBlock>>, Range<BlockHeight>),
-    /// Gets the tree states for a specified block height..
+    /// Gets the tree states for a specified block height.
     TreeState(oneshot::Sender<TreeState>, BlockHeight),
     /// Get a full transaction by txid.
     Transaction(oneshot::Sender<(Transaction, BlockHeight)>, TxId),
+    /// Get a list of transparent outputs and metadata for a given list of transparent addresses and block range.
+    TransparentOutputs(
+        oneshot::Sender<GetAddressUtxosReplyList>,
+        (Vec<String>, Range<BlockHeight>),
+    ),
 }
 
 /// Gets the height of the blockchain from the server.
