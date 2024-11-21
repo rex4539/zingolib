@@ -267,12 +267,6 @@ impl LightClient {
     pub async fn messages_containing(&self, filter: Option<&str>) -> ValueTransfers {
         let mut value_transfers = self.sorted_value_transfers(true).await.0;
         value_transfers.reverse();
-        // TODO: REMOVE
-        for vt in value_transfers.iter() {
-            for memo in vt.memos() {
-                println!("MEMO: {}", memo.len());
-            }
-        }
 
         // Filter out VTs where all memos are empty.
         value_transfers.retain(|vt| {
