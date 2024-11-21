@@ -58,6 +58,29 @@ impl TransactionRecordsById {
     pub fn from_map(map: HashMap<TxId, TransactionRecord>) -> Self {
         TransactionRecordsById(map)
     }
+
+    pub(crate) fn missing_outgoing_output_indexes(&self) -> Vec<(TxId, BlockHeight)> {
+        self.values()
+            .flat_map(|transaction_record| {
+                if transaction_record.status.is_confirmed() {
+                    if transaction_record
+                        .outgoing_tx_data
+                        .iter()
+                        .any(|outgoing_tx_data| outgoing_tx_data.output_index.is_none())
+                    {
+                        Some((
+                            transaction_record.txid,
+                            transaction_record.status.get_height(),
+                        ))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
 
 /// Methods to query and modify the map.
