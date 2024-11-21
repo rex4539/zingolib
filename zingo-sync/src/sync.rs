@@ -26,6 +26,8 @@ use tokio::sync::mpsc;
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
+// TODO: create sub modules for sync module to organise code
+
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
@@ -135,83 +137,29 @@ async fn update_scan_ranges<P>(
 where
     P: consensus::Parameters,
 {
+    let chain_height = client::get_chain_height(fetch_request_sender)
+        .await
+        .unwrap();
     create_scan_range(
-        fetch_request_sender,
+        chain_height,
         consensus_parameters,
         wallet_birthday,
         sync_state,
     )
     .await?;
-
     reset_scan_ranges(sync_state)?;
-
     set_verification_scan_range(sync_state)?;
 
-    // TODO: add logic to combine ranges, especially for chain tip
+    // TODO: add logic to merge scan ranges
     // TODO: set chain tip range
-    // TODO: add scan priority logic
-
-    Ok(())
-}
-
-fn reset_scan_ranges(sync_state: &mut SyncState) -> Result<(), ()> {
-    let scan_ranges = sync_state.scan_ranges_mut();
-    let stale_verify_scan_ranges = scan_ranges
-        .iter()
-        .filter(|range| range.priority() == ScanPriority::Verify)
-        .cloned()
-        .collect::<Vec<_>>();
-    let previously_scanning_scan_ranges = scan_ranges
-        .iter()
-        .filter(|range| range.priority() == ScanPriority::Ignored)
-        .cloned()
-        .collect::<Vec<_>>();
-    for scan_range in stale_verify_scan_ranges {
-        set_scan_priority(sync_state, scan_range.block_range(), ScanPriority::Historic).unwrap();
-    }
-    // a range that was previously scanning when sync was last interupted should be set to `ChainTip` which is the
-    // highest priority that is not `Verify`.
-    for scan_range in previously_scanning_scan_ranges {
-        set_scan_priority(sync_state, scan_range.block_range(), ScanPriority::ChainTip).unwrap();
-    }
-
-    Ok(())
-}
-
-fn set_verification_scan_range(sync_state: &mut SyncState) -> Result<(), ()> {
-    let scan_ranges = sync_state.scan_ranges_mut();
-    if let Some((index, lowest_unscanned_range)) =
-        scan_ranges.iter().enumerate().find(|(_, scan_range)| {
-            scan_range.priority() != ScanPriority::Ignored
-                && scan_range.priority() != ScanPriority::Scanned
-        })
-    {
-        let block_range_to_verify = Range {
-            start: lowest_unscanned_range.block_range().start,
-            end: lowest_unscanned_range
-                .block_range()
-                .start
-                .add(VERIFY_BLOCK_RANGE_SIZE),
-        };
-        let split_ranges = split_out_scan_range(
-            lowest_unscanned_range,
-            block_range_to_verify,
-            ScanPriority::Verify,
-        );
-
-        assert!(split_ranges.len() == 2);
-
-        sync_state
-            .scan_ranges_mut()
-            .splice(index..=index, split_ranges);
-    }
+    // TODO: set open adjacent range
 
     Ok(())
 }
 
 /// Create scan range between the last known chain height (wallet height) and the chain height from the server
 async fn create_scan_range<P>(
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    chain_height: BlockHeight,
     consensus_parameters: &P,
     wallet_birthday: BlockHeight,
     sync_state: &mut SyncState,
@@ -219,10 +167,6 @@ async fn create_scan_range<P>(
 where
     P: consensus::Parameters,
 {
-    let chain_height = client::get_chain_height(fetch_request_sender)
-        .await
-        .unwrap();
-
     let scan_ranges = sync_state.scan_ranges_mut();
 
     let wallet_height = if scan_ranges.is_empty() {
@@ -263,37 +207,114 @@ where
     Ok(())
 }
 
+fn reset_scan_ranges(sync_state: &mut SyncState) -> Result<(), ()> {
+    let scan_ranges = sync_state.scan_ranges_mut();
+    let stale_verify_scan_ranges = scan_ranges
+        .iter()
+        .filter(|range| range.priority() == ScanPriority::Verify)
+        .cloned()
+        .collect::<Vec<_>>();
+    let previously_scanning_scan_ranges = scan_ranges
+        .iter()
+        .filter(|range| range.priority() == ScanPriority::Ignored)
+        .cloned()
+        .collect::<Vec<_>>();
+    for scan_range in stale_verify_scan_ranges {
+        set_scan_priority(
+            sync_state,
+            scan_range.block_range(),
+            ScanPriority::OpenAdjacent,
+        )
+        .unwrap();
+    }
+    // a range that was previously scanning when sync was last interupted should be set to `ChainTip` which is the
+    // highest priority that is not `Verify`.
+    for scan_range in previously_scanning_scan_ranges {
+        set_scan_priority(sync_state, scan_range.block_range(), ScanPriority::ChainTip).unwrap();
+    }
+
+    Ok(())
+}
+
+fn set_verification_scan_range(sync_state: &mut SyncState) -> Result<(), ()> {
+    let scan_ranges = sync_state.scan_ranges_mut();
+    if let Some((index, lowest_unscanned_range)) =
+        scan_ranges.iter().enumerate().find(|(_, scan_range)| {
+            scan_range.priority() != ScanPriority::Ignored
+                && scan_range.priority() != ScanPriority::Scanned
+        })
+    {
+        let block_range_to_verify = Range {
+            start: lowest_unscanned_range.block_range().start,
+            end: lowest_unscanned_range
+                .block_range()
+                .start
+                .add(VERIFY_BLOCK_RANGE_SIZE),
+        };
+        let split_ranges = split_out_scan_range(
+            lowest_unscanned_range,
+            block_range_to_verify,
+            ScanPriority::Verify,
+        );
+
+        sync_state
+            .scan_ranges_mut()
+            .splice(index..=index, split_ranges);
+    }
+
+    Ok(())
+}
+
 /// Selects and prepares the next scan range for scanning.
 /// Sets the range for scanning to `Ignored` priority in the wallet `sync_state` but returns the scan range with its initial priority.
 /// Returns `None` if there are no more ranges to scan.
 pub(crate) fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
     let scan_ranges = sync_state.scan_ranges_mut();
 
-    // TODO: placeholder for algorythm that determines highest priority range to scan
-    let (index, selected_scan_range) = scan_ranges.iter_mut().enumerate().find(|(_, range)| {
-        range.priority() != ScanPriority::Scanned && range.priority() != ScanPriority::Ignored
-    })?;
-
-    // TODO: replace with new range split/splice helpers
-    // if scan range is larger than BATCH_SIZE, split off and return a batch from the lower end and update scan ranges
-    if let Some((lower_range, higher_range)) =
-        selected_scan_range.split_at(selected_scan_range.block_range().start + BATCH_SIZE)
+    let mut scan_ranges_priority_sorted: Vec<&ScanRange> = scan_ranges.iter().collect();
+    scan_ranges_priority_sorted.sort_by(|a, b| b.block_range().start.cmp(&a.block_range().start));
+    scan_ranges_priority_sorted.sort_by_key(|scan_range| scan_range.priority());
+    let highest_priority_scan_range = scan_ranges_priority_sorted
+        .pop()
+        .expect("scan ranges should be non-empty after setup")
+        .clone();
+    if highest_priority_scan_range.priority() == ScanPriority::Scanned
+        || highest_priority_scan_range.priority() == ScanPriority::Ignored
     {
-        let lower_range_ignored =
-            ScanRange::from_parts(lower_range.block_range().clone(), ScanPriority::Ignored);
-        scan_ranges.splice(index..=index, vec![lower_range_ignored, higher_range]);
-
-        Some(lower_range)
-    } else {
-        let selected_scan_range = selected_scan_range.clone();
-        let selected_range_ignored = ScanRange::from_parts(
-            selected_scan_range.block_range().clone(),
-            ScanPriority::Ignored,
-        );
-        scan_ranges.splice(index..=index, vec![selected_range_ignored]);
-
-        Some(selected_scan_range.clone())
+        return None;
     }
+
+    let (index, selected_scan_range) = scan_ranges
+        .iter_mut()
+        .enumerate()
+        .find(|(_, scan_range)| {
+            scan_range.block_range() == highest_priority_scan_range.block_range()
+        })
+        .expect("scan range should exist");
+
+    let batch_block_range = Range {
+        start: selected_scan_range.block_range().start,
+        end: selected_scan_range.block_range().start + BATCH_SIZE,
+    };
+    let split_ranges = split_out_scan_range(
+        selected_scan_range,
+        batch_block_range,
+        ScanPriority::Ignored,
+    );
+
+    let trimmed_block_range = split_ranges
+        .first()
+        .expect("vec should always be non-empty")
+        .block_range()
+        .clone();
+
+    scan_ranges.splice(index..=index, split_ranges);
+
+    // TODO: when this library has its own version of ScanRange this can be simpified and more readable
+    Some(ScanRange::from_parts(
+        trimmed_block_range,
+        highest_priority_scan_range.priority(),
+    ))
 }
 
 /// Scan post-processing
@@ -513,10 +534,9 @@ fn verify_scan_range_tip(sync_state: &mut SyncState, block_height: BlockHeight) 
     let split_ranges =
         split_out_scan_range(scan_range, block_range_to_verify, ScanPriority::Verify);
 
-    assert!(split_ranges.len() == 2);
     let scan_range_to_verify = split_ranges
         .last()
-        .expect("split_ranges should always have exactly 2 elements")
+        .expect("vec should always be non-empty")
         .clone();
 
     sync_state
