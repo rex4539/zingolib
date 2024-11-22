@@ -226,6 +226,15 @@ fn scan_transaction<P: Parameters>(
                 add_recipient_unified_address(parameters, uas.clone(), &mut outgoing_sapling_notes);
                 add_recipient_unified_address(parameters, uas, &mut outgoing_orchard_notes);
             }
+            ParsedMemo::Version1 {
+                uas,
+                rejection_address_indexes: _,
+            } => {
+                add_recipient_unified_address(parameters, uas.clone(), &mut outgoing_sapling_notes);
+                add_recipient_unified_address(parameters, uas, &mut outgoing_orchard_notes);
+
+                // TODO: handle rejection addresses from encoded memos
+            }
             _ => panic!(
                 "memo version not supported. please ensure that your software is up-to-date."
             ),

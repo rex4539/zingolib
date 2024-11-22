@@ -6,169 +6,339 @@ use std::{
     },
 };
 
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::{
+    sync::mpsc,
+    task::{JoinError, JoinHandle},
+};
 
-use zcash_client_backend::data_api::scanning::ScanRange;
+use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
 use zcash_keys::keys::UnifiedFullViewingKey;
-use zcash_primitives::{consensus::Parameters, zip32::AccountId};
+use zcash_primitives::{consensus, zip32::AccountId};
 
-use crate::{client::FetchRequest, primitives::WalletBlock};
+use crate::{
+    client::FetchRequest,
+    primitives::WalletBlock,
+    sync,
+    traits::{SyncBlocks, SyncWallet},
+};
 
-use super::{scan, ScanResults};
+use super::{error::ScanError, scan, ScanResults};
 
-const SCAN_WORKER_POOLSIZE: usize = 2;
+const MAX_WORKER_POOLSIZE: usize = 2;
+
+pub(crate) enum ScannerState {
+    Verification,
+    Scan,
+    Shutdown,
+}
+
+impl ScannerState {
+    pub(crate) fn verify(&mut self) {
+        if let ScannerState::Verification = *self {
+            *self = ScannerState::Scan
+        } else {
+            panic!(
+                "ScanState is not Verification variant. Verification should only complete once!"
+            );
+        }
+    }
+
+    fn shutdown(&mut self) {
+        *self = ScannerState::Shutdown
+    }
+}
 
 pub(crate) struct Scanner<P> {
-    workers: Vec<WorkerHandle>,
-    scan_results_sender: mpsc::UnboundedSender<(ScanRange, ScanResults)>,
+    state: ScannerState,
+    workers: Vec<ScanWorker<P>>,
+    unique_id: usize,
+    scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    parameters: P,
+    consensus_parameters: P,
     ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
 }
 
 // TODO: add fn for checking and handling worker errors
 impl<P> Scanner<P>
 where
-    P: Parameters + Sync + Send + 'static,
+    P: consensus::Parameters + Sync + Send + 'static,
 {
     pub(crate) fn new(
-        scan_results_sender: mpsc::UnboundedSender<(ScanRange, ScanResults)>,
+        scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-        parameters: P,
+        consensus_parameters: P,
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
     ) -> Self {
-        let workers: Vec<WorkerHandle> = Vec::with_capacity(SCAN_WORKER_POOLSIZE);
+        let workers: Vec<ScanWorker<P>> = Vec::with_capacity(MAX_WORKER_POOLSIZE);
 
         Self {
+            state: ScannerState::Verification,
             workers,
+            unique_id: 0,
             scan_results_sender,
             fetch_request_sender,
-            parameters,
+            consensus_parameters,
             ufvks,
         }
     }
 
+    pub(crate) fn state_mut(&mut self) -> &mut ScannerState {
+        &mut self.state
+    }
+
+    pub(crate) fn worker_poolsize(&self) -> usize {
+        self.workers.len()
+    }
+
+    /// Spawns a worker.
+    ///
+    /// When the worker is running it will wait for a scan task.
+    pub(crate) fn spawn_worker(&mut self) {
+        tracing::info!("Spawning worker {}", self.unique_id);
+        let mut worker = ScanWorker::new(
+            self.unique_id,
+            None,
+            self.scan_results_sender.clone(),
+            self.fetch_request_sender.clone(),
+            self.consensus_parameters.clone(),
+            self.ufvks.clone(),
+        );
+        worker.run().unwrap();
+        self.workers.push(worker);
+        self.unique_id += 1;
+    }
+
+    /// Spawns the initial pool of workers.
+    ///
+    /// Poolsize is set by [`self::MAX_WORKER_POOLSIZE`].
     pub(crate) fn spawn_workers(&mut self) {
-        for _ in 0..SCAN_WORKER_POOLSIZE {
-            let (scan_task_sender, scan_task_receiver) = mpsc::unbounded_channel();
-            let worker = ScanWorker::new(
-                scan_task_receiver,
-                self.scan_results_sender.clone(),
-                self.fetch_request_sender.clone(),
-                self.parameters.clone(),
-                self.ufvks.clone(),
-            );
-            let is_scanning = Arc::clone(&worker.is_scanning);
-            let handle = tokio::spawn(async move { worker.run().await });
-            self.workers.push(WorkerHandle {
-                _handle: handle,
-                is_scanning,
-                scan_task_sender,
-            });
+        for _ in 0..MAX_WORKER_POOLSIZE {
+            self.spawn_worker();
         }
     }
 
-    pub(crate) fn is_worker_idle(&self) -> bool {
-        self.workers.iter().any(|worker| !worker.is_scanning())
-    }
-
-    pub(crate) fn add_scan_task(&self, scan_task: ScanTask) -> Result<(), ()> {
-        if let Some(worker) = self.workers.iter().find(|worker| !worker.is_scanning()) {
-            worker.add_scan_task(scan_task).unwrap();
+    fn idle_worker(&self) -> Option<&ScanWorker<P>> {
+        if let Some(idle_worker) = self.workers.iter().find(|worker| !worker.is_scanning()) {
+            Some(idle_worker)
         } else {
-            panic!("no idle workers!")
+            None
+        }
+    }
+
+    async fn shutdown_worker(&mut self, worker_id: usize) -> Result<(), ()> {
+        if let Some(worker_index) = self
+            .workers
+            .iter()
+            .position(|worker| worker.id == worker_id)
+        {
+            let mut worker = self.workers.swap_remove(worker_index);
+            worker
+                .shutdown()
+                .await
+                .expect("worker should not be able to panic");
+        } else {
+            panic!("id not found in worker pool");
         }
 
         Ok(())
     }
-}
 
-struct WorkerHandle {
-    _handle: JoinHandle<Result<(), ()>>,
-    is_scanning: Arc<AtomicBool>,
-    scan_task_sender: mpsc::UnboundedSender<ScanTask>,
-}
+    /// Updates the scanner.
+    ///
+    /// If verification is still in progress, do not create scan tasks.
+    /// If there is an idle worker, create a new scan task and add to worker.
+    /// If there are no more range available to scan, shutdown the idle workers.
+    pub(crate) async fn update<W>(&mut self, wallet: &mut W)
+    where
+        W: SyncWallet + SyncBlocks,
+    {
+        match self.state {
+            ScannerState::Verification => {
+                if !wallet
+                    .get_sync_state()
+                    .unwrap()
+                    .scan_ranges()
+                    .iter()
+                    .any(|scan_range| scan_range.priority() == ScanPriority::Verify)
+                {
+                    // under these conditions the `Verify` scan range is currently being scanned.
+                    // the reason why the logic looks for no `Verify` ranges in the sync state is because it is set to `Ignored`
+                    // during scanning.
+                    // if we were to continue to add new tasks and a re-org had occured the sync state would be unrecoverable.
+                    return;
+                }
 
-impl WorkerHandle {
-    fn is_scanning(&self) -> bool {
-        self.is_scanning.load(atomic::Ordering::Acquire)
-    }
+                // scan the range with `Verify` priority
+                if let Some(worker) = self.idle_worker() {
+                    let scan_task = ScanTask::create(wallet)
+                        .unwrap()
+                        .expect("scan range with `Verify` priority must exist!");
 
-    fn add_scan_task(&self, scan_task: ScanTask) -> Result<(), ()> {
-        self.scan_task_sender.send(scan_task).unwrap();
+                    assert_eq!(scan_task.scan_range.priority(), ScanPriority::Verify);
+                    worker.add_scan_task(scan_task).unwrap();
+                }
+            }
+            ScannerState::Scan => {
+                // create scan tasks until all ranges are scanned or currently scanning
+                if let Some(worker) = self.idle_worker() {
+                    if let Some(scan_task) = ScanTask::create(wallet).unwrap() {
+                        worker.add_scan_task(scan_task).unwrap();
+                    } else {
+                        self.state.shutdown();
+                    }
+                }
+            }
+            ScannerState::Shutdown => {
+                // shutdown idle workers
+                while let Some(worker) = self.idle_worker() {
+                    self.shutdown_worker(worker.id)
+                        .await
+                        .expect("worker should be in worker pool");
+                }
+            }
+        }
 
-        Ok(())
+        if !wallet.get_sync_state().unwrap().fully_scanned() && self.worker_poolsize() == 0 {
+            panic!("worker pool should not be empty with unscanned ranges!")
+        }
     }
 }
 
 struct ScanWorker<P> {
+    id: usize,
+    handle: Option<JoinHandle<()>>,
     is_scanning: Arc<AtomicBool>,
-    scan_task_receiver: mpsc::UnboundedReceiver<ScanTask>,
-    scan_results_sender: mpsc::UnboundedSender<(ScanRange, ScanResults)>,
+    scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
+    scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    parameters: P,
+    consensus_parameters: P,
     ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
 }
 
 impl<P> ScanWorker<P>
 where
-    P: Parameters + Sync + Send + 'static,
+    P: consensus::Parameters + Sync + Send + 'static,
 {
     fn new(
-        scan_task_receiver: mpsc::UnboundedReceiver<ScanTask>,
-        scan_results_sender: mpsc::UnboundedSender<(ScanRange, ScanResults)>,
+        id: usize,
+        scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
+        scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-        parameters: P,
+        consensus_parameters: P,
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
     ) -> Self {
         Self {
+            id,
+            handle: None,
             is_scanning: Arc::new(AtomicBool::new(false)),
-            scan_task_receiver,
+            scan_task_sender,
             scan_results_sender,
             fetch_request_sender,
-            parameters,
+            consensus_parameters,
             ufvks,
         }
     }
 
-    async fn run(mut self) -> Result<(), ()> {
-        while let Some(scan_task) = self.scan_task_receiver.recv().await {
-            self.is_scanning.store(true, atomic::Ordering::Release);
+    /// Runs the worker in a new tokio task.
+    ///
+    /// Waits for a scan task and then calls [`crate::scan::scan`] on the given range.
+    fn run(&mut self) -> Result<(), ()> {
+        let (scan_task_sender, mut scan_task_receiver) = mpsc::unbounded_channel::<ScanTask>();
 
-            let scan_results = scan(
-                self.fetch_request_sender.clone(),
-                &self.parameters.clone(),
-                &self.ufvks,
-                scan_task.scan_range.clone(),
-                scan_task.previous_wallet_block,
-            )
-            .await
-            .unwrap();
+        let is_scanning = self.is_scanning.clone();
+        let scan_results_sender = self.scan_results_sender.clone();
+        let fetch_request_sender = self.fetch_request_sender.clone();
+        let consensus_parameters = self.consensus_parameters.clone();
+        let ufvks = self.ufvks.clone();
 
-            self.scan_results_sender
-                .send((scan_task.scan_range, scan_results))
-                .unwrap();
+        let handle = tokio::spawn(async move {
+            while let Some(scan_task) = scan_task_receiver.recv().await {
+                is_scanning.store(true, atomic::Ordering::Release);
 
-            self.is_scanning.store(false, atomic::Ordering::Release);
-        }
+                let scan_results = scan(
+                    fetch_request_sender.clone(),
+                    &consensus_parameters,
+                    &ufvks,
+                    scan_task.scan_range.clone(),
+                    scan_task.previous_wallet_block,
+                )
+                .await;
+
+                scan_results_sender
+                    .send((scan_task.scan_range, scan_results))
+                    .expect("receiver should never be dropped before sender!");
+
+                is_scanning.store(false, atomic::Ordering::Release);
+            }
+        });
+
+        self.handle = Some(handle);
+        self.scan_task_sender = Some(scan_task_sender);
 
         Ok(())
     }
+
+    fn is_scanning(&self) -> bool {
+        self.is_scanning.load(atomic::Ordering::Acquire)
+    }
+
+    fn add_scan_task(&self, scan_task: ScanTask) -> Result<(), ()> {
+        tracing::info!("Adding scan task to worker {}:\n{:#?}", self.id, &scan_task);
+        self.scan_task_sender
+            .clone()
+            .unwrap()
+            .send(scan_task)
+            .unwrap();
+
+        Ok(())
+    }
+
+    /// Shuts down worker by dropping the sender to the worker task and awaiting the handle.
+    ///
+    /// This should always be called in the context of the scanner as it must be also be removed from the worker pool.
+    async fn shutdown(&mut self) -> Result<(), JoinError> {
+        tracing::info!("Shutting down worker {}", self.id);
+        if let Some(sender) = self.scan_task_sender.take() {
+            drop(sender);
+        }
+        let handle = self
+            .handle
+            .take()
+            .expect("worker should always have a handle to take!");
+
+        handle.await
+    }
 }
 
-pub(crate) struct ScanTask {
+#[derive(Debug)]
+struct ScanTask {
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
 }
 
 impl ScanTask {
-    pub(crate) fn from_parts(
-        scan_range: ScanRange,
-        previous_wallet_block: Option<WalletBlock>,
-    ) -> Self {
+    fn from_parts(scan_range: ScanRange, previous_wallet_block: Option<WalletBlock>) -> Self {
         Self {
             scan_range,
             previous_wallet_block,
+        }
+    }
+
+    fn create<W>(wallet: &mut W) -> Result<Option<ScanTask>, ()>
+    where
+        W: SyncWallet + SyncBlocks,
+    {
+        if let Some(scan_range) = sync::select_scan_range(wallet.get_sync_state_mut().unwrap()) {
+            let previous_wallet_block = wallet
+                .get_wallet_block(scan_range.block_range().start - 1)
+                .ok();
+
+            Ok(Some(ScanTask::from_parts(
+                scan_range,
+                previous_wallet_block,
+            )))
+        } else {
+            Ok(None)
         }
     }
 }
