@@ -35,6 +35,15 @@ impl SyncState {
             spend_locations: Vec::new(),
         }
     }
+
+    pub fn fully_scanned(&self) -> bool {
+        self.scan_ranges().iter().all(|scan_range| {
+            matches!(
+                scan_range.priority(),
+                zcash_client_backend::data_api::scanning::ScanPriority::Scanned
+            )
+        })
+    }
 }
 
 impl Default for SyncState {
