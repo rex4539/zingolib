@@ -55,7 +55,7 @@ pub trait SyncBlocks: SyncWallet {
     /// Removes all wallet blocks above the given `block_height`.
     fn truncate_wallet_blocks(&mut self, truncate_height: BlockHeight) -> Result<(), Self::Error> {
         self.get_wallet_blocks_mut()?
-            .retain(|block_height, _| block_height.clone() <= truncate_height);
+            .retain(|block_height, _| *block_height <= truncate_height);
 
         Ok(())
     }
@@ -155,10 +155,10 @@ pub trait SyncNullifiers: SyncWallet {
         let nullifier_map = self.get_nullifiers_mut()?;
         nullifier_map
             .sapling_mut()
-            .retain(|_, (block_height, _)| block_height.clone() <= truncate_height);
+            .retain(|_, (block_height, _)| *block_height <= truncate_height);
         nullifier_map
             .orchard_mut()
-            .retain(|_, (block_height, _)| block_height.clone() <= truncate_height);
+            .retain(|_, (block_height, _)| *block_height <= truncate_height);
 
         Ok(())
     }
@@ -199,21 +199,19 @@ pub trait SyncShardTrees: SyncWallet {
     /// Removes all shard tree data above the given `block_height`.
     fn truncate_shard_trees(&mut self, truncate_height: BlockHeight) -> Result<(), Self::Error> {
         // TODO: investigate resetting the shard completely when truncate height is 0
-        if self
+        if !self
             .get_shard_trees_mut()?
             .sapling_mut()
             .truncate_to_checkpoint(&truncate_height)
             .unwrap()
-            == false
         {
             panic!("max checkpoints should always be higher than verification window!");
         }
-        if self
+        if !self
             .get_shard_trees_mut()?
             .orchard_mut()
             .truncate_to_checkpoint(&truncate_height)
             .unwrap()
-            == false
         {
             panic!("max checkpoints should always be higher than verification window!");
         }
