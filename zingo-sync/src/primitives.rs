@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use getset::{CopyGetters, Getters, MutGetters, Setters};
 
 use incrementalmerkletree::Position;
-use zcash_client_backend::data_api::scanning::ScanRange;
+use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
 use zcash_keys::{address::UnifiedAddress, encoding::encode_payment_address};
 use zcash_primitives::{
     block::BlockHash,
@@ -36,13 +36,28 @@ impl SyncState {
         }
     }
 
-    pub fn fully_scanned(&self) -> bool {
-        self.scan_ranges().iter().all(|scan_range| {
-            matches!(
-                scan_range.priority(),
-                zcash_client_backend::data_api::scanning::ScanPriority::Scanned
-            )
-        })
+    /// Returns true if all scan ranges are scanned.
+    pub(crate) fn scan_complete(&self) -> bool {
+        self.scan_ranges()
+            .iter()
+            .all(|scan_range| scan_range.priority() == ScanPriority::Scanned)
+    }
+
+    /// Returns the block height at which all blocks equal to and below this height are scanned.
+    pub(crate) fn fully_scanned_height(&self) -> BlockHeight {
+        if let Some(scan_range) = self
+            .scan_ranges()
+            .iter()
+            .find(|scan_range| scan_range.priority() != ScanPriority::Scanned)
+        {
+            scan_range.block_range().start - 1
+        } else {
+            self.scan_ranges()
+                .last()
+                .expect("scan ranges always non-empty")
+                .block_range()
+                .end
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use zcash_client_backend::proto::{
     compact_formats::CompactBlock,
     service::{
         compact_tx_streamer_client::CompactTxStreamerClient, BlockId, BlockRange, ChainSpec,
-        TreeState, TxFilter,
+        GetAddressUtxosArg, GetAddressUtxosReply, TreeState, TxFilter,
     },
 };
 use zcash_primitives::{
@@ -121,8 +121,12 @@ async fn fetch_from_server(
             let transaction = get_transaction(client, parameters, txid).await.unwrap();
             sender.send(transaction).unwrap();
         }
-        FetchRequest::TransparentOutputs(sender, txid) => {
-            tracing::info!("Fetching transparent outputs. {:?}", txid);
+        FetchRequest::TransparentOutputMetadata(sender, (addresses, start_height)) => {
+            tracing::info!("Fetching transparent outputs. {:?}", &start_height);
+            let transparent_output_metadata = get_address_utxos(client, addresses, start_height, 0)
+                .await
+                .unwrap();
+            sender.send(transparent_output_metadata).unwrap();
         }
     }
 
@@ -194,4 +198,25 @@ async fn get_transaction(
     .unwrap();
 
     Ok((transaction, block_height))
+}
+
+async fn get_address_utxos(
+    client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
+    addresses: Vec<String>,
+    start_height: BlockHeight,
+    max_entries: u32,
+) -> Result<Vec<GetAddressUtxosReply>, ()> {
+    let start_height: u64 = start_height.into();
+    let request = tonic::Request::new(GetAddressUtxosArg {
+        addresses,
+        start_height,
+        max_entries,
+    });
+
+    Ok(client
+        .get_address_utxos(request)
+        .await
+        .unwrap()
+        .into_inner()
+        .address_utxos)
 }

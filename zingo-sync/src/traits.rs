@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 
+use bip32::ChildNumber;
 use zcash_client_backend::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::BlockHeight;
 use zcash_primitives::transaction::TxId;
@@ -11,24 +12,36 @@ use zcash_primitives::zip32::AccountId;
 use crate::primitives::{NullifierMap, SyncState, WalletBlock, WalletTransaction};
 use crate::witness::{ShardTreeData, ShardTrees};
 
+// TODO: clean up interface and move many default impls out of traits. consider merging to a simplified SyncWallet interface.
+
 /// Temporary dump for all neccessary wallet functionality for PoC
 pub trait SyncWallet {
     /// Errors associated with interfacing the sync engine with wallet data
     type Error: Debug;
 
-    /// Returns block height wallet was created
+    /// Returns the block height wallet was created.
     fn get_birthday(&self) -> Result<BlockHeight, Self::Error>;
 
-    /// Returns reference to wallet sync state
+    /// Returns a reference to wallet sync state.
     fn get_sync_state(&self) -> Result<&SyncState, Self::Error>;
 
-    /// Returns mutable reference to wallet sync state
+    /// Returns a mutable reference to wallet sync state.
     fn get_sync_state_mut(&mut self) -> Result<&mut SyncState, Self::Error>;
 
     /// Returns all unified full viewing keys known to this wallet.
     fn get_unified_full_viewing_keys(
         &self,
     ) -> Result<HashMap<AccountId, UnifiedFullViewingKey>, Self::Error>;
+
+    /// Returns a reference to all the transparent addresses known to this wallet.
+    fn get_transparent_addresses(
+        &self,
+    ) -> Result<&HashMap<AccountId, BTreeMap<ChildNumber, String>>, Self::Error>;
+
+    /// Returns a mutable reference to all the transparent addresses known to this wallet.
+    fn get_transparent_addresses_mut(
+        &self,
+    ) -> Result<&mut HashMap<AccountId, BTreeMap<ChildNumber, String>>, Self::Error>;
 }
 
 /// Trait for interfacing [`crate::primitives::WalletBlock`]s with wallet data

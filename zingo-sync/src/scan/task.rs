@@ -198,7 +198,7 @@ where
             }
         }
 
-        if !wallet.get_sync_state().unwrap().fully_scanned() && self.worker_poolsize() == 0 {
+        if !wallet.get_sync_state().unwrap().scan_complete() && self.worker_poolsize() == 0 {
             panic!("worker pool should not be empty with unscanned ranges!")
         }
     }

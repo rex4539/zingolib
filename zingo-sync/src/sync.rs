@@ -107,6 +107,24 @@ where
     Ok(())
 }
 
+async fn prepare_transparent_output_metadata<W>(
+    wallet: &mut W,
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    sync_state: &mut SyncState,
+) where
+    W: SyncWallet,
+{
+    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+
+    let transparent_output_metadata = client::get_transparent_output_metadata(
+        fetch_request_sender,
+        vec![],
+        sync_state.fully_scanned_height() + 1,
+    )
+    .await
+    .unwrap();
+}
+
 /// Returns true if sync is complete.
 ///
 /// Sync is complete when:
@@ -124,7 +142,7 @@ where
 {
     scanner.worker_poolsize() == 0
         && scan_results_receiver.is_empty()
-        && wallet.get_sync_state().unwrap().fully_scanned()
+        && wallet.get_sync_state().unwrap().scan_complete()
 }
 
 /// Update scan ranges for scanning

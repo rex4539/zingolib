@@ -8,7 +8,7 @@ use zcash_client_backend::{
     data_api::chain::ChainState,
     proto::{
         compact_formats::CompactBlock,
-        service::{BlockId, GetAddressUtxosReplyList, TreeState},
+        service::{BlockId, GetAddressUtxosReply, GetAddressUtxosReplyList, TreeState},
     },
 };
 use zcash_primitives::{
@@ -32,9 +32,9 @@ pub enum FetchRequest {
     /// Get a full transaction by txid.
     Transaction(oneshot::Sender<(Transaction, BlockHeight)>, TxId),
     /// Get a list of transparent outputs and metadata for a given list of transparent addresses and block range.
-    TransparentOutputs(
-        oneshot::Sender<GetAddressUtxosReplyList>,
-        (Vec<String>, Range<BlockHeight>),
+    TransparentOutputMetadata(
+        oneshot::Sender<Vec<GetAddressUtxosReply>>,
+        (Vec<String>, BlockHeight),
     ),
 }
 
@@ -52,6 +52,7 @@ pub async fn get_chain_height(
 
     Ok(BlockHeight::from_u32(chain_tip.height as u32))
 }
+
 /// Gets the specified range of compact blocks from the server (end exclusive).
 ///
 /// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
@@ -67,6 +68,7 @@ pub async fn get_compact_block_range(
 
     Ok(compact_blocks)
 }
+
 /// Gets the frontiers for a specified block height.
 ///
 /// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
@@ -83,6 +85,7 @@ pub async fn get_frontiers(
 
     Ok(frontiers)
 }
+
 /// Gets a full transaction for a specified txid.
 ///
 /// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
@@ -97,4 +100,24 @@ pub async fn get_transaction_and_block_height(
     let transaction_and_block_height = receiver.await.unwrap();
 
     Ok(transaction_and_block_height)
+}
+
+/// Gets the transparent output metadata for a list of `transparent addresses` from the specified `start_height`.
+///
+/// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
+pub async fn get_transparent_output_metadata(
+    fetch_request_sender: UnboundedSender<FetchRequest>,
+    transparent_addresses: Vec<String>,
+    start_height: BlockHeight,
+) -> Result<Vec<GetAddressUtxosReply>, ()> {
+    let (sender, receiver) = oneshot::channel();
+    fetch_request_sender
+        .send(FetchRequest::TransparentOutputMetadata(
+            sender,
+            (transparent_addresses, start_height),
+        ))
+        .unwrap();
+    let transparent_output_metadata = receiver.await.unwrap();
+
+    Ok(transparent_output_metadata)
 }
