@@ -301,6 +301,8 @@ impl LightWallet {
             shard_trees: zingo_sync::witness::ShardTrees::new(),
             #[cfg(feature = "sync")]
             sync_state: zingo_sync::primitives::SyncState::new(),
+            #[cfg(feature = "sync")]
+            transparent_addresses: BTreeMap::new(),
         };
 
         Ok(lw)

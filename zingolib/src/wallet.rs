@@ -8,7 +8,7 @@ use getset::{Getters, MutGetters};
 use zcash_keys::keys::UnifiedFullViewingKey;
 #[cfg(feature = "sync")]
 use zcash_primitives::consensus::BlockHeight;
-use zcash_primitives::memo::Memo;
+use zcash_primitives::{legacy::TransparentAddress, memo::Memo};
 
 use log::{info, warn};
 use rand::rngs::OsRng;
@@ -16,6 +16,7 @@ use rand::Rng;
 
 #[cfg(feature = "sync")]
 use zingo_sync::{
+    keys::TransparentKeyId,
     primitives::{NullifierMap, SyncState, WalletBlock, WalletTransaction},
     witness::ShardTrees,
 };
@@ -242,6 +243,11 @@ pub struct LightWallet {
     #[cfg(feature = "sync")]
     #[getset(get = "pub", get_mut = "pub")]
     sync_state: SyncState,
+
+    /// Transparent addresses
+    #[cfg(feature = "sync")]
+    #[getset(get = "pub", get_mut = "pub")]
+    transparent_addresses: BTreeMap<TransparentKeyId, TransparentAddress>,
 }
 
 impl LightWallet {
@@ -423,6 +429,8 @@ impl LightWallet {
             shard_trees: zingo_sync::witness::ShardTrees::new(),
             #[cfg(feature = "sync")]
             sync_state: zingo_sync::primitives::SyncState::new(),
+            #[cfg(feature = "sync")]
+            transparent_addresses: BTreeMap::new(),
         })
     }
 

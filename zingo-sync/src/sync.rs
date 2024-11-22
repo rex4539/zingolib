@@ -8,6 +8,7 @@ use std::time::Duration;
 use crate::client::fetch::fetch;
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
+use crate::keys::{TransparentKeyId, TransparentScope};
 use crate::primitives::SyncState;
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
@@ -15,6 +16,7 @@ use crate::scan::transactions::scan_transactions;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
 
+use bip32::ChildNumber;
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
@@ -23,6 +25,8 @@ use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight, NetworkUpgrade};
 
 use tokio::sync::mpsc;
+use zcash_primitives::legacy::keys::{IncomingViewingKey, NonHardenedChildIndex};
+use zcash_primitives::legacy::TransparentAddress;
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
@@ -115,6 +119,7 @@ async fn prepare_transparent_output_metadata<W>(
     W: SyncWallet,
 {
     let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+    derive_initial_transparent_addresses(ufvks);
 
     let transparent_output_metadata = client::get_transparent_output_metadata(
         fetch_request_sender,
@@ -123,6 +128,97 @@ async fn prepare_transparent_output_metadata<W>(
     )
     .await
     .unwrap();
+}
+
+fn derive_initial_transparent_addresses(
+    ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
+) -> BTreeMap<TransparentKeyId, TransparentAddress> {
+    let mut transparent_addresses: BTreeMap<TransparentKeyId, TransparentAddress> = BTreeMap::new();
+
+    for (account_id, ufvk) in ufvks {
+        if let Some(pubkey) = ufvk.transparent() {
+            let child_index_range: Range<ChildNumber> = Range {
+                start: 0.into(),
+                end: 20.into(),
+            };
+
+            for scope in [
+                TransparentScope::External,
+                TransparentScope::Internal,
+                TransparentScope::Refund,
+            ] {
+                let mut scope_addresses = match scope {
+                    TransparentScope::External => derive_transparent_addresses(
+                        account_id,
+                        scope,
+                        child_index_range.clone(),
+                        |child_index| {
+                            pubkey
+                                .derive_external_ivk()
+                                .unwrap()
+                                .derive_address(
+                                    NonHardenedChildIndex::from_index(child_index)
+                                        .expect("all non-hardened address indexes in use!"),
+                                )
+                                .unwrap()
+                        },
+                    ),
+                    TransparentScope::Internal => derive_transparent_addresses(
+                        account_id,
+                        scope,
+                        child_index_range.clone(),
+                        |child_index| {
+                            pubkey
+                                .derive_internal_ivk()
+                                .unwrap()
+                                .derive_address(
+                                    NonHardenedChildIndex::from_index(child_index)
+                                        .expect("all non-hardened address indexes in use!"),
+                                )
+                                .unwrap()
+                        },
+                    ),
+                    TransparentScope::Refund => derive_transparent_addresses(
+                        account_id,
+                        scope,
+                        child_index_range.clone(),
+                        |child_index| {
+                            pubkey
+                                .derive_ephemeral_ivk()
+                                .unwrap()
+                                .derive_ephemeral_address(
+                                    NonHardenedChildIndex::from_index(child_index)
+                                        .expect("all non-hardened address indexes in use!"),
+                                )
+                                .unwrap()
+                        },
+                    ),
+                };
+                transparent_addresses.append(&mut scope_addresses);
+            }
+        }
+    }
+
+    transparent_addresses
+}
+
+fn derive_transparent_addresses<F>(
+    account_id: AccountId,
+    scope: TransparentScope,
+    child_index_range: Range<ChildNumber>,
+    derive_address: F,
+) -> BTreeMap<TransparentKeyId, TransparentAddress>
+where
+    F: Fn(u32) -> TransparentAddress,
+{
+    let mut transparent_addresses: BTreeMap<TransparentKeyId, TransparentAddress> = BTreeMap::new();
+    for child_index in child_index_range.start.index()..child_index_range.end.index() {
+        let key_id = TransparentKeyId::from_parts(account_id, scope, child_index.into());
+        let address = derive_address(child_index);
+        transparent_addresses.insert(key_id, address);
+    }
+
+    transparent_addresses
 }
 
 /// Returns true if sync is complete.

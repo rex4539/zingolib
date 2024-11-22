@@ -3,12 +3,13 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 
-use bip32::ChildNumber;
 use zcash_client_backend::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::BlockHeight;
+use zcash_primitives::legacy::TransparentAddress;
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
+use crate::keys::TransparentKeyId;
 use crate::primitives::{NullifierMap, SyncState, WalletBlock, WalletTransaction};
 use crate::witness::{ShardTreeData, ShardTrees};
 
@@ -36,12 +37,12 @@ pub trait SyncWallet {
     /// Returns a reference to all the transparent addresses known to this wallet.
     fn get_transparent_addresses(
         &self,
-    ) -> Result<&HashMap<AccountId, BTreeMap<ChildNumber, String>>, Self::Error>;
+    ) -> Result<&BTreeMap<TransparentKeyId, TransparentAddress>, Self::Error>;
 
     /// Returns a mutable reference to all the transparent addresses known to this wallet.
     fn get_transparent_addresses_mut(
         &self,
-    ) -> Result<&mut HashMap<AccountId, BTreeMap<ChildNumber, String>>, Self::Error>;
+    ) -> Result<&mut BTreeMap<TransparentKeyId, TransparentAddress>, Self::Error>;
 }
 
 /// Trait for interfacing [`crate::primitives::WalletBlock`]s with wallet data

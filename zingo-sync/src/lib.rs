@@ -5,7 +5,7 @@
 
 pub mod client;
 pub mod error;
-pub(crate) mod keys;
+pub mod keys;
 #[allow(missing_docs)]
 pub mod primitives;
 pub(crate) mod scan;

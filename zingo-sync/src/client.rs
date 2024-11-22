@@ -8,7 +8,7 @@ use zcash_client_backend::{
     data_api::chain::ChainState,
     proto::{
         compact_formats::CompactBlock,
-        service::{BlockId, GetAddressUtxosReply, GetAddressUtxosReplyList, TreeState},
+        service::{BlockId, GetAddressUtxosReply, TreeState},
     },
 };
 use zcash_primitives::{

@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use bip32::ChildNumber;
 use getset::Getters;
 use incrementalmerkletree::Position;
 use orchard::{
@@ -34,6 +35,34 @@ impl memuse::DynamicUsage for KeyId {
     fn dynamic_usage_bounds(&self) -> (usize, Option<usize>) {
         self.scope.dynamic_usage_bounds()
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TransparentKeyId {
+    account_id: zcash_primitives::zip32::AccountId,
+    scope: TransparentScope,
+    child_index: ChildNumber,
+}
+
+impl TransparentKeyId {
+    pub fn from_parts(
+        account_id: zcash_primitives::zip32::AccountId,
+        scope: TransparentScope,
+        child_index: ChildNumber,
+    ) -> Self {
+        Self {
+            account_id,
+            scope,
+            child_index,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TransparentScope {
+    External,
+    Internal,
+    Refund, // a.k.a ephemeral
 }
 
 /// A key that can be used to perform trial decryption and nullifier

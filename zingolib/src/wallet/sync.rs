@@ -6,8 +6,9 @@ use std::{
 };
 
 use zcash_keys::keys::{UnifiedFullViewingKey, UnifiedSpendingKey};
-use zcash_primitives::consensus::BlockHeight;
+use zcash_primitives::{consensus::BlockHeight, legacy::TransparentAddress};
 use zingo_sync::{
+    keys::TransparentKeyId,
     primitives::{NullifierMap, SyncState, WalletBlock},
     traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet},
     witness::ShardTrees,
@@ -52,6 +53,18 @@ impl SyncWallet for LightWallet {
         ufvk_map.insert(account_id, ufvk);
 
         Ok(ufvk_map)
+    }
+
+    fn get_transparent_addresses(
+        &self,
+    ) -> Result<&BTreeMap<TransparentKeyId, TransparentAddress>, Self::Error> {
+        Ok(self.transparent_addresses())
+    }
+
+    fn get_transparent_addresses_mut(
+        &self,
+    ) -> Result<&mut BTreeMap<TransparentKeyId, TransparentAddress>, Self::Error> {
+        Ok(self.transparent_addresses_mut())
     }
 }
 
