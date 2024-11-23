@@ -90,16 +90,30 @@ impl LightWalletSendProgress {
     /// TODO: Add Doc Comment Here!
     pub fn to_json(&self) -> JsonValue {
         let last_result = self.progress.last_result.clone();
-        let txids: Option<String> = last_result
-            .clone()
-            .and_then(|result| result.ok().map(|json_result| json_result.to_string()));
+        let tx_ids: Vec<String> = match &last_result {
+            Some(r) => {
+                let mut binding = r.clone().unwrap();
+                let binding = binding.as_array_mut();
+                let tx_json_values: Vec<String> = binding
+                    .unwrap()
+                    .iter()
+                    .map(|x| {
+                        return x.as_str().unwrap().to_string();
+                    })
+                    .collect();
+                tx_json_values
+            }
+            None => vec![],
+        };
+
         let error: Option<String> = last_result.and_then(|result| result.err());
+
         object! {
             "id" => self.progress.id,
             "sending" => self.progress.is_send_in_progress,
             "progress" => self.progress.progress,
             "total" => self.progress.total,
-            "txids" => txids,
+            "txids" => tx_ids,
             "error" => error,
             "sync_interrupt" => self.interrupt_sync
         }
