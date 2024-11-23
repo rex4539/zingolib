@@ -122,7 +122,11 @@ async fn fetch_from_server(
             sender.send(transaction).unwrap();
         }
         FetchRequest::TransparentOutputMetadata(sender, (addresses, start_height)) => {
-            tracing::info!("Fetching transparent outputs. {:?}", &start_height);
+            tracing::info!(
+                "Fetching transparent outputs from {:?} for addresses:\n{:?}",
+                &start_height,
+                &addresses
+            );
             let transparent_output_metadata = get_address_utxos(client, addresses, start_height, 0)
                 .await
                 .unwrap();

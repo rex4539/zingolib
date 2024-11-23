@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::client::fetch::fetch;
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
-use crate::keys::{TransparentKeyId, TransparentScope};
+use crate::keys::{AddressIndex, TransparentAddressId, TransparentScope};
 use crate::primitives::SyncState;
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
@@ -16,7 +16,7 @@ use crate::scan::transactions::scan_transactions;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
 
-use bip32::ChildNumber;
+use zcash_address::{ToAddress, ZcashAddress};
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
@@ -25,7 +25,7 @@ use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight, NetworkUpgrade};
 
 use tokio::sync::mpsc;
-use zcash_primitives::legacy::keys::{IncomingViewingKey, NonHardenedChildIndex};
+use zcash_primitives::legacy::keys::{AccountPubKey, IncomingViewingKey, NonHardenedChildIndex};
 use zcash_primitives::legacy::TransparentAddress;
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
@@ -35,6 +35,7 @@ use zcash_primitives::zip32::AccountId;
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
+const ADDRESS_GAP_LIMIT: u32 = 20;
 
 /// Syncs a wallet to the latest state of the blockchain
 pub async fn sync<P, W>(
@@ -56,6 +57,22 @@ where
         consensus_parameters.clone(),
     ));
 
+    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+    let previous_sync_wallet_height =
+        if let Some(highest_range) = wallet.get_sync_state().unwrap().scan_ranges().last() {
+            highest_range.block_range().end
+        } else {
+            0.into()
+        };
+    update_transparent_addresses(
+        wallet,
+        consensus_parameters,
+        fetch_request_sender.clone(),
+        &ufvks,
+        previous_sync_wallet_height,
+    )
+    .await;
+
     update_scan_ranges(
         fetch_request_sender.clone(),
         consensus_parameters,
@@ -67,7 +84,6 @@ where
 
     // create channel for receiving scan results and launch scanner
     let (scan_results_sender, mut scan_results_receiver) = mpsc::unbounded_channel();
-    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
     let mut scanner = Scanner::new(
         scan_results_sender,
         fetch_request_sender.clone(),
@@ -111,114 +127,244 @@ where
     Ok(())
 }
 
-async fn prepare_transparent_output_metadata<W>(
+/// Updates the wallet with the new set of known addresses from the highest known block height to the wallet before
+/// scan ranges are updated (`previous_sync_wallet_height`).
+async fn update_transparent_addresses<P, W>(
     wallet: &mut W,
+    consensus_parameters: &P,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    sync_state: &mut SyncState,
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    previous_sync_wallet_height: BlockHeight,
 ) where
+    P: consensus::Parameters,
     W: SyncWallet,
 {
-    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
-    derive_initial_transparent_addresses(ufvks);
+    let mut wallet_addresses: Vec<(TransparentAddressId, String)> = wallet
+        .get_transparent_addresses()
+        .unwrap()
+        .iter()
+        .map(|(id, address)| (id.clone(), address.clone()))
+        .collect();
 
-    let transparent_output_metadata = client::get_transparent_output_metadata(
-        fetch_request_sender,
-        vec![],
-        sync_state.fully_scanned_height() + 1,
-    )
-    .await
-    .unwrap();
+    // derive additional addresses until all scopes in all accounts satisfy the address gap limit.
+    loop {
+        // derive addresses for all accounts and scopes together to minimise calls to the server
+        let gap_limit_addresses =
+            derive_gap_limit_addresses(consensus_parameters, ufvks, &wallet_addresses);
+
+        // get the transparent output metadata from the server to determine if any of these newly derived addresses are used.
+        let transparent_output_metadata = client::get_transparent_output_metadata(
+            fetch_request_sender.clone(),
+            gap_limit_addresses
+                .iter()
+                .map(|(_, address)| address.clone())
+                .collect(),
+            previous_sync_wallet_height + 1,
+        )
+        .await
+        .unwrap();
+
+        if transparent_output_metadata.is_empty() {
+            // gap limit satisfied for all scopes of all accounts
+            break;
+        }
+
+        let transparent_metadata_addresses: Vec<&str> = transparent_output_metadata
+            .iter()
+            .map(|metadata| metadata.address.as_str())
+            .collect();
+
+        add_new_addresses(
+            ufvks,
+            &mut wallet_addresses,
+            &gap_limit_addresses,
+            &transparent_metadata_addresses,
+        );
+
+        // TODO: convert vec back to BTreeMap and update wallet addresses
+    }
 }
 
-fn derive_initial_transparent_addresses(
-    ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
-) -> BTreeMap<TransparentKeyId, TransparentAddress> {
-    let mut transparent_addresses: BTreeMap<TransparentKeyId, TransparentAddress> = BTreeMap::new();
-
+fn add_new_addresses(
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    wallet_addresses: &mut Vec<(TransparentAddressId, String)>,
+    gap_limit_addresses: &[(TransparentAddressId, String)],
+    transparent_metadata_addresses: &[&str],
+) {
     for (account_id, ufvk) in ufvks {
-        if let Some(pubkey) = ufvk.transparent() {
-            let child_index_range: Range<ChildNumber> = Range {
-                start: 0.into(),
-                end: 20.into(),
-            };
-
+        if ufvk.transparent().is_some() {
             for scope in [
                 TransparentScope::External,
                 TransparentScope::Internal,
                 TransparentScope::Refund,
             ] {
-                let mut scope_addresses = match scope {
-                    TransparentScope::External => derive_transparent_addresses(
-                        account_id,
-                        scope,
-                        child_index_range.clone(),
-                        |child_index| {
-                            pubkey
-                                .derive_external_ivk()
-                                .unwrap()
-                                .derive_address(
-                                    NonHardenedChildIndex::from_index(child_index)
-                                        .expect("all non-hardened address indexes in use!"),
-                                )
-                                .unwrap()
-                        },
-                    ),
-                    TransparentScope::Internal => derive_transparent_addresses(
-                        account_id,
-                        scope,
-                        child_index_range.clone(),
-                        |child_index| {
-                            pubkey
-                                .derive_internal_ivk()
-                                .unwrap()
-                                .derive_address(
-                                    NonHardenedChildIndex::from_index(child_index)
-                                        .expect("all non-hardened address indexes in use!"),
-                                )
-                                .unwrap()
-                        },
-                    ),
-                    TransparentScope::Refund => derive_transparent_addresses(
-                        account_id,
-                        scope,
-                        child_index_range.clone(),
-                        |child_index| {
-                            pubkey
-                                .derive_ephemeral_ivk()
-                                .unwrap()
-                                .derive_ephemeral_address(
-                                    NonHardenedChildIndex::from_index(child_index)
-                                        .expect("all non-hardened address indexes in use!"),
-                                )
-                                .unwrap()
-                        },
-                    ),
+                let mut gap_limit_addresses_by_scope = gap_limit_addresses
+                    .iter()
+                    .filter(|(id, _)| id.account_id() == *account_id && id.scope() == scope)
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                let highest_new_address_index: Option<usize> = if let Some((id, _)) =
+                    gap_limit_addresses_by_scope
+                        .iter()
+                        .rev()
+                        .find(|(_, address)| {
+                            transparent_metadata_addresses.contains(&address.as_str())
+                        }) {
+                    Some(id.address_index() as usize)
+                } else {
+                    None
                 };
-                transparent_addresses.append(&mut scope_addresses);
+
+                if let Some(address_index) = highest_new_address_index {
+                    wallet_addresses.extend(
+                        gap_limit_addresses_by_scope
+                            .drain(..address_index + 1)
+                            .collect::<Vec<_>>(),
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Derives new addresses for all accounts and scopes.
+///
+/// For each scope in each account, find the highest address known to the wallet and derive [`self::ADDRESS_GAP_LIMIT`]
+/// more addresses from the lowest unknown address index.
+fn derive_gap_limit_addresses<P>(
+    consensus_parameters: &P,
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    wallet_addresses: &[(TransparentAddressId, String)],
+) -> Vec<(TransparentAddressId, String)>
+where
+    P: consensus::Parameters,
+{
+    let mut gap_limit_addresses: Vec<(TransparentAddressId, String)> = Vec::new();
+
+    for (account_id, ufvk) in ufvks {
+        if let Some(account_pubkey) = ufvk.transparent() {
+            for scope in [
+                TransparentScope::External,
+                TransparentScope::Internal,
+                TransparentScope::Refund,
+            ] {
+                if let Some(id) = wallet_addresses
+                    .iter()
+                    .map(|(id, _)| id)
+                    .filter(|id| id.account_id() == *account_id && id.scope() == scope)
+                    .rev()
+                    .next()
+                {
+                    gap_limit_addresses.extend(derive_transparent_addresses_by_scope(
+                        consensus_parameters,
+                        account_pubkey,
+                        account_id.clone(),
+                        scope,
+                        id.address_index() + 1,
+                    ));
+                }
             }
         }
     }
 
-    transparent_addresses
+    gap_limit_addresses
 }
 
-fn derive_transparent_addresses<F>(
+fn derive_transparent_addresses_by_scope<P>(
+    consensus_parameters: &P,
+    account_pubkey: &AccountPubKey,
     account_id: AccountId,
     scope: TransparentScope,
-    child_index_range: Range<ChildNumber>,
+    lowest_unknown_index: AddressIndex,
+) -> Vec<(TransparentAddressId, String)>
+where
+    P: consensus::Parameters,
+{
+    let address_index_range: Range<AddressIndex> = Range {
+        start: lowest_unknown_index,
+        end: lowest_unknown_index + ADDRESS_GAP_LIMIT,
+    };
+
+    match scope {
+        TransparentScope::External => derive_transparent_addresses(
+            consensus_parameters,
+            account_id,
+            scope,
+            address_index_range.clone(),
+            |address_index| {
+                account_pubkey
+                    .derive_external_ivk()
+                    .unwrap()
+                    .derive_address(
+                        NonHardenedChildIndex::from_index(address_index)
+                            .expect("all non-hardened address indexes in use!"),
+                    )
+                    .unwrap()
+            },
+        ),
+        TransparentScope::Internal => derive_transparent_addresses(
+            consensus_parameters,
+            account_id,
+            scope,
+            address_index_range.clone(),
+            |address_index| {
+                account_pubkey
+                    .derive_internal_ivk()
+                    .unwrap()
+                    .derive_address(
+                        NonHardenedChildIndex::from_index(address_index)
+                            .expect("all non-hardened address indexes in use!"),
+                    )
+                    .unwrap()
+            },
+        ),
+        TransparentScope::Refund => derive_transparent_addresses(
+            consensus_parameters,
+            account_id,
+            scope,
+            address_index_range.clone(),
+            |address_index| {
+                account_pubkey
+                    .derive_ephemeral_ivk()
+                    .unwrap()
+                    .derive_ephemeral_address(
+                        NonHardenedChildIndex::from_index(address_index)
+                            .expect("all non-hardened address indexes in use!"),
+                    )
+                    .unwrap()
+            },
+        ),
+    }
+}
+
+fn derive_transparent_addresses<F, P>(
+    consensus_parameters: &P,
+    account_id: AccountId,
+    scope: TransparentScope,
+    address_index_range: Range<AddressIndex>,
     derive_address: F,
-) -> BTreeMap<TransparentKeyId, TransparentAddress>
+) -> Vec<(TransparentAddressId, String)>
 where
     F: Fn(u32) -> TransparentAddress,
+    P: consensus::Parameters,
 {
-    let mut transparent_addresses: BTreeMap<TransparentKeyId, TransparentAddress> = BTreeMap::new();
-    for child_index in child_index_range.start.index()..child_index_range.end.index() {
-        let key_id = TransparentKeyId::from_parts(account_id, scope, child_index.into());
-        let address = derive_address(child_index);
-        transparent_addresses.insert(key_id, address);
-    }
-
-    transparent_addresses
+    address_index_range
+        .into_iter()
+        .map(|address_index| {
+            let key_id = TransparentAddressId::from_parts(account_id, scope, address_index.into());
+            let address = derive_address(address_index);
+            let zcash_address = match address {
+                TransparentAddress::PublicKeyHash(data) => {
+                    ZcashAddress::from_transparent_p2pkh(consensus_parameters.network_type(), data)
+                }
+                TransparentAddress::ScriptHash(data) => {
+                    ZcashAddress::from_transparent_p2sh(consensus_parameters.network_type(), data)
+                }
+            };
+            (key_id, zcash_address.to_string())
+        })
+        .collect()
 }
 
 /// Returns true if sync is complete.

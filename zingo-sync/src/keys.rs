@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 
-use bip32::ChildNumber;
 use getset::Getters;
 use incrementalmerkletree::Position;
 use orchard::{
@@ -14,7 +13,12 @@ use sapling_crypto::{
 };
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_note_encryption::Domain;
+use zcash_primitives::zip32::AccountId;
 
+/// Child index for the `address_index` path level in the BIP44 hierarchy.
+pub type AddressIndex = u32;
+
+/// Unique ID for shielded keys.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct KeyId {
     account_id: zcash_primitives::zip32::AccountId,
@@ -22,7 +26,7 @@ pub struct KeyId {
 }
 
 impl KeyId {
-    pub fn from_parts(account_id: zcash_primitives::zip32::AccountId, scope: Scope) -> Self {
+    pub(crate) fn from_parts(account_id: zcash_primitives::zip32::AccountId, scope: Scope) -> Self {
         Self { account_id, scope }
     }
 }
@@ -37,32 +41,52 @@ impl memuse::DynamicUsage for KeyId {
     }
 }
 
+/// Unique ID for transparent addresses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TransparentKeyId {
-    account_id: zcash_primitives::zip32::AccountId,
+pub struct TransparentAddressId {
+    account_id: AccountId,
     scope: TransparentScope,
-    child_index: ChildNumber,
+    address_index: AddressIndex,
 }
 
-impl TransparentKeyId {
-    pub fn from_parts(
+impl TransparentAddressId {
+    pub(crate) fn from_parts(
         account_id: zcash_primitives::zip32::AccountId,
         scope: TransparentScope,
-        child_index: ChildNumber,
+        address_index: AddressIndex,
     ) -> Self {
         Self {
             account_id,
             scope,
-            child_index,
+            address_index,
         }
+    }
+
+    /// Gets address account ID
+    pub fn account_id(&self) -> AccountId {
+        self.account_id
+    }
+
+    /// Gets address scope
+    pub fn scope(&self) -> TransparentScope {
+        self.scope
+    }
+
+    /// Gets address index
+    pub fn address_index(&self) -> AddressIndex {
+        self.address_index
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Child index for the `change` path level in the BIP44 hierarchy (a.k.a. scope/chain).
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TransparentScope {
+    /// External scope
     External,
+    /// Internal scope (a.k.a. change)
     Internal,
-    Refund, // a.k.a ephemeral
+    /// Refund scope (a.k.a. ephemeral)
+    Refund,
 }
 
 /// A key that can be used to perform trial decryption and nullifier

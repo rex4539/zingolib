@@ -18,9 +18,6 @@ orchard.workspace = true
 incrementalmerkletree.workspace = true
 shardtree.workspace = true
 
-# BIP
-bip32.workspace = true
-
 # Async
 futures.workspace = true
 tokio.workspace = true
