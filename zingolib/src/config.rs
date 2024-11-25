@@ -765,3 +765,42 @@ impl ActivationHeights {
         }
     }
 }
+
+mod tests {
+
+    #[tokio::test]
+    async fn test_load_clientconfig_serverless() {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Ring to work as a default");
+        tracing_subscriber::fmt().init();
+
+        let valid_uri = crate::config::construct_lightwalletd_uri(Some(
+            crate::config::DEFAULT_LIGHTWALLETD_SERVER.to_string(),
+        ));
+        // let invalid_uri = construct_lightwalletd_uri(Some("Invalid URI".to_string()));
+        let temp_dir = tempfile::TempDir::new().unwrap();
+
+        let temp_path = temp_dir.path().to_path_buf();
+        // let temp_path_invalid = temp_dir.path().to_path_buf();
+
+        let valid_config = crate::config::load_clientconfig_serverless(
+            valid_uri.clone(),
+            Some(temp_path),
+            crate::config::ChainType::Mainnet,
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(valid_config.get_lightwalletd_uri(), valid_uri);
+        assert_eq!(valid_config.chain, crate::config::ChainType::Mainnet);
+
+        // let invalid_config = load_clientconfig_serverless(
+        //     invalid_uri.clone(),
+        //     Some(temp_path_invalid),
+        //     ChainType::Mainnet,
+        //     true,
+        // );
+        // assert_eq!(invalid_config.is_err(), true);
+    }
+}
