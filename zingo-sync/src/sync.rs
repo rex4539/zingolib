@@ -17,6 +17,7 @@ use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
 
 use zcash_address::{ToAddress, ZcashAddress};
+use zcash_client_backend::proto::service::GetAddressUtxosReply;
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
@@ -47,6 +48,14 @@ where
     P: consensus::Parameters + Sync + Send + 'static,
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
 {
+    let previous_sync_wallet_height =
+        if let Some(highest_range) = wallet.get_sync_state().unwrap().scan_ranges().last() {
+            highest_range.block_range().end - 1
+        } else {
+            wallet.get_birthday().unwrap() - 1
+        };
+    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+
     tracing::info!("Syncing wallet...");
 
     // create channel for sending fetch requests and launch fetcher task
@@ -57,14 +66,13 @@ where
         consensus_parameters.clone(),
     ));
 
-    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
-    let previous_sync_wallet_height =
-        if let Some(highest_range) = wallet.get_sync_state().unwrap().scan_ranges().last() {
-            highest_range.block_range().end
-        } else {
-            0.into()
-        };
-    update_transparent_addresses(
+    discover_transparent_output_locators(
+        wallet,
+        fetch_request_sender.clone(),
+        previous_sync_wallet_height,
+    )
+    .await;
+    discover_transparent_addresses(
         wallet,
         consensus_parameters,
         fetch_request_sender.clone(),
@@ -127,9 +135,52 @@ where
     Ok(())
 }
 
-/// Updates the wallet with the new set of known addresses from the highest known block height to the wallet before
-/// scan ranges are updated (`previous_sync_wallet_height`).
-async fn update_transparent_addresses<P, W>(
+/// Discovers the location of any transparent outputs associated with addresses known to the wallet above the wallet
+/// height when the wallet was previously synced.
+async fn discover_transparent_output_locators<W>(
+    wallet: &mut W,
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    previous_sync_wallet_height: BlockHeight,
+) where
+    W: SyncWallet,
+{
+    let wallet_addresses: Vec<String> = wallet
+        .get_transparent_addresses()
+        .unwrap()
+        .iter()
+        .map(|(_, address)| address.clone())
+        .collect();
+
+    if wallet_addresses.is_empty() {
+        return;
+    }
+
+    // get the transparent output metadata from the server.
+    let transparent_output_metadata = client::get_transparent_output_metadata(
+        fetch_request_sender.clone(),
+        wallet_addresses,
+        previous_sync_wallet_height + 1,
+    )
+    .await
+    .unwrap();
+
+    // collect the transparent output locators
+    let transparent_output_locators: Vec<(BlockHeight, TxId)> = transparent_output_metadata
+        .iter()
+        .map(|metadata| {
+            (
+                BlockHeight::from_u32(u32::try_from(metadata.height).unwrap()),
+                TxId::from_bytes(<[u8; 32]>::try_from(&metadata.txid[..]).unwrap()),
+            )
+        })
+        .collect();
+
+    update_transparent_output_locators(wallet, transparent_output_locators);
+}
+
+/// Updates the wallet with any previously unknown transparent addresses that are now in use.
+/// Also updates the transparent output locators for any newly added addresses.
+async fn discover_transparent_addresses<P, W>(
     wallet: &mut W,
     consensus_parameters: &P,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
@@ -139,6 +190,7 @@ async fn update_transparent_addresses<P, W>(
     P: consensus::Parameters,
     W: SyncWallet,
 {
+    let mut transparent_output_locators: Vec<(BlockHeight, TxId)> = Vec::new();
     let mut wallet_addresses: Vec<(TransparentAddressId, String)> = wallet
         .get_transparent_addresses()
         .unwrap()
@@ -148,11 +200,12 @@ async fn update_transparent_addresses<P, W>(
 
     // derive additional addresses until all scopes in all accounts satisfy the address gap limit.
     loop {
-        // derive addresses for all accounts and scopes together to minimise calls to the server
+        // derive addresses for all accounts and scopes together to minimise calls to the server.
         let gap_limit_addresses =
             derive_gap_limit_addresses(consensus_parameters, ufvks, &wallet_addresses);
+        // tracing::info!("gap limit:\n{:#?}", &gap_limit_addresses);
 
-        // get the transparent output metadata from the server to determine if any of these newly derived addresses are used.
+        // get the transparent output metadata from the server.
         let transparent_output_metadata = client::get_transparent_output_metadata(
             fetch_request_sender.clone(),
             gap_limit_addresses
@@ -163,34 +216,81 @@ async fn update_transparent_addresses<P, W>(
         )
         .await
         .unwrap();
+        // tracing::info!("outputs:\n{:#?}", &transparent_output_metadata);
 
         if transparent_output_metadata.is_empty() {
-            // gap limit satisfied for all scopes of all accounts
+            // gap limit satisfied for all scopes of all accounts.
             break;
         }
 
-        let transparent_metadata_addresses: Vec<&str> = transparent_output_metadata
-            .iter()
-            .map(|metadata| metadata.address.as_str())
-            .collect();
+        // collect the transparent output locators
+        transparent_output_locators.append(
+            transparent_output_metadata
+                .iter()
+                .map(|metadata| {
+                    (
+                        BlockHeight::from_u32(u32::try_from(metadata.height).unwrap()),
+                        TxId::from_bytes(<[u8; 32]>::try_from(&metadata.txid[..]).unwrap()),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .as_mut(),
+        );
 
+        // determine if any of these newly derived addresses are used
         add_new_addresses(
             ufvks,
             &mut wallet_addresses,
             &gap_limit_addresses,
-            &transparent_metadata_addresses,
+            &transparent_output_metadata,
         );
+        // tracing::info!("wallet:\n{:#?}", &wallet_addresses);
+    }
 
-        // TODO: convert vec back to BTreeMap and update wallet addresses
+    update_transparent_output_locators(wallet, transparent_output_locators);
+    update_transparent_addresses(wallet, wallet_addresses);
+}
+
+fn update_transparent_output_locators<W>(
+    wallet: &mut W,
+    mut transparent_output_locators: Vec<(BlockHeight, TxId)>,
+) where
+    W: SyncWallet,
+{
+    let sync_state = wallet.get_sync_state_mut().unwrap();
+    sync_state
+        .transparent_output_locators_mut()
+        .append(&mut transparent_output_locators);
+    sync_state
+        .transparent_output_locators_mut()
+        .sort_unstable_by_key(|(height, _)| *height);
+}
+
+fn update_transparent_addresses<W>(
+    wallet: &mut W,
+    transparent_addresses: Vec<(TransparentAddressId, String)>,
+) where
+    W: SyncWallet,
+{
+    let wallet_addresses = wallet.get_transparent_addresses_mut().unwrap();
+    for (id, address) in transparent_addresses {
+        wallet_addresses.insert(id, address);
     }
 }
 
+/// For each scope in each account, extend `wallet addresses` by all `gap_limit_addresses` up to the highest index
+/// address contained in `transparent_output_metadata`.
 fn add_new_addresses(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     wallet_addresses: &mut Vec<(TransparentAddressId, String)>,
     gap_limit_addresses: &[(TransparentAddressId, String)],
-    transparent_metadata_addresses: &[&str],
+    transparent_output_metadata: &[GetAddressUtxosReply],
 ) {
+    let transparent_metadata_addresses: Vec<&str> = transparent_output_metadata
+        .iter()
+        .map(|metadata| metadata.address.as_str())
+        .collect();
+
     for (account_id, ufvk) in ufvks {
         if ufvk.transparent().is_some() {
             for scope in [
@@ -249,21 +349,25 @@ where
                 TransparentScope::Internal,
                 TransparentScope::Refund,
             ] {
-                if let Some(id) = wallet_addresses
+                let lowest_unknown_index = if let Some(id) = wallet_addresses
                     .iter()
                     .map(|(id, _)| id)
                     .filter(|id| id.account_id() == *account_id && id.scope() == scope)
                     .rev()
                     .next()
                 {
-                    gap_limit_addresses.extend(derive_transparent_addresses_by_scope(
-                        consensus_parameters,
-                        account_pubkey,
-                        account_id.clone(),
-                        scope,
-                        id.address_index() + 1,
-                    ));
-                }
+                    id.address_index() + 1
+                } else {
+                    0
+                };
+
+                gap_limit_addresses.extend(derive_transparent_addresses_by_scope(
+                    consensus_parameters,
+                    account_pubkey,
+                    account_id.clone(),
+                    scope,
+                    lowest_unknown_index,
+                ));
             }
         }
     }

@@ -55,15 +55,25 @@ async fn sync_test() {
     let (regtest_manager, _cph, faucet, mut recipient, _txid) =
         scenarios::orchard_funded_recipient(5_000_000).await;
     from_inputs::quick_send(
-        &recipient,
+        &faucet,
         vec![(
-            &get_base_address_macro!(&faucet, "unified"),
+            &get_base_address_macro!(&recipient, "transparent"),
             100_000,
-            Some("Outgoing decrypt test"),
+            None,
         )],
     )
     .await
     .unwrap();
+    // from_inputs::quick_send(
+    //     &recipient,
+    //     vec![(
+    //         &get_base_address_macro!(&faucet, "unified"),
+    //         100_000,
+    //         Some("Outgoing decrypt test"),
+    //     )],
+    // )
+    // .await
+    // .unwrap();
 
     increase_server_height(&regtest_manager, 1).await;
 

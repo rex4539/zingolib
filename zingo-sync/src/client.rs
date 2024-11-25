@@ -110,6 +110,10 @@ pub async fn get_transparent_output_metadata(
     transparent_addresses: Vec<String>,
     start_height: BlockHeight,
 ) -> Result<Vec<GetAddressUtxosReply>, ()> {
+    if transparent_addresses.is_empty() {
+        panic!("addresses must be non-empty!");
+    }
+
     let (sender, receiver) = oneshot::channel();
     fetch_request_sender
         .send(FetchRequest::TransparentOutputMetadata(

@@ -24,7 +24,10 @@ pub struct SyncState {
     /// In block height order with no overlaps or gaps.
     scan_ranges: Vec<ScanRange>,
     /// Block height and txid of known spends which are awaiting the scanning of the range it belongs to for transaction decryption.
-    spend_locations: Vec<(BlockHeight, TxId)>,
+    /// Currently unused. Requires compressed nullifier maps / bloom filters from server.
+    spend_locators: Vec<(BlockHeight, TxId)>,
+    /// Block height and txid of known locations for transparent outputs in block ranges that have yet to be scanned.
+    transparent_output_locators: Vec<(BlockHeight, TxId)>,
 }
 
 impl SyncState {
@@ -32,7 +35,8 @@ impl SyncState {
     pub fn new() -> Self {
         SyncState {
             scan_ranges: Vec::new(),
-            spend_locations: Vec::new(),
+            spend_locators: Vec::new(),
+            transparent_output_locators: Vec::new(),
         }
     }
 
