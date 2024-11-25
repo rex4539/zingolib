@@ -48,7 +48,7 @@ impl SyncState {
     }
 
     /// Returns the block height at which all blocks equal to and below this height are scanned.
-    pub(crate) fn fully_scanned_height(&self) -> BlockHeight {
+    pub fn fully_scanned_height(&self) -> BlockHeight {
         if let Some(scan_range) = self
             .scan_ranges()
             .iter()
