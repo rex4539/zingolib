@@ -63,43 +63,8 @@ pub fn margin_fee() -> u64 {
     zcash_primitives::transaction::fees::zip317::MARGINAL_FEE.into_u64()
 }
 
-/// TODO: Add Doc Comment Here!
-pub fn load_clientconfig(
-    lightwallet_uri: http::Uri,
-    data_dir: Option<PathBuf>,
-    chain: ChainType,
-    monitor_mempool: bool,
-) -> std::io::Result<ZingoConfig> {
-    use std::net::ToSocketAddrs;
-    format!(
-        "{}:{}",
-        lightwallet_uri.host().unwrap(),
-        lightwallet_uri.port().unwrap()
-    )
-    .to_socket_addrs()?
-    .next()
-    .ok_or(std::io::Error::new(
-        ErrorKind::ConnectionRefused,
-        "Couldn't resolve server!",
-    ))?;
-
-    // Create a Light Client Config
-    let config = ZingoConfig {
-        lightwalletd_uri: Arc::new(RwLock::new(lightwallet_uri)),
-        chain,
-        monitor_mempool,
-        reorg_buffer_offset: REORG_BUFFER_OFFSET,
-        wallet_dir: data_dir,
-        wallet_name: DEFAULT_WALLET_NAME.into(),
-        logfile_name: DEFAULT_LOGFILE_NAME.into(),
-        accept_server_txids: false,
-    };
-
-    Ok(config)
-}
-
 /// Same as load_clientconfig but doesn't panic when the server can't be reached
-pub fn load_clientconfig_serverless(
+pub fn load_clientconfig(
     lightwallet_uri: http::Uri,
     data_dir: Option<PathBuf>,
     chain: ChainType,
@@ -784,7 +749,7 @@ mod tests {
         let temp_path = temp_dir.path().to_path_buf();
         // let temp_path_invalid = temp_dir.path().to_path_buf();
 
-        let valid_config = crate::config::load_clientconfig_serverless(
+        let valid_config = crate::config::load_clientconfig(
             valid_uri.clone(),
             Some(temp_path),
             crate::config::ChainType::Mainnet,
