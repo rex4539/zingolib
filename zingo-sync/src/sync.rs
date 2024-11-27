@@ -33,8 +33,8 @@ mod transparent;
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
+#[allow(dead_code)]
 const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond this window
-const ADDRESS_GAP_LIMIT: u32 = 20;
 
 /// Syncs a wallet to the latest state of the blockchain
 pub async fn sync<P, W>(
@@ -46,14 +46,6 @@ where
     P: consensus::Parameters + Sync + Send + 'static,
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
 {
-    let previous_sync_wallet_height =
-        if let Some(highest_range) = wallet.get_sync_state().unwrap().scan_ranges().last() {
-            highest_range.block_range().end - 1
-        } else {
-            wallet.get_birthday().unwrap() - 1
-        };
-    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
-
     tracing::info!("Syncing wallet...");
 
     // create channel for sending fetch requests and launch fetcher task
@@ -64,25 +56,23 @@ where
         consensus_parameters.clone(),
     ));
 
-    // transparent::update_coins(
-    //     wallet,
-    //     fetch_request_sender.clone(),
-    //     previous_sync_wallet_height,
-    // )
-    // .await;
-    // TODO: add any transparent metadata above previous sync wallet height to sync state
-    transparent::discover_addresses(
+    let chain_height = client::get_chain_height(fetch_request_sender.clone())
+        .await
+        .unwrap();
+    let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+
+    transparent::update_addresses_and_locators(
         wallet,
-        consensus_parameters,
         fetch_request_sender.clone(),
+        consensus_parameters,
         &ufvks,
-        previous_sync_wallet_height,
+        chain_height,
     )
     .await;
 
     update_scan_ranges(
-        fetch_request_sender.clone(),
         consensus_parameters,
+        chain_height,
         wallet.get_birthday().unwrap(),
         wallet.get_sync_state_mut().unwrap(),
     )
@@ -156,17 +146,14 @@ where
 
 /// Update scan ranges for scanning
 async fn update_scan_ranges<P>(
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     consensus_parameters: &P,
+    chain_height: BlockHeight,
     wallet_birthday: BlockHeight,
     sync_state: &mut SyncState,
 ) -> Result<(), ()>
 where
     P: consensus::Parameters,
 {
-    let chain_height = client::get_chain_height(fetch_request_sender)
-        .await
-        .unwrap();
     create_scan_range(
         chain_height,
         consensus_parameters,

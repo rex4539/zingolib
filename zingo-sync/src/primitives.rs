@@ -5,10 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use getset::{CopyGetters, Getters, MutGetters, Setters};
 
 use incrementalmerkletree::Position;
-use zcash_client_backend::{
-    data_api::scanning::{ScanPriority, ScanRange},
-    proto::service::GetAddressUtxosReply,
-};
+use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
 use zcash_keys::{address::UnifiedAddress, encoding::encode_payment_address};
 use zcash_primitives::{
     block::BlockHash,
@@ -33,8 +30,6 @@ pub struct SyncState {
     /// Block height and txid of relevant transactions that have yet to be scanned. These may be added due to spend
     /// detections or transparent output discovery
     locators: BTreeSet<(BlockHeight, TxId)>,
-    /// Unspent transparent output metadata that belong to ranges that have yet to be scanned.
-    utxo_metadata: Vec<UtxoMetadata>,
 }
 
 impl SyncState {
@@ -43,7 +38,6 @@ impl SyncState {
         SyncState {
             scan_ranges: Vec::new(),
             locators: BTreeSet::new(),
-            utxo_metadata: Vec::new(),
         }
     }
 

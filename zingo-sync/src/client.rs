@@ -31,10 +31,15 @@ pub enum FetchRequest {
     TreeState(oneshot::Sender<TreeState>, BlockHeight),
     /// Get a full transaction by txid.
     Transaction(oneshot::Sender<(Transaction, BlockHeight)>, TxId),
-    /// Get a list of unspent transparent output metadata for a given list of transparent addresses and block range.
+    /// Get a list of unspent transparent output metadata for a given list of transparent addresses and start height.
     UtxoMetadata(
         oneshot::Sender<Vec<GetAddressUtxosReply>>,
         (Vec<String>, BlockHeight),
+    ),
+    /// Get a list of transactions for a given transparent address and block range.
+    TransparentAddressTxs(
+        oneshot::Sender<Vec<(BlockHeight, Transaction)>>,
+        (String, Range<BlockHeight>),
     ),
 }
 
@@ -124,4 +129,24 @@ pub async fn get_utxo_metadata(
     let transparent_output_metadata = receiver.await.unwrap();
 
     Ok(transparent_output_metadata)
+}
+
+/// Gets transactions relevant to a given `transparent address` in the specified `block_range`.
+///
+/// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
+pub async fn get_transparent_address_transactions(
+    fetch_request_sender: UnboundedSender<FetchRequest>,
+    transparent_address: String,
+    block_range: Range<BlockHeight>,
+) -> Result<Vec<(BlockHeight, Transaction)>, ()> {
+    let (sender, receiver) = oneshot::channel();
+    fetch_request_sender
+        .send(FetchRequest::TransparentAddressTxs(
+            sender,
+            (transparent_address, block_range),
+        ))
+        .unwrap();
+    let transactions = receiver.await.unwrap();
+
+    Ok(transactions)
 }

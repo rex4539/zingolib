@@ -8,7 +8,8 @@ use zcash_client_backend::proto::{
     compact_formats::CompactBlock,
     service::{
         compact_tx_streamer_client::CompactTxStreamerClient, BlockId, BlockRange, ChainSpec,
-        GetAddressUtxosArg, GetAddressUtxosReply, TreeState, TxFilter,
+        GetAddressUtxosArg, GetAddressUtxosReply, RawTransaction, TransparentAddressBlockFilter,
+        TreeState, TxFilter,
     },
 };
 use zcash_primitives::{
@@ -132,6 +133,17 @@ async fn fetch_from_server(
                 .unwrap();
             sender.send(utxo_metadata).unwrap();
         }
+        FetchRequest::TransparentAddressTxs(sender, (address, block_range)) => {
+            tracing::info!(
+                "Fetching raw transactions in block range {:?} for address {:?}",
+                &block_range,
+                &address
+            );
+            let transactions = get_taddress_txs(client, parameters, address, block_range)
+                .await
+                .unwrap();
+            sender.send(transactions).unwrap();
+        }
     }
 
     Ok(())
@@ -193,7 +205,7 @@ async fn get_transaction(
     });
 
     let raw_transaction = client.get_transaction(request).await.unwrap().into_inner();
-    let block_height = BlockHeight::from_u32(raw_transaction.height as u32);
+    let block_height = BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
 
     let transaction = Transaction::read(
         &raw_transaction.data[..],
@@ -223,4 +235,54 @@ async fn get_address_utxos(
         .unwrap()
         .into_inner()
         .address_utxos)
+}
+
+async fn get_taddress_txs(
+    client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
+    parameters: &impl consensus::Parameters,
+    address: String,
+    block_range: Range<BlockHeight>,
+) -> Result<Vec<(BlockHeight, Transaction)>, ()> {
+    let mut raw_transactions: Vec<RawTransaction> = Vec::new();
+
+    let range = Some(BlockRange {
+        start: Some(BlockId {
+            height: block_range.start.into(),
+            hash: vec![],
+        }),
+        end: Some(BlockId {
+            height: u64::from(block_range.end) - 1,
+            hash: vec![],
+        }),
+    });
+
+    let request = tonic::Request::new(TransparentAddressBlockFilter { address, range });
+
+    let mut raw_tx_stream = client
+        .get_taddress_txids(request)
+        .await
+        .unwrap()
+        .into_inner();
+
+    while let Some(raw_tx) = raw_tx_stream.message().await.unwrap() {
+        raw_transactions.push(raw_tx);
+    }
+
+    let transactions: Vec<(BlockHeight, Transaction)> = raw_transactions
+        .into_iter()
+        .map(|raw_transaction| {
+            let block_height =
+                BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
+
+            let transaction = Transaction::read(
+                &raw_transaction.data[..],
+                BranchId::for_height(parameters, block_height),
+            )
+            .unwrap();
+
+            (block_height, transaction)
+        })
+        .collect();
+
+    Ok(transactions)
 }
