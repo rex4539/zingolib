@@ -76,6 +76,9 @@ async fn sync_test() {
     // .unwrap();
 
     increase_server_height(&regtest_manager, 1).await;
+    recipient.do_sync(false).await.unwrap();
+    recipient.quick_shield().await.unwrap();
+    increase_server_height(&regtest_manager, 1).await;
 
     let uri = recipient.config().lightwalletd_uri.read().unwrap().clone();
     let client = GrpcConnector::new(uri).get_client().await.unwrap();

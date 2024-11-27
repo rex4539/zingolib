@@ -1,20 +1,27 @@
 //! Module for primitive structs associated with the sync engine
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use getset::{CopyGetters, Getters, MutGetters, Setters};
 
 use incrementalmerkletree::Position;
-use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
+use zcash_client_backend::{
+    data_api::scanning::{ScanPriority, ScanRange},
+    proto::service::GetAddressUtxosReply,
+};
 use zcash_keys::{address::UnifiedAddress, encoding::encode_payment_address};
 use zcash_primitives::{
     block::BlockHash,
     consensus::{BlockHeight, NetworkConstants, Parameters},
+    legacy::Script,
     memo::Memo,
     transaction::TxId,
 };
 
-use crate::{keys::KeyId, utils};
+use crate::{
+    keys::{KeyId, TransparentAddressId},
+    utils,
+};
 
 /// Encapsulates the current state of sync
 #[derive(Debug, Getters, MutGetters)]
@@ -23,11 +30,11 @@ pub struct SyncState {
     /// A vec of block ranges with scan priorities from wallet birthday to chain tip.
     /// In block height order with no overlaps or gaps.
     scan_ranges: Vec<ScanRange>,
-    /// Block height and txid of known spends which are awaiting the scanning of the range it belongs to for transaction decryption.
-    /// Currently unused. Requires compressed nullifier maps / bloom filters from server.
-    spend_locators: Vec<(BlockHeight, TxId)>,
-    /// Block height and txid of known locations for transparent outputs in block ranges that have yet to be scanned.
-    transparent_output_locators: Vec<(BlockHeight, TxId)>,
+    /// Block height and txid of relevant transactions that have yet to be scanned. These may be added due to spend
+    /// detections or transparent output discovery
+    locators: BTreeSet<(BlockHeight, TxId)>,
+    /// Unspent transparent output metadata that belong to ranges that have yet to be scanned.
+    utxo_metadata: Vec<UtxoMetadata>,
 }
 
 impl SyncState {
@@ -35,8 +42,8 @@ impl SyncState {
     pub fn new() -> Self {
         SyncState {
             scan_ranges: Vec::new(),
-            spend_locators: Vec::new(),
-            transparent_output_locators: Vec::new(),
+            locators: BTreeSet::new(),
+            utxo_metadata: Vec::new(),
         }
     }
 
@@ -166,6 +173,8 @@ pub struct WalletTransaction {
     outgoing_sapling_notes: Vec<OutgoingSaplingNote>,
     #[getset(skip)]
     outgoing_orchard_notes: Vec<OutgoingOrchardNote>,
+    #[getset(skip)]
+    transparent_coins: Vec<TransparentCoin>,
 }
 
 impl WalletTransaction {
@@ -176,6 +185,7 @@ impl WalletTransaction {
         orchard_notes: Vec<OrchardNote>,
         outgoing_sapling_notes: Vec<OutgoingSaplingNote>,
         outgoing_orchard_notes: Vec<OutgoingOrchardNote>,
+        transparent_coins: Vec<TransparentCoin>,
     ) -> Self {
         Self {
             transaction,
@@ -184,6 +194,7 @@ impl WalletTransaction {
             orchard_notes,
             outgoing_sapling_notes,
             outgoing_orchard_notes,
+            transparent_coins,
         }
     }
 
@@ -209,6 +220,14 @@ impl WalletTransaction {
 
     pub fn outgoing_orchard_notes(&self) -> &[OutgoingOrchardNote] {
         &self.outgoing_orchard_notes
+    }
+
+    pub fn transparent_coins(&self) -> &[TransparentCoin] {
+        &self.transparent_coins
+    }
+
+    pub fn transparent_coins_mut(&mut self) -> Vec<&mut TransparentCoin> {
+        self.transparent_coins.iter_mut().collect()
     }
 }
 
@@ -329,4 +348,47 @@ pub(crate) trait SyncOutgoingNotes {
     fn encoded_recipient<P>(&self, parameters: &P) -> String
     where
         P: Parameters + NetworkConstants;
+}
+
+///  Transparent coin (output) with metadata relevant to the wallet
+#[derive(Debug, Clone, Getters, CopyGetters, Setters)]
+pub struct TransparentCoin {
+    /// Output ID
+    #[getset(get_copy = "pub")]
+    output_id: OutputId,
+    /// Identifier for key used to derive address
+    #[getset(get_copy = "pub")]
+    key_id: TransparentAddressId,
+    /// Encoded transparent address
+    #[getset(get = "pub")]
+    address: String,
+    /// Script
+    #[getset(get = "pub")]
+    script: Script,
+    /// Coin value
+    #[getset(get_copy = "pub")]
+    value: u64,
+    /// Spend status
+    #[getset(get = "pub", set = "pub")]
+    spent: bool,
+}
+
+impl TransparentCoin {
+    pub fn from_parts(
+        output_id: OutputId,
+        key_id: TransparentAddressId,
+        address: String,
+        script: Script,
+        value: u64,
+        spent: bool,
+    ) -> Self {
+        Self {
+            output_id,
+            key_id,
+            address,
+            script,
+            value,
+            spent,
+        }
+    }
 }

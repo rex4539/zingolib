@@ -247,6 +247,7 @@ fn scan_transaction<P: Parameters>(
         orchard_notes,
         outgoing_sapling_notes,
         outgoing_orchard_notes,
+        vec![], // TODO: add coins
     ))
 }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
 
 use tokio::sync::mpsc;
@@ -8,57 +8,105 @@ use zcash_client_backend::proto::service::GetAddressUtxosReply;
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight};
 use zcash_primitives::legacy::keys::{AccountPubKey, IncomingViewingKey, NonHardenedChildIndex};
-use zcash_primitives::legacy::TransparentAddress;
+use zcash_primitives::legacy::{Script, TransparentAddress};
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
 use crate::client::{self, FetchRequest};
 use crate::keys::{AddressIndex, TransparentAddressId, TransparentScope};
-use crate::traits::SyncWallet;
+use crate::primitives::{OutputId, TransparentCoin};
+use crate::traits::{SyncTransactions, SyncWallet};
 
-use super::ADDRESS_GAP_LIMIT;
+use super::{ADDRESS_GAP_LIMIT, MAX_VERIFICATION_WINDOW};
 
-/// Discovers the location of any transparent outputs associated with addresses known to the wallet above the wallet
-/// height when the wallet was previously synced.
-pub(crate) async fn discover_output_locators<W>(
-    wallet: &mut W,
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    previous_sync_wallet_height: BlockHeight,
-) where
-    W: SyncWallet,
-{
-    let wallet_addresses: Vec<String> = wallet
-        .get_transparent_addresses()
-        .unwrap()
-        .iter()
-        .map(|(_, address)| address.clone())
-        .collect();
+// ///
+// pub(crate) async fn update_coins_outer<W>(
+//     wallet: &mut W,
+//     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+//     previous_sync_wallet_height: BlockHeight,
+// ) where
+//     W: SyncWallet + SyncTransactions,
+// {
+//     let wallet_addresses: Vec<String> = wallet
+//         .get_transparent_addresses()
+//         .unwrap()
+//         .iter()
+//         .map(|(_, address)| address.clone())
+//         .collect();
 
-    if wallet_addresses.is_empty() {
-        return;
-    }
+//     if wallet_addresses.is_empty() {
+//         return;
+//     }
 
-    // get the transparent output metadata from the server.
-    let transparent_output_metadata = client::get_transparent_output_metadata(
-        fetch_request_sender.clone(),
-        wallet_addresses,
-        previous_sync_wallet_height + 1,
-    )
-    .await
-    .unwrap();
+//     let utxo_metadata: Vec<UtxoMetadata> = client::get_utxo_metadata(
+//         fetch_request_sender.clone(),
+//         wallet_addresses,
+//         wallet.get_birthday().unwrap(),
+//     )
+//     .await
+//     .unwrap()
+//     .into_iter()
+//     .map(|reply| reply.into())
+//     .collect();
 
-    // collect the transparent output locators
-    let transparent_output_locators: Vec<(BlockHeight, TxId)> = transparent_output_metadata
-        .iter()
-        .map(|metadata| {
+//     let wallet_transactions = wallet.get_wallet_transactions_mut().unwrap();
+//     for utxo in utxo_metadata {
+//         if let Some(transaction) = wallet_transactions.get_mut(utxo.txid()) {
+//             //
+//         }
+//     }
+// }
+
+///
+pub(crate) async fn create_coins<W>(
+    addresses: &BTreeMap<TransparentAddressId, String>,
+    utxo_metadata: Vec<GetAddressUtxosReply>,
+) -> Vec<(BlockHeight, TransparentCoin)> {
+    utxo_metadata
+        .into_iter()
+        .map(|utxo| {
+            let key_id = addresses
+                .iter()
+                .find(|(_, address)| **address == utxo.address)
+                .map(|(key_id, _)| key_id.clone())
+                .expect("utxo metadata should be derived from an address in the wallet!");
+            let txid = TxId::from_bytes(<[u8; 32]>::try_from(&utxo.txid[..]).unwrap());
+            let transparent_coin = TransparentCoin::from_parts(
+                OutputId::from_parts(txid, utxo.index as usize),
+                key_id,
+                utxo.address,
+                Script(utxo.script),
+                u64::try_from(utxo.value_zat).unwrap(),
+                false,
+            );
+
             (
-                BlockHeight::from_u32(u32::try_from(metadata.height).unwrap()),
-                TxId::from_bytes(<[u8; 32]>::try_from(&metadata.txid[..]).unwrap()),
+                BlockHeight::from_u32(u32::try_from(utxo.height).unwrap()),
+                transparent_coin,
             )
         })
-        .collect();
+        .collect()
+}
 
-    update_output_locators(wallet, transparent_output_locators);
+// TODO: finish doc comment
+/// if the new set of all UTXOs does not contain a previously unspent coin in the wallet, the coin must have been spent.
+pub(crate) async fn update_spend_status<W>(wallet: &mut W, coin_ids: Vec<OutputId>)
+where
+    W: SyncWallet + SyncTransactions,
+{
+    // let coin_ids: Vec<OutputId> = coin_metadata
+    //     .iter()
+    //     .map(|(_, coin)| coin.output_id())
+    //     .collect();
+    wallet
+        .get_wallet_transactions_mut()
+        .unwrap()
+        .values_mut()
+        .flat_map(|tx| tx.transparent_coins_mut())
+        .filter(|coin| !coin_ids.contains(&coin.output_id()))
+        .for_each(|coin| {
+            coin.set_spent(true);
+        });
 }
 
 /// Updates the wallet with any previously unknown transparent addresses that are now in use.
@@ -71,9 +119,9 @@ pub(crate) async fn discover_addresses<P, W>(
     previous_sync_wallet_height: BlockHeight,
 ) where
     P: consensus::Parameters,
-    W: SyncWallet,
+    W: SyncWallet + SyncTransactions,
 {
-    let mut transparent_output_locators: Vec<(BlockHeight, TxId)> = Vec::new();
+    let mut utxo_metadata_set: Vec<GetAddressUtxosReply> = Vec::new();
     let mut wallet_addresses: Vec<(TransparentAddressId, String)> = wallet
         .get_transparent_addresses()
         .unwrap()
@@ -89,64 +137,37 @@ pub(crate) async fn discover_addresses<P, W>(
         // tracing::info!("gap limit:\n{:#?}", &gap_limit_addresses);
 
         // get the transparent output metadata from the server.
-        let transparent_output_metadata = client::get_transparent_output_metadata(
+        let mut utxo_metadata = client::get_utxo_metadata(
             fetch_request_sender.clone(),
             gap_limit_addresses
                 .iter()
                 .map(|(_, address)| address.clone())
                 .collect(),
-            previous_sync_wallet_height + 1,
+            previous_sync_wallet_height - MAX_VERIFICATION_WINDOW,
         )
         .await
         .unwrap();
         // tracing::info!("outputs:\n{:#?}", &transparent_output_metadata);
 
-        if transparent_output_metadata.is_empty() {
+        if utxo_metadata.is_empty() {
             // gap limit satisfied for all scopes of all accounts.
             break;
         }
-
-        // collect the transparent output locators
-        transparent_output_locators.append(
-            transparent_output_metadata
-                .iter()
-                .map(|metadata| {
-                    (
-                        BlockHeight::from_u32(u32::try_from(metadata.height).unwrap()),
-                        TxId::from_bytes(<[u8; 32]>::try_from(&metadata.txid[..]).unwrap()),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .as_mut(),
-        );
 
         // determine if any of these newly derived addresses are used
         add_new_addresses(
             ufvks,
             &mut wallet_addresses,
             &gap_limit_addresses,
-            &transparent_output_metadata,
+            &utxo_metadata,
         );
         // tracing::info!("wallet:\n{:#?}", &wallet_addresses);
+
+        utxo_metadata_set.append(&mut utxo_metadata);
     }
 
-    update_output_locators(wallet, transparent_output_locators);
     update_addresses(wallet, wallet_addresses);
-}
-
-fn update_output_locators<W>(
-    wallet: &mut W,
-    mut transparent_output_locators: Vec<(BlockHeight, TxId)>,
-) where
-    W: SyncWallet,
-{
-    let sync_state = wallet.get_sync_state_mut().unwrap();
-    sync_state
-        .transparent_output_locators_mut()
-        .append(&mut transparent_output_locators);
-    sync_state
-        .transparent_output_locators_mut()
-        .sort_unstable_by_key(|(height, _)| *height);
+    update_coins(wallet, utxo_metadata_set);
 }
 
 fn update_addresses<W>(wallet: &mut W, transparent_addresses: Vec<(TransparentAddressId, String)>)
@@ -159,17 +180,17 @@ where
     }
 }
 
-/// For each scope in each account, extend `wallet addresses` by all `gap_limit_addresses` up to the highest index
-/// address contained in `transparent_output_metadata`.
+/// For each scope in each account, add all `gap_limit_addresses` up to the highest index
+/// address contained in `transparent_output_metadata` to `wallet_addresses`.
 fn add_new_addresses(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     wallet_addresses: &mut Vec<(TransparentAddressId, String)>,
     gap_limit_addresses: &[(TransparentAddressId, String)],
-    transparent_output_metadata: &[GetAddressUtxosReply],
+    utxo_metadata: &[GetAddressUtxosReply],
 ) {
-    let transparent_metadata_addresses: Vec<&str> = transparent_output_metadata
+    let utxo_metadata_addresses: Vec<&str> = utxo_metadata
         .iter()
-        .map(|metadata| metadata.address.as_str())
+        .map(|utxo| utxo.address.as_str())
         .collect();
 
     for (account_id, ufvk) in ufvks {
@@ -189,20 +210,16 @@ fn add_new_addresses(
                     gap_limit_addresses_by_scope
                         .iter()
                         .rev()
-                        .find(|(_, address)| {
-                            transparent_metadata_addresses.contains(&address.as_str())
-                        }) {
+                        .find(|(_, address)| utxo_metadata_addresses.contains(&address.as_str()))
+                {
                     Some(id.address_index() as usize)
                 } else {
                     None
                 };
 
                 if let Some(address_index) = highest_new_address_index {
-                    wallet_addresses.extend(
-                        gap_limit_addresses_by_scope
-                            .drain(..address_index + 1)
-                            .collect::<Vec<_>>(),
-                    );
+                    gap_limit_addresses_by_scope.truncate(address_index + 1);
+                    wallet_addresses.append(&mut gap_limit_addresses_by_scope);
                 }
             }
         }

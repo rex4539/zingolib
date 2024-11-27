@@ -33,6 +33,7 @@ mod transparent;
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
+const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond this window
 const ADDRESS_GAP_LIMIT: u32 = 20;
 
 /// Syncs a wallet to the latest state of the blockchain
@@ -63,12 +64,13 @@ where
         consensus_parameters.clone(),
     ));
 
-    transparent::discover_output_locators(
-        wallet,
-        fetch_request_sender.clone(),
-        previous_sync_wallet_height,
-    )
-    .await;
+    // transparent::update_coins(
+    //     wallet,
+    //     fetch_request_sender.clone(),
+    //     previous_sync_wallet_height,
+    // )
+    // .await;
+    // TODO: add any transparent metadata above previous sync wallet height to sync state
     transparent::discover_addresses(
         wallet,
         consensus_parameters,
