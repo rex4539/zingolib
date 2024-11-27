@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use log4rs::{
     append::rolling_file::{
         policy::compound::{
@@ -63,7 +63,7 @@ pub fn margin_fee() -> u64 {
     zcash_primitives::transaction::fees::zip317::MARGINAL_FEE.into_u64()
 }
 
-/// TODO: Add Doc Comment Here!
+/// Same as load_clientconfig but doesn't panic when the server can't be reached
 pub fn load_clientconfig(
     lightwallet_uri: http::Uri,
     data_dir: Option<PathBuf>,
@@ -71,17 +71,21 @@ pub fn load_clientconfig(
     monitor_mempool: bool,
 ) -> std::io::Result<ZingoConfig> {
     use std::net::ToSocketAddrs;
-    format!(
+    match format!(
         "{}:{}",
         lightwallet_uri.host().unwrap(),
         lightwallet_uri.port().unwrap()
     )
-    .to_socket_addrs()?
-    .next()
-    .ok_or(std::io::Error::new(
-        ErrorKind::ConnectionRefused,
-        "Couldn't resolve server!",
-    ))?;
+    .to_socket_addrs()
+    {
+        Ok(_) => {
+            info!("Connected to {}", lightwallet_uri);
+        }
+        Err(e) => {
+            info!("Couldn't resolve server: {}", e);
+        }
+    }
+    info!("Connected to {}", lightwallet_uri);
 
     // Create a Light Client Config
     let config = ZingoConfig {
@@ -724,5 +728,44 @@ impl ActivationHeights {
             NetworkUpgrade::Nu5 => self.orchard,
             NetworkUpgrade::Nu6 => self.nu6,
         }
+    }
+}
+
+mod tests {
+
+    #[tokio::test]
+    async fn test_load_clientconfig_serverless() {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Ring to work as a default");
+        tracing_subscriber::fmt().init();
+
+        let valid_uri = crate::config::construct_lightwalletd_uri(Some(
+            crate::config::DEFAULT_LIGHTWALLETD_SERVER.to_string(),
+        ));
+        // let invalid_uri = construct_lightwalletd_uri(Some("Invalid URI".to_string()));
+        let temp_dir = tempfile::TempDir::new().unwrap();
+
+        let temp_path = temp_dir.path().to_path_buf();
+        // let temp_path_invalid = temp_dir.path().to_path_buf();
+
+        let valid_config = crate::config::load_clientconfig(
+            valid_uri.clone(),
+            Some(temp_path),
+            crate::config::ChainType::Mainnet,
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(valid_config.get_lightwalletd_uri(), valid_uri);
+        assert_eq!(valid_config.chain, crate::config::ChainType::Mainnet);
+
+        // let invalid_config = load_clientconfig_serverless(
+        //     invalid_uri.clone(),
+        //     Some(temp_path_invalid),
+        //     ChainType::Mainnet,
+        //     true,
+        // );
+        // assert_eq!(invalid_config.is_err(), true);
     }
 }
