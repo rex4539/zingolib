@@ -15,28 +15,46 @@ use crate::client::{get_transparent_address_transactions, FetchRequest};
 use crate::keys::{AddressIndex, TransparentAddressId, TransparentScope};
 use crate::traits::SyncWallet;
 
+use super::MAX_VERIFICATION_WINDOW;
+
 const ADDRESS_GAP_LIMIT: usize = 20;
 
-/// Discovers all addresses in use by the wallet and returns locators for the relevant transactions to scan transparent
+/// Discovers all addresses in use by the wallet and returns locators for any new relevant transactions to scan transparent
 /// bundles.
 pub(crate) async fn update_addresses_and_locators<P, W>(
     wallet: &mut W,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    previous_sync_chain_height: BlockHeight,
     chain_height: BlockHeight,
 ) where
     P: consensus::Parameters,
     W: SyncWallet,
 {
-    let wallet_birthday = wallet.get_birthday().unwrap();
     let wallet_addresses = wallet.get_transparent_addresses_mut().unwrap();
+    let mut locators: BTreeSet<(BlockHeight, TxId)> = BTreeSet::new();
     let block_range = Range {
-        start: wallet_birthday,
+        start: previous_sync_chain_height - MAX_VERIFICATION_WINDOW,
         end: chain_height + 1,
     };
-    let mut locators: BTreeSet<(BlockHeight, TxId)> = BTreeSet::new();
 
+    // find locators for any new transactions relevant to known addresses
+    for address in wallet_addresses.values() {
+        let transactions = get_transparent_address_transactions(
+            fetch_request_sender.clone(),
+            address.clone(),
+            block_range.clone(),
+        )
+        .await
+        .unwrap();
+
+        transactions.iter().for_each(|(height, tx)| {
+            locators.insert((height.clone(), tx.txid()));
+        });
+    }
+
+    // discover new addresses and find locators for relevant transactions
     for (account_id, ufvk) in ufvks {
         if let Some(account_pubkey) = ufvk.transparent() {
             for scope in [
@@ -44,7 +62,18 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
                 TransparentScope::Internal,
                 TransparentScope::Refund,
             ] {
-                let mut address_index = 0;
+                // start with the first address index previously unused by the wallet
+                let mut address_index = if let Some(id) = wallet_addresses
+                    .iter()
+                    .map(|(id, _)| id)
+                    .filter(|id| id.account_id() == *account_id && id.scope() == scope)
+                    .rev()
+                    .next()
+                {
+                    id.address_index() + 1
+                } else {
+                    0
+                };
                 let mut unused_address_count: usize = 0;
                 let mut addresses: Vec<(TransparentAddressId, String)> = Vec::new();
 
@@ -168,3 +197,13 @@ where
     };
     zcash_address.to_string()
 }
+
+// TODO: process memo encoded address indexes.
+// 1. return any memo address ids from scan in ScanResults
+// 2. derive the addresses up to that index, add to wallet addresses and send them to GetTaddressTxids
+// 3. for each transaction returned:
+// a) if the tx is in a range that is not scanned, add locator to sync_state
+// b) if the range is scanned and the tx is already in the wallet, rescan the zcash transaction transparent bundles in
+// the wallet transaction
+// c) if the range is scanned and the tx does not exist in the wallet, fetch the compact block if its not in the wallet
+// and scan the transparent bundles

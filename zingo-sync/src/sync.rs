@@ -33,7 +33,6 @@ mod transparent;
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
-#[allow(dead_code)]
 const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond this window
 
 /// Syncs a wallet to the latest state of the blockchain
@@ -56,6 +55,12 @@ where
         consensus_parameters.clone(),
     ));
 
+    let previous_sync_chain_height =
+        if let Some(highest_range) = wallet.get_sync_state().unwrap().scan_ranges().last() {
+            highest_range.block_range().end - 1
+        } else {
+            wallet.get_birthday().unwrap() - 1
+        };
     let chain_height = client::get_chain_height(fetch_request_sender.clone())
         .await
         .unwrap();
@@ -66,6 +71,7 @@ where
         fetch_request_sender.clone(),
         consensus_parameters,
         &ufvks,
+        previous_sync_chain_height,
         chain_height,
     )
     .await;
