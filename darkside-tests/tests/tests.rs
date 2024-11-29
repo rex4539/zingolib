@@ -51,13 +51,13 @@ async fn simple_sync() {
 
 #[tokio::test]
 async fn reorg_away_receipt_blaze() {
-    reorg_reciept_sync_generic(|lc| Box::pin(async { lc.do_sync(true).await.map(|_| ()) })).await;
+    reorg_receipt_sync_generic(|lc| Box::pin(async { lc.do_sync(true).await.map(|_| ()) })).await;
 }
 
 #[ignore = "attempts to unwrap failed checked_sub on sapling output count"]
 #[tokio::test]
 async fn reorg_away_receipt_pepper() {
-    reorg_reciept_sync_generic(|lc| {
+    reorg_receipt_sync_generic(|lc| {
         Box::pin(async {
             let uri = lc.config().lightwalletd_uri.read().unwrap().clone();
             let client = zingo_netutils::GrpcConnector::new(uri)
@@ -71,7 +71,7 @@ async fn reorg_away_receipt_pepper() {
     })
     .await;
 }
-async fn reorg_reciept_sync_generic<F>(sync_fn: F)
+async fn reorg_receipt_sync_generic<F>(sync_fn: F)
 where
     F: for<'a> Fn(&'a mut LightClient) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>>,
 {
