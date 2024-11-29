@@ -28,7 +28,7 @@ use zcash_primitives::zip32::AccountId;
 
 mod transparent;
 
-// TODO: create sub modules for sync module to organise code
+// TODO: create sub modules for sync module to organise code, the "brain" which organises all the scan ranges should be separated out
 
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
@@ -55,15 +55,28 @@ where
         consensus_parameters.clone(),
     ));
 
-    let previous_sync_chain_height =
+    let wallet_height =
         if let Some(highest_range) = wallet.get_sync_state().unwrap().scan_ranges().last() {
             highest_range.block_range().end - 1
         } else {
-            wallet.get_birthday().unwrap() - 1
+            let wallet_birthday = wallet.get_birthday().unwrap();
+            let sapling_activation_height = consensus_parameters
+                .activation_height(NetworkUpgrade::Sapling)
+                .expect("sapling activation height should always return Some");
+
+            let highest = match wallet_birthday.cmp(&sapling_activation_height) {
+                cmp::Ordering::Greater | cmp::Ordering::Equal => wallet_birthday,
+                cmp::Ordering::Less => sapling_activation_height,
+            };
+            highest - 1
         };
     let chain_height = client::get_chain_height(fetch_request_sender.clone())
         .await
         .unwrap();
+    if wallet_height > chain_height {
+        // TODO:  truncate wallet to server height in case of reorg
+        panic!("wallet is ahead of server!")
+    }
     let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
 
     transparent::update_addresses_and_locators(
@@ -71,15 +84,14 @@ where
         fetch_request_sender.clone(),
         consensus_parameters,
         &ufvks,
-        previous_sync_chain_height,
+        wallet_height,
         chain_height,
     )
     .await;
 
     update_scan_ranges(
-        consensus_parameters,
+        wallet_height,
         chain_height,
-        wallet.get_birthday().unwrap(),
         wallet.get_sync_state_mut().unwrap(),
     )
     .await
@@ -151,22 +163,12 @@ where
 }
 
 /// Update scan ranges for scanning
-async fn update_scan_ranges<P>(
-    consensus_parameters: &P,
+async fn update_scan_ranges(
+    wallet_height: BlockHeight,
     chain_height: BlockHeight,
-    wallet_birthday: BlockHeight,
     sync_state: &mut SyncState,
-) -> Result<(), ()>
-where
-    P: consensus::Parameters,
-{
-    create_scan_range(
-        chain_height,
-        consensus_parameters,
-        wallet_birthday,
-        sync_state,
-    )
-    .await?;
+) -> Result<(), ()> {
+    create_scan_range(wallet_height, chain_height, sync_state).await?;
     reset_scan_ranges(sync_state)?;
     set_verification_scan_range(sync_state)?;
 
@@ -177,43 +179,17 @@ where
     Ok(())
 }
 
-/// Create scan range between the last known chain height (wallet height) and the chain height from the server
-async fn create_scan_range<P>(
+/// Create scan range between the wallet height and the chain height from the server
+async fn create_scan_range(
+    wallet_height: BlockHeight,
     chain_height: BlockHeight,
-    consensus_parameters: &P,
-    wallet_birthday: BlockHeight,
     sync_state: &mut SyncState,
-) -> Result<(), ()>
-where
-    P: consensus::Parameters,
-{
+) -> Result<(), ()> {
     let scan_ranges = sync_state.scan_ranges_mut();
-
-    let wallet_height = if scan_ranges.is_empty() {
-        let sapling_activation_height = consensus_parameters
-            .activation_height(NetworkUpgrade::Sapling)
-            .expect("sapling activation height should always return Some");
-
-        match wallet_birthday.cmp(&sapling_activation_height) {
-            cmp::Ordering::Greater | cmp::Ordering::Equal => wallet_birthday,
-            cmp::Ordering::Less => sapling_activation_height,
-        }
-    } else {
-        scan_ranges
-            .last()
-            .expect("Vec should not be empty")
-            .block_range()
-            .end
-    };
-
-    if wallet_height > chain_height {
-        // TODO:  truncate wallet to server height in case of reorg
-        panic!("wallet is ahead of server!")
-    }
 
     let new_scan_range = ScanRange::from_parts(
         Range {
-            start: wallet_height,
+            start: wallet_height + 1,
             end: chain_height + 1,
         },
         ScanPriority::Historic,
