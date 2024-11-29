@@ -61,7 +61,7 @@ pub(crate) mod conduct_chain {
             elf
         }
 
-        fn lightserver_uri() -> Option<Uri> {
+        fn lightserver_uri(&self) -> Option<http::Uri> {
             Some(self.client_builder.server_id.clone())
         }
 
@@ -87,10 +87,11 @@ pub(crate) mod conduct_chain {
         }
 
         async fn bump_chain(&mut self) {
-            let height_before = zingolib::grpc_connector::get_latest_block(self.lightserver_uri())
-                .await
-                .unwrap()
-                .height;
+            let height_before =
+                zingolib::grpc_connector::get_latest_block(self.lightserver_uri().unwrap())
+                    .await
+                    .unwrap()
+                    .height;
 
             let blocks_to_add = 1;
 

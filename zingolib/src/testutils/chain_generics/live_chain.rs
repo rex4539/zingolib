@@ -25,4 +25,8 @@ impl ConductChain for LiveChain {
         // average block time is 75 seconds. we do this twice here to insist on a new block
         tokio::time::sleep(std::time::Duration::from_secs(150)).await;
     }
+
+    fn lightserver_uri(&self) -> Option<http::Uri> {
+        todo!()
+    }
 }
