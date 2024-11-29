@@ -255,7 +255,7 @@ async fn evicted_transaction_is_rebroadcast() {
 
     let primary = environment.fund_client_orchard(1_000_000).await;
     let secondary = environment.create_client().await;
-    primary.do_sync(false).await;
+    primary.do_sync(false).await.unwrap();
 
     let proposal = to_clients_proposal(
         &primary,
@@ -275,7 +275,7 @@ async fn evicted_transaction_is_rebroadcast() {
         zingolib::testutils::lightclient::list_txids(&primary).await
     );
 
-    let recorded_fee = *zingolib::testutils::assertions::lookup_fees_with_proposal_check(
+    let _recorded_fee = *zingolib::testutils::assertions::lookup_fees_with_proposal_check(
         &primary, &proposal, txids,
     )
     .await
@@ -323,7 +323,7 @@ async fn evicted_transaction_is_rebroadcast() {
 
     send_height = 0;
 
-    primary.do_sync(false).await;
+    primary.do_sync(false).await.unwrap();
 
     zingolib::testutils::lightclient::lookup_statuses(&primary, txids.clone())
         .await
@@ -335,5 +335,5 @@ async fn evicted_transaction_is_rebroadcast() {
         });
 
     let ref_primary: Arc<LightClient> = Arc::new(primary);
-    LightClient::start_mempool_monitor(ref_primary);
+    LightClient::start_mempool_monitor(ref_primary).unwrap();
 }

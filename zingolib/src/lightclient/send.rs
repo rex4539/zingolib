@@ -240,6 +240,7 @@ pub mod send_with_proposal {
                                 ) {
                                     Ok(reported_txid) => {
                                         // happens during darkside tests
+                                        // If this option is enabled, the LightClient will replace outgoing TxId records with the TxId picked by the server. necessary for darkside.
                                         // #[cfg(feature = "darkside_tests")]
                                         // if txid != reported_txid {
                                         //     println!(

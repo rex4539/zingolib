@@ -36,7 +36,7 @@ proptest! {
 pub(crate) mod conduct_chain {
     //! known issues include
     //!   - transparent sends do not work
-    //!   - txids are regenerated randomly. zingo can optionally accept_server_txid
+    //!   - txids are regenerated randomly. this means zingo has to do extra work to adjust.
     //!   - these tests cannot portray the full range of network weather.
 
     use orchard::tree::MerkleHashOrchard;
@@ -65,10 +65,9 @@ pub(crate) mod conduct_chain {
         async fn create_faucet(&mut self) -> LightClient {
             self.stage_transaction(ABANDON_TO_DARKSIDE_SAP_10_000_000_ZAT)
                 .await;
-            let mut zingo_config = self
+            let zingo_config = self
                 .client_builder
                 .make_unique_data_dir_and_load_config(self.regtest_network);
-            zingo_config.accept_server_txids = true;
             LightClient::create_from_wallet_base_async(
                 WalletBase::MnemonicPhrase(DARKSIDE_SEED.to_string()),
                 &zingo_config,

@@ -23,8 +23,7 @@ pub trait ConductChain {
 
     /// builds an empty client
     async fn create_client(&mut self) -> LightClient {
-        let mut zingo_config = self.zingo_config();
-        zingo_config.accept_server_txids = true;
+        let zingo_config = self.zingo_config();
         LightClient::create_from_wallet_base_async(
             crate::wallet::WalletBase::FreshEntropy,
             &zingo_config,
@@ -37,9 +36,6 @@ pub trait ConductChain {
 
     /// loads a client from bytes
     async fn load_client(&mut self, data: &[u8]) -> LightClient {
-        let mut zingo_config = self.zingo_config();
-        zingo_config.accept_server_txids = true;
-
         LightClient::create_from_wallet_async(LightWallet::unsafe_from_buffer_testnet(data).await)
             .await
             .unwrap()
