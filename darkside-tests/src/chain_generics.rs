@@ -61,6 +61,7 @@ pub(crate) mod conduct_chain {
             elf
         }
 
+        /// the mock chain is fed to the Client via lightwalletd. where is that server to be found?
         fn lightserver_uri(&self) -> Option<http::Uri> {
             Some(self.client_builder.server_id.clone())
         }
