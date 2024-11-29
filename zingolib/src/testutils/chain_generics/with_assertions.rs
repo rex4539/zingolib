@@ -77,10 +77,12 @@ where
         .expect("record is ok");
 
     dbg!(
-        crate::grpc_connector::get_latest_block(sender.config.lightwalletd_uri.read().unwrap())
-            .await
-            .unwrap()
-            .height
+        crate::grpc_connector::get_latest_block(
+            sender.config.lightwalletd_uri.read().unwrap().to_owned()
+        )
+        .await
+        .unwrap()
+        .height
     );
 
     lookup_statuses(sender, txids.clone()).await.map(|status| {

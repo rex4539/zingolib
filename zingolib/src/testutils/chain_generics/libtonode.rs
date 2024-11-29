@@ -66,4 +66,8 @@ impl ConductChain for LibtonodeEnvironment {
             start_height + 1
         );
     }
+
+    fn lightserver_uri(&self) -> Option<http::Uri> {
+        todo!()
+    }
 }

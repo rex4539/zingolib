@@ -17,7 +17,7 @@ pub trait ConductChain {
     async fn setup() -> Self;
 
     /// used to connect to server via grpc
-    fn lightserver_uri() -> Option<Uri>;
+    fn lightserver_uri(&self) -> Option<http::Uri>;
 
     /// builds a faucet (funded from mining)
     async fn create_faucet(&mut self) -> LightClient;

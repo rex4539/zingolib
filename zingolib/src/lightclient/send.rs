@@ -238,7 +238,7 @@ pub mod send_with_proposal {
                                 match crate::utils::conversion::txid_from_hex_encoded_str(
                                     serverz_txid_string.as_str(),
                                 ) {
-                                    Ok(reported_txid) => {
+                                    Ok(_reported_txid) => {
                                         // happens during darkside tests
                                         // If this option is enabled, the LightClient will replace outgoing TxId records with the TxId picked by the server. necessary for darkside.
                                         // #[cfg(feature = "darkside_tests")]
