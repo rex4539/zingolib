@@ -49,8 +49,9 @@ pub trait ConductChain {
     /// and confirming transactions that were received by the server
     async fn bump_chain(&mut self);
 
-    /// gets the height. does not yet need to be async
-    fn get_chain_height(&mut self) -> u32;
+    // gets the height. does not yet need to be async
+    // fn get_chain_height(&mut self) -> u32;
+    // deprecated. use get_latest_block
 
     /// builds a client and funds it in orchard and syncs it
     async fn fund_client_orchard(&mut self, value: u64) -> LightClient {

@@ -58,6 +58,8 @@ pub mod send_with_proposal {
     pub enum BroadcastCachedTransactionsError {
         #[error("Cant broadcast: {0:?}")]
         Cache(#[from] TransactionCacheError),
+        #[error("Transaction not recorded. Call record_created_transactions first: {0:?}")]
+        Unrecorded(TxId),
         #[error("Couldnt fetch server height: {0:?}")]
         Height(String),
         #[error("Broadcast failed: {0:?}")]
@@ -216,8 +218,10 @@ pub mod send_with_proposal {
             let mut txids = vec![];
             for (txid, raw_tx) in calculated_tx_cache {
                 let mut spend_status = None;
-                // only send the txid if its status is Calculated. when we do, change its status to Transmitted.
-                if let Some(transaction_record) = tx_map.transaction_records_by_id.get_mut(&txid) {
+                if let Some(&mut ref mut transaction_record) =
+                    tx_map.transaction_records_by_id.get_mut(&txid)
+                {
+                    // only send the txid if its status is Calculated. when we do, change its status to Transmitted.
                     if matches!(transaction_record.status, ConfirmationStatus::Calculated(_)) {
                         match crate::grpc_connector::send_transaction(
                             self.get_server_uri(),
@@ -226,22 +230,58 @@ pub mod send_with_proposal {
                         .await
                         {
                             Ok(serverz_txid_string) => {
-                                txids.push(crate::utils::txid::compare_txid_to_string(
-                                    txid,
-                                    serverz_txid_string,
-                                    self.wallet.transaction_context.config.accept_server_txids,
-                                ));
-                                transaction_record.status =
-                                    ConfirmationStatus::Transmitted(current_height + 1);
+                                let new_status =
+                                    ConfirmationStatus::Transmitted(current_height - 1);
 
-                                spend_status =
-                                    Some((transaction_record.txid, transaction_record.status));
+                                transaction_record.status = new_status;
+
+                                match crate::utils::conversion::txid_from_hex_encoded_str(
+                                    serverz_txid_string.as_str(),
+                                ) {
+                                    Ok(reported_txid) => {
+                                        // happens during darkside tests
+                                        // #[cfg(feature = "darkside_tests")]
+                                        // if txid != reported_txid {
+                                        //     println!(
+                                        //         "served txid {} does not match calulated txid {}",
+                                        //         reported_txid, txid,
+                                        //     );
+                                        //     if self
+                                        //         .wallet
+                                        //         .transaction_context
+                                        //         .config
+                                        //         .accept_server_txids
+                                        //     {
+                                        //         // now we reconfigure the tx_map to align with the server
+                                        //         // switch the TransactionRecord to the new txid
+                                        //         if let Some(transaction_record) =
+                                        //             tx_map.transaction_records_by_id.remove(&txid)
+                                        //         {
+                                        //             tx_map
+                                        //                 .transaction_records_by_id
+                                        //                 .insert(reported_txid, transaction_record);
+                                        //         }
+                                        //         txid = reported_txid;
+                                        //     }
+                                        // };
+                                    }
+                                    Err(e) => {
+                                        println!("server returned invalid txid {}", e);
+                                        todo!();
+                                    }
+                                }
+
+                                spend_status = Some((txid, new_status));
+
+                                txids.push(txid);
                             }
                             Err(server_err) => {
                                 return Err(BroadcastCachedTransactionsError::Broadcast(server_err))
                             }
                         };
                     }
+                } else {
+                    return Err(BroadcastCachedTransactionsError::Unrecorded(txid));
                 }
                 if let Some(s) = spend_status {
                     tx_map

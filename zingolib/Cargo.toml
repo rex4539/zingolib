@@ -8,13 +8,13 @@ edition = "2021"
 
 [features]
 ci = []
+darkside_tests = []
+default = ["sync"]
 deprecations = ["lightclient-deprecated"]
 lightclient-deprecated = []
-darkside_tests = []
+tempfile = ["dep:tempfile"]
 test-elevation = ["portpicker", "testvectors", "tempfile", "tempdir"]
 testvectors = []
-tempfile = ["dep:tempfile"]
-default = ["sync"]
 sync = ['dep:zingo-sync']
 zaino-test = ['test-elevation']
 

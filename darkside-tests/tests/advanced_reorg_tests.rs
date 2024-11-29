@@ -6,8 +6,9 @@ use darkside_tests::{
         REORG_EXPIRES_INCOMING_TX_HEIGHT_BEFORE, TRANSACTION_TO_FILLER_ADDRESS,
         TREE_STATE_FOLDER_PATH,
     },
+    darkside_connector::DarksideConnector,
     darkside_types::{Empty, TreeState},
-    utils::{read_dataset, read_lines, DarksideConnector, DarksideHandler},
+    utils::{read_dataset, read_lines, DarksideHandler},
 };
 
 use tokio::time::sleep;

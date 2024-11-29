@@ -24,8 +24,8 @@ fn compare_fee_result(
 pub enum ProposalToTransactionRecordComparisonError {
     #[error("TxId missing from broadcast.")]
     MissingFromBroadcast,
-    #[error("Could not look up TransactionRecord.")]
-    MissingRecord,
+    #[error("Could not look up TransactionRecord with txid {0:?}.")]
+    MissingRecord(TxId),
     #[error("Mismatch: Recorded fee: {0:?} ; Expected fee: {1:?}")]
     Mismatch(Result<u64, crate::wallet::error::FeeError>, u64),
 }
@@ -63,7 +63,9 @@ pub async fn lookup_fees_with_proposal_check<NoteId>(
                         )
                     })
                 } else {
-                    Err(ProposalToTransactionRecordComparisonError::MissingRecord)
+                    Err(ProposalToTransactionRecordComparisonError::MissingRecord(
+                        *txid,
+                    ))
                 }
             } else {
                 Err(ProposalToTransactionRecordComparisonError::MissingFromBroadcast)

@@ -1,18 +1,40 @@
 //! lightclient functions with added assertions. used for tests.
 
+use crate::lightclient::LightClient;
+use crate::testutils::assertions::assert_recipient_total_lte_to_proposal_total;
+use crate::testutils::assertions::lookup_fees_with_proposal_check;
+use crate::testutils::chain_generics::conduct_chain::ConductChain;
+use crate::testutils::lightclient::from_inputs;
+use crate::testutils::lightclient::get_base_address;
+use crate::testutils::lightclient::lookup_statuses;
 use std::num::NonZeroU32;
-
-use crate::{lightclient::LightClient, testutils::lightclient::lookup_stati as lookup_statuses};
-use zcash_client_backend::{data_api::WalletRead as _, PoolType};
-
-use crate::testutils::{
-    assertions::{assert_recipient_total_lte_to_proposal_total, lookup_fees_with_proposal_check},
-    chain_generics::conduct_chain::ConductChain,
-    lightclient::{from_inputs, get_base_address},
-};
+use zcash_client_backend::data_api::WalletRead as _;
+use zcash_client_backend::PoolType;
 use zingo_status::confirmation_status::ConfirmationStatus;
 
-/// sends to any combo of recipient clients checks that each recipient also received the expected balances
+/// this function handles inputs and their lifetimes to create a proposal
+pub async fn to_clients_proposal(
+    sender: &LightClient,
+    sends: &Vec<(&LightClient, PoolType, u64, Option<&str>)>,
+) -> zcash_client_backend::proposal::Proposal<
+    zcash_primitives::transaction::fees::zip317::FeeRule,
+    zcash_client_backend::wallet::NoteId,
+> {
+    let mut subraw_receivers = vec![];
+    for (recipient, pooltype, amount, memo_str) in sends.clone() {
+        let address = get_base_address(recipient, pooltype).await;
+        subraw_receivers.push((address, amount, memo_str));
+    }
+
+    let raw_receivers = subraw_receivers
+        .iter()
+        .map(|(address, amount, opt_memo)| (address.as_str(), *amount, *opt_memo))
+        .collect();
+
+    from_inputs::propose(sender, raw_receivers).await.unwrap()
+}
+
+/// sends to any combo of recipient clients checks that each recipient also recieved the expected balances
 /// test-only generic
 /// NOTICE this function bumps the chain and syncs the client
 /// only compatible with zip317
@@ -27,18 +49,7 @@ pub async fn propose_send_bump_sync_all_recipients<CC>(
 where
     CC: ConductChain,
 {
-    let mut subraw_receivers = vec![];
-    for (recipient, pooltype, amount, memo_str) in sends.clone() {
-        let address = get_base_address(recipient, pooltype).await;
-        subraw_receivers.push((address, amount, memo_str));
-    }
-
-    let raw_receivers = subraw_receivers
-        .iter()
-        .map(|(address, amount, opt_memo)| (address.as_str(), *amount, *opt_memo))
-        .collect();
-
-    let proposal = from_inputs::propose(sender, raw_receivers).await.unwrap();
+    let proposal = to_clients_proposal(sender, &sends).await;
 
     let send_height = sender
         .wallet
@@ -66,7 +77,10 @@ where
         .expect("record is ok");
 
     lookup_statuses(sender, txids.clone()).await.map(|status| {
-        assert_eq!(status, ConfirmationStatus::Transmitted(send_height));
+        assert_eq!(
+            status,
+            Some(ConfirmationStatus::Transmitted(send_height.into()))
+        );
     });
 
     let send_ua_id = sender.do_addresses().await[0]["address"].clone();
@@ -87,7 +101,7 @@ where
             .expect("record to be ok");
 
         lookup_statuses(sender, txids.clone()).await.map(|status| {
-            assert!(matches!(status, ConfirmationStatus::Mempool(_)));
+            assert!(matches!(status, Some(ConfirmationStatus::Mempool(_))));
         });
 
         // TODO: distribute receivers
@@ -120,7 +134,7 @@ where
         .expect("record to be ok");
 
     lookup_statuses(sender, txids.clone()).await.map(|status| {
-        assert!(matches!(status, ConfirmationStatus::Confirmed(_)));
+        assert!(matches!(status, Some(ConfirmationStatus::Confirmed(_))));
     });
 
     for (recipient, _, _, _) in sends {
@@ -171,7 +185,10 @@ where
         .expect("record is ok");
 
     lookup_statuses(client, txids.clone()).await.map(|status| {
-        assert_eq!(status, ConfirmationStatus::Transmitted(send_height));
+        assert_eq!(
+            status,
+            Some(ConfirmationStatus::Transmitted(send_height.into()))
+        );
     });
 
     if test_mempool {
@@ -185,7 +202,7 @@ where
             .expect("record is ok");
 
         lookup_statuses(client, txids.clone()).await.map(|status| {
-            assert!(matches!(status, ConfirmationStatus::Mempool(_)));
+            assert!(matches!(status, Some(ConfirmationStatus::Mempool(_))));
         });
     }
 
@@ -200,7 +217,7 @@ where
         .expect("record is ok");
 
     lookup_statuses(client, txids.clone()).await.map(|status| {
-        assert!(matches!(status, ConfirmationStatus::Confirmed(_)));
+        assert!(matches!(status, Some(ConfirmationStatus::Confirmed(_))));
     });
 
     Ok(recorded_fee)

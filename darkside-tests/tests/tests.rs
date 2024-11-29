@@ -1,14 +1,24 @@
-use std::{future::Future, pin::Pin};
-
-use darkside_tests::utils::{
-    prepare_darksidewalletd, update_tree_states_for_transaction, DarksideConnector, DarksideHandler,
-};
+use darkside_tests::darkside_connector::DarksideConnector;
+use darkside_tests::utils::prepare_darksidewalletd;
+use darkside_tests::utils::scenarios::DarksideEnvironment;
+use darkside_tests::utils::update_tree_states_for_transaction;
+use darkside_tests::utils::DarksideHandler;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 use tokio::time::sleep;
+use zcash_client_backend::PoolType::Shielded;
+use zcash_client_backend::ShieldedProtocol::Orchard;
+use zingo_status::confirmation_status::ConfirmationStatus;
+use zingolib::config::RegtestNetwork;
 use zingolib::get_base_address_macro;
+use zingolib::lightclient::LightClient;
 use zingolib::lightclient::PoolBalances;
-use zingolib::testutils::{lightclient::from_inputs, scenarios::setup::ClientBuilder};
+use zingolib::testutils::chain_generics::conduct_chain::ConductChain as _;
+use zingolib::testutils::chain_generics::with_assertions::to_clients_proposal;
+use zingolib::testutils::lightclient::from_inputs;
+use zingolib::testutils::scenarios::setup::ClientBuilder;
 use zingolib::testvectors::seeds::DARKSIDE_SEED;
-use zingolib::{config::RegtestNetwork, lightclient::LightClient};
 
 #[tokio::test]
 async fn simple_sync() {
@@ -233,4 +243,97 @@ async fn sent_transaction_reorged_into_mempool() {
         loaded_client.do_balance().await.orchard_balance,
         Some(100000000)
     );
+}
+
+#[tokio::test]
+#[ignore = "incomplete"]
+async fn evicted_transaction_is_rebroadcast() {
+    std::env::set_var("RUST_BACKTRACE", "1");
+
+    let mut environment = DarksideEnvironment::setup().await;
+    environment.bump_chain().await;
+
+    let primary = environment.fund_client_orchard(1_000_000).await;
+    let secondary = environment.create_client().await;
+    primary.do_sync(false).await;
+
+    let proposal = to_clients_proposal(
+        &primary,
+        &vec![(&secondary, Shielded(Orchard), 100_000, None)],
+    )
+    .await;
+
+    let mut send_height = 0;
+
+    let txids = &primary
+        .complete_and_broadcast_stored_proposal()
+        .await
+        .unwrap();
+
+    println!(
+        "{:?}",
+        zingolib::testutils::lightclient::list_txids(&primary).await
+    );
+
+    let recorded_fee = *zingolib::testutils::assertions::lookup_fees_with_proposal_check(
+        &primary, &proposal, txids,
+    )
+    .await
+    .first()
+    .expect("one transaction must have been proposed")
+    .as_ref()
+    .expect("record must exist");
+
+    zingolib::testutils::lightclient::lookup_statuses(&primary, txids.clone())
+        .await
+        .map(|status| {
+            assert_eq!(
+                status,
+                Some(ConfirmationStatus::Transmitted(send_height.into()))
+            );
+        });
+
+    zingolib::testutils::lightclient::lookup_statuses(&secondary, txids.clone())
+        .await
+        .map(|status| {
+            assert!(status.is_none());
+        });
+
+    environment
+        .get_connector()
+        .clear_incoming_transactions()
+        .await
+        .unwrap();
+    environment.bump_chain().await;
+
+    zingolib::testutils::lightclient::lookup_statuses(&primary, txids.clone())
+        .await
+        .map(|status| {
+            assert_eq!(
+                status,
+                Some(ConfirmationStatus::Transmitted(send_height.into()))
+            );
+        });
+
+    zingolib::testutils::lightclient::lookup_statuses(&secondary, txids.clone())
+        .await
+        .map(|status| {
+            assert!(status.is_none());
+        });
+
+    send_height = 0;
+
+    primary.do_sync(false).await;
+
+    zingolib::testutils::lightclient::lookup_statuses(&primary, txids.clone())
+        .await
+        .map(|status| {
+            assert_eq!(
+                status,
+                Some(ConfirmationStatus::Transmitted(send_height.into()))
+            );
+        });
+
+    let ref_primary: Arc<LightClient> = Arc::new(primary);
+    LightClient::start_mempool_monitor(ref_primary);
 }
