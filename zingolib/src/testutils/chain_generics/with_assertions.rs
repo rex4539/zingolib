@@ -76,6 +76,13 @@ where
         .as_ref()
         .expect("record is ok");
 
+    dbg!(
+        crate::grpc_connector::get_latest_block(sender.config.lightwalletd_uri.read().unwrap())
+            .await
+            .unwrap()
+            .height
+    );
+
     lookup_statuses(sender, txids.clone()).await.map(|status| {
         assert_eq!(
             status,

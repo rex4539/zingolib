@@ -15,6 +15,10 @@ use crate::{lightclient::LightClient, wallet::LightWallet};
 pub trait ConductChain {
     /// set up the test chain
     async fn setup() -> Self;
+
+    /// used to connect to server via grpc
+    fn lightserver_uri() -> Option<Uri>;
+
     /// builds a faucet (funded from mining)
     async fn create_faucet(&mut self) -> LightClient;
 

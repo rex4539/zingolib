@@ -61,6 +61,10 @@ pub(crate) mod conduct_chain {
             elf
         }
 
+        fn lightserver_uri() -> Option<Uri> {
+            Some(self.client_builder.server_id.clone())
+        }
+
         async fn create_faucet(&mut self) -> LightClient {
             self.stage_transaction(ABANDON_TO_DARKSIDE_SAP_10_000_000_ZAT)
                 .await;
@@ -83,11 +87,10 @@ pub(crate) mod conduct_chain {
         }
 
         async fn bump_chain(&mut self) {
-            let height_before =
-                zingolib::grpc_connector::get_latest_block(self.client_builder.server_id.clone())
-                    .await
-                    .unwrap()
-                    .height;
+            let height_before = zingolib::grpc_connector::get_latest_block(self.lightserver_uri())
+                .await
+                .unwrap()
+                .height;
 
             let blocks_to_add = 1;
 
