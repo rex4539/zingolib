@@ -20,6 +20,8 @@ use crate::{
     utils,
 };
 
+pub type Locator = (BlockHeight, TxId);
+
 /// Encapsulates the current state of sync
 #[derive(Debug, Getters, MutGetters)]
 #[getset(get = "pub", get_mut = "pub")]
@@ -29,7 +31,7 @@ pub struct SyncState {
     scan_ranges: Vec<ScanRange>,
     /// Block height and txid of relevant transactions that have yet to be scanned. These may be added due to spend
     /// detections or transparent output discovery
-    locators: BTreeSet<(BlockHeight, TxId)>,
+    locators: BTreeSet<Locator>,
 }
 
 impl SyncState {
@@ -93,8 +95,8 @@ impl OutputId {
 #[derive(Debug, Getters, MutGetters)]
 #[getset(get = "pub", get_mut = "pub")]
 pub struct NullifierMap {
-    sapling: BTreeMap<sapling_crypto::Nullifier, (BlockHeight, TxId)>,
-    orchard: BTreeMap<orchard::note::Nullifier, (BlockHeight, TxId)>,
+    sapling: BTreeMap<sapling_crypto::Nullifier, Locator>,
+    orchard: BTreeMap<orchard::note::Nullifier, Locator>,
 }
 
 impl NullifierMap {

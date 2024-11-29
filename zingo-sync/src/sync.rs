@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::client::fetch::fetch;
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
-use crate::primitives::SyncState;
+use crate::primitives::{Locator, SyncState};
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
 use crate::scan::transactions::scan_transactions;
@@ -23,9 +23,9 @@ use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight, NetworkUpgrade};
 
 use tokio::sync::mpsc;
-use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
+pub(crate) mod state;
 mod transparent;
 
 // TODO: create sub modules for sync module to organise code, the "brain" which organises all the scan ranges should be separated out
@@ -429,16 +429,14 @@ where
         .collect::<Vec<_>>();
 
     let nullifier_map = wallet.get_nullifiers_mut().unwrap();
-    let sapling_spend_locators: BTreeMap<sapling_crypto::Nullifier, (BlockHeight, TxId)> =
-        sapling_nullifiers
-            .iter()
-            .flat_map(|nf| nullifier_map.sapling_mut().remove_entry(nf))
-            .collect();
-    let orchard_spend_locators: BTreeMap<orchard::note::Nullifier, (BlockHeight, TxId)> =
-        orchard_nullifiers
-            .iter()
-            .flat_map(|nf| nullifier_map.orchard_mut().remove_entry(nf))
-            .collect();
+    let sapling_spend_locators: BTreeMap<sapling_crypto::Nullifier, Locator> = sapling_nullifiers
+        .iter()
+        .flat_map(|nf| nullifier_map.sapling_mut().remove_entry(nf))
+        .collect();
+    let orchard_spend_locators: BTreeMap<orchard::note::Nullifier, Locator> = orchard_nullifiers
+        .iter()
+        .flat_map(|nf| nullifier_map.orchard_mut().remove_entry(nf))
+        .collect();
 
     // in the edge case where a spending transaction received no change, scan the transactions that evaded trial decryption
     let mut spending_txids = HashSet::new();

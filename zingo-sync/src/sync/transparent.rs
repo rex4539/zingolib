@@ -13,6 +13,7 @@ use zcash_primitives::zip32::AccountId;
 
 use crate::client::{get_transparent_address_transactions, FetchRequest};
 use crate::keys::{AddressIndex, TransparentAddressId, TransparentScope};
+use crate::primitives::Locator;
 use crate::traits::SyncWallet;
 
 use super::MAX_VERIFICATION_WINDOW;
@@ -34,7 +35,7 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
     W: SyncWallet,
 {
     let wallet_addresses = wallet.get_transparent_addresses_mut().unwrap();
-    let mut locators: BTreeSet<(BlockHeight, TxId)> = BTreeSet::new();
+    let mut locators: BTreeSet<Locator> = BTreeSet::new();
     let block_range = Range {
         start: wallet_height + 1 - MAX_VERIFICATION_WINDOW,
         end: chain_height + 1,

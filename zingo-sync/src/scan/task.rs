@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     sync::{
         atomic::{self, AtomicBool},
         Arc,
@@ -13,11 +13,15 @@ use tokio::{
 
 use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
 use zcash_keys::keys::UnifiedFullViewingKey;
-use zcash_primitives::{consensus, zip32::AccountId};
+use zcash_primitives::{
+    consensus::{self, BlockHeight},
+    transaction::TxId,
+    zip32::AccountId,
+};
 
 use crate::{
     client::FetchRequest,
-    primitives::WalletBlock,
+    primitives::{Locator, WalletBlock},
     sync,
     traits::{SyncBlocks, SyncWallet},
 };
@@ -314,13 +318,19 @@ where
 struct ScanTask {
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
+    locators: Vec<Locator>,
 }
 
 impl ScanTask {
-    fn from_parts(scan_range: ScanRange, previous_wallet_block: Option<WalletBlock>) -> Self {
+    fn from_parts(
+        scan_range: ScanRange,
+        previous_wallet_block: Option<WalletBlock>,
+        locators: Vec<Locator>,
+    ) -> Self {
         Self {
             scan_range,
             previous_wallet_block,
+            locators,
         }
     }
 
@@ -333,9 +343,12 @@ impl ScanTask {
                 .get_wallet_block(scan_range.block_range().start - 1)
                 .ok();
 
+            let locators = sync::state::find_locators(wallet, scan_range.block_range());
+
             Ok(Some(ScanTask::from_parts(
                 scan_range,
                 previous_wallet_block,
+                locators,
             )))
         } else {
             Ok(None)
