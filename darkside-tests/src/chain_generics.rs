@@ -125,9 +125,11 @@ pub(crate) mod conduct_chain {
             .unwrap();
 
             self.darkside_connector
-                .stage_blocks_create(height_before as i32 + 1, blocks_to_add - 1, 0)
+                .stage_blocks_create(height_before as i32 + 1, blocks_to_add, 0)
                 .await
                 .unwrap();
+
+            let new_height = (height_before as i32 + blocks_to_add) as u64;
 
             loop {
                 let maybe_raw_tx = streamed_raw_txns.message().await.unwrap();
@@ -136,10 +138,7 @@ pub(crate) mod conduct_chain {
                     Some(raw_tx) => {
                         // increase chain height
                         self.darkside_connector
-                            .stage_transactions_stream(vec![(
-                                raw_tx.data.clone(),
-                                u64::from(self.staged_blockheight),
-                            )])
+                            .stage_transactions_stream(vec![(raw_tx.data.clone(), new_height)])
                             .await
                             .unwrap();
 
@@ -171,8 +170,6 @@ pub(crate) mod conduct_chain {
                 }
             }
 
-            let new_height = height_before + 1;
-
             //trees
             let mut sapling_tree_bytes = vec![];
             zcash_primitives::merkle_tree::write_commitment_tree(
@@ -187,7 +184,7 @@ pub(crate) mod conduct_chain {
             )
             .unwrap();
             let new_tree_state = TreeState {
-                height: new_height,
+                height: new_height as u64,
                 sapling_tree: hex::encode(sapling_tree_bytes),
                 orchard_tree: hex::encode(orchard_tree_bytes),
                 network: crate::constants::first_tree_state().network,
@@ -200,7 +197,7 @@ pub(crate) mod conduct_chain {
                 .unwrap();
 
             self.darkside_connector
-                .apply_staged(height_before as i32 + blocks_to_add)
+                .apply_staged(new_height as i32)
                 .await
                 .unwrap();
         }
