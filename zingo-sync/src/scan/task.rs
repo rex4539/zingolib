@@ -264,6 +264,7 @@ where
                     &ufvks,
                     scan_task.scan_range.clone(),
                     scan_task.previous_wallet_block,
+                    scan_task.locators,
                 )
                 .await;
 

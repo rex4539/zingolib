@@ -16,7 +16,7 @@ use zcash_primitives::{
 
 use crate::{
     client::{self, FetchRequest},
-    primitives::{NullifierMap, OutputId, WalletBlock, WalletTransaction},
+    primitives::{Locator, NullifierMap, OutputId, WalletBlock, WalletTransaction},
     witness::ShardTreeData,
 };
 
@@ -147,6 +147,7 @@ pub(crate) async fn scan<P>(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
+    locators: Vec<Locator>,
 ) -> Result<ScanResults, ScanError>
 where
     P: Parameters + Sync + Send + 'static,
@@ -174,10 +175,14 @@ where
     let ScanData {
         nullifiers,
         wallet_blocks,
-        relevant_txids,
+        mut relevant_txids,
         decrypted_note_data,
         shard_tree_data,
     } = scan_data;
+
+    locators.into_iter().map(|(_, txid)| txid).for_each(|txid| {
+        relevant_txids.insert(txid);
+    });
 
     let wallet_transactions = scan_transactions(
         fetch_request_sender,

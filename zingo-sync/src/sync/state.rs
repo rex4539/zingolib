@@ -6,7 +6,10 @@ use std::{
 };
 
 use zcash_client_backend::data_api::scanning::{ScanPriority, ScanRange};
-use zcash_primitives::consensus::{self, BlockHeight};
+use zcash_primitives::{
+    consensus::{self, BlockHeight},
+    transaction::TxId,
+};
 
 use crate::{
     primitives::{Locator, SyncState},
@@ -44,11 +47,16 @@ where
 }
 
 /// Returns the locators for a given `block_range` from the wallet's [`crate::primitives::SyncState`]
-pub(crate) fn find_locators(
-    sync_state: &SyncState,
-    block_range: &Range<BlockHeight>,
-) -> Vec<Locator> {
-    todo!()
+// TODO: unit test high priority
+fn find_locators(sync_state: &SyncState, block_range: &Range<BlockHeight>) -> Vec<Locator> {
+    sync_state
+        .locators()
+        .range(
+            (block_range.start, TxId::from_bytes([0; 32]))
+                ..(block_range.end, TxId::from_bytes([0; 32])),
+        )
+        .cloned()
+        .collect()
 }
 
 // TODO: remove locators after range is scanned
@@ -278,7 +286,7 @@ fn split_out_scan_range(
 /// Selects and prepares the next scan range for scanning.
 /// Sets the range for scanning to `Ignored` priority in the wallet `sync_state` but returns the scan range with its initial priority.
 /// Returns `None` if there are no more ranges to scan.
-pub(crate) fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
+fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
     let scan_ranges = sync_state.scan_ranges_mut();
 
     let mut scan_ranges_priority_sorted: Vec<&ScanRange> = scan_ranges.iter().collect();

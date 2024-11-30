@@ -20,6 +20,8 @@ use crate::{
     utils,
 };
 
+/// Block height and txid of relevant transactions that have yet to be scanned. These may be added due to spend
+/// detections or transparent output discovery.
 pub type Locator = (BlockHeight, TxId);
 
 /// Encapsulates the current state of sync
@@ -29,8 +31,7 @@ pub struct SyncState {
     /// A vec of block ranges with scan priorities from wallet birthday to chain tip.
     /// In block height order with no overlaps or gaps.
     scan_ranges: Vec<ScanRange>,
-    /// Block height and txid of relevant transactions that have yet to be scanned. These may be added due to spend
-    /// detections or transparent output discovery
+    /// Locators for relevent transactions to the wallet.
     locators: BTreeSet<Locator>,
 }
 
