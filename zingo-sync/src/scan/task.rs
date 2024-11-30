@@ -173,7 +173,7 @@ where
 
                 // scan the range with `Verify` priority
                 if let Some(worker) = self.idle_worker() {
-                    let scan_task = ScanTask::create(wallet)
+                    let scan_task = sync::state::create_scan_task(wallet)
                         .unwrap()
                         .expect("scan range with `Verify` priority must exist!");
 
@@ -184,7 +184,7 @@ where
             ScannerState::Scan => {
                 // create scan tasks until all ranges are scanned or currently scanning
                 if let Some(worker) = self.idle_worker() {
-                    if let Some(scan_task) = ScanTask::create(wallet).unwrap() {
+                    if let Some(scan_task) = sync::state::create_scan_task(wallet).unwrap() {
                         worker.add_scan_task(scan_task).unwrap();
                     } else {
                         self.state.shutdown();
@@ -314,14 +314,14 @@ where
 }
 
 #[derive(Debug)]
-struct ScanTask {
+pub(crate) struct ScanTask {
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
     locators: Vec<Locator>,
 }
 
 impl ScanTask {
-    fn from_parts(
+    pub(crate) fn from_parts(
         scan_range: ScanRange,
         previous_wallet_block: Option<WalletBlock>,
         locators: Vec<Locator>,
@@ -330,32 +330,6 @@ impl ScanTask {
             scan_range,
             previous_wallet_block,
             locators,
-        }
-    }
-
-    fn create<W>(wallet: &mut W) -> Result<Option<ScanTask>, ()>
-    where
-        W: SyncWallet + SyncBlocks,
-    {
-        if let Some(scan_range) =
-            sync::state::select_scan_range(wallet.get_sync_state_mut().unwrap())
-        {
-            let previous_wallet_block = wallet
-                .get_wallet_block(scan_range.block_range().start - 1)
-                .ok();
-
-            let locators = sync::state::find_locators(
-                wallet.get_sync_state().unwrap(),
-                scan_range.block_range(),
-            );
-
-            Ok(Some(ScanTask::from_parts(
-                scan_range,
-                previous_wallet_block,
-                locators,
-            )))
-        } else {
-            Ok(None)
         }
     }
 }

@@ -10,7 +10,8 @@ use zcash_primitives::consensus::{self, BlockHeight};
 
 use crate::{
     primitives::{Locator, SyncState},
-    traits::SyncWallet,
+    scan::task::ScanTask,
+    traits::{SyncBlocks, SyncWallet},
 };
 
 use super::{BATCH_SIZE, VERIFY_BLOCK_RANGE_SIZE};
@@ -363,4 +364,25 @@ pub(super) fn verify_scan_range_tip(
         .splice(index..=index, split_ranges);
 
     scan_range_to_verify
+}
+
+pub(crate) fn create_scan_task<W>(wallet: &mut W) -> Result<Option<ScanTask>, ()>
+where
+    W: SyncWallet + SyncBlocks,
+{
+    if let Some(scan_range) = select_scan_range(wallet.get_sync_state_mut().unwrap()) {
+        let previous_wallet_block = wallet
+            .get_wallet_block(scan_range.block_range().start - 1)
+            .ok();
+
+        let locators = find_locators(wallet.get_sync_state().unwrap(), scan_range.block_range());
+
+        Ok(Some(ScanTask::from_parts(
+            scan_range,
+            previous_wallet_block,
+            locators,
+        )))
+    } else {
+        Ok(None)
+    }
 }
