@@ -165,8 +165,6 @@ mod fast {
 
         let value_transfers = &recipient.sorted_value_transfers(true).await;
 
-        dbg!(value_transfers);
-
         assert!(value_transfers.iter().any(|vt| vt.kind()
             == ValueTransferKind::Sent(SentValueTransfer::SendToSelf(
                 SelfSendValueTransfer::Basic
@@ -212,7 +210,7 @@ mod fast {
 
         let no_messages = &recipient.messages_containing(None).await;
 
-        assert_eq!(no_messages.0.len(), 0);
+        assert_eq!(no_messages.len(), 0);
 
         from_inputs::quick_send(
             &faucet,
@@ -237,7 +235,7 @@ mod fast {
 
         let single_message = &recipient.messages_containing(None).await;
 
-        assert_eq!(single_message.0.len(), 1);
+        assert_eq!(single_message.len(), 1);
     }
 
     /// Test sending and receiving messages between three parties.
@@ -254,9 +252,25 @@ mod fast {
     /// returns the expected messages for each party in the correct order.
     #[tokio::test]
     async fn message_thread() {
+        // Begin test setup
         let (regtest_manager, _cph, faucet, recipient, _txid) =
             scenarios::orchard_funded_recipient(10_000_000).await;
-
+        macro_rules! send_and_sync {
+            ($client:ident, $message:ident) => {
+                // Propose sending the message
+                $client.propose_send($message.clone()).await.unwrap();
+                // Complete and broadcast the stored proposal
+                $client
+                    .complete_and_broadcast_stored_proposal()
+                    .await
+                    .unwrap();
+                // Increase the height and wait for the client
+                increase_height_and_wait_for_client(&regtest_manager, &$client, 1)
+                    .await
+                    .unwrap();
+            };
+        }
+        // Addresses: alice, bob, charlie
         let alice = get_base_address(&recipient, PoolType::ORCHARD).await;
         let bob = faucet
             .wallet
@@ -270,7 +284,6 @@ mod fast {
                 false,
             )
             .unwrap();
-
         let charlie = faucet
             .wallet
             .wallet_capability()
@@ -284,6 +297,7 @@ mod fast {
             )
             .unwrap();
 
+        // messages
         let alice_to_bob = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
             NonNegativeAmount::from_u64(1_000).unwrap(),
@@ -296,7 +310,6 @@ mod fast {
         )
         .unwrap()])
         .unwrap();
-
         let alice_to_bob_2 = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&bob.encode(&faucet.config().chain)).unwrap(),
             NonNegativeAmount::from_u64(1_000).unwrap(),
@@ -309,7 +322,6 @@ mod fast {
         )
         .unwrap()])
         .unwrap();
-
         let alice_to_charlie = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&charlie.encode(&faucet.config().chain)).unwrap(),
             NonNegativeAmount::from_u64(1_000).unwrap(),
@@ -322,7 +334,6 @@ mod fast {
         )
         .unwrap()])
         .unwrap();
-
         let charlie_to_alice = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&alice).unwrap(),
             NonNegativeAmount::from_u64(1_000).unwrap(),
@@ -339,7 +350,6 @@ mod fast {
         )
         .unwrap()])
         .unwrap();
-
         let bob_to_alice = TransactionRequest::new(vec![Payment::new(
             ZcashAddress::from_str(&alice).unwrap(),
             NonNegativeAmount::from_u64(1_000).unwrap(),
@@ -356,92 +366,40 @@ mod fast {
         )
         .unwrap()])
         .unwrap();
+        // Complete test setup
 
-        recipient.propose_send(alice_to_bob.clone()).await.unwrap();
-
-        recipient
-            .complete_and_broadcast_stored_proposal()
-            .await
-            .unwrap();
-
+        // Message Sending
+        send_and_sync!(recipient, alice_to_bob);
+        send_and_sync!(recipient, alice_to_bob_2);
+        send_and_sync!(faucet, bob_to_alice);
+        send_and_sync!(recipient, alice_to_charlie);
+        send_and_sync!(faucet, charlie_to_alice);
+        // Final sync of recipient
         increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
             .await
             .unwrap();
 
-        recipient
-            .propose_send(alice_to_bob_2.clone())
-            .await
-            .unwrap();
-
-        recipient
-            .complete_and_broadcast_stored_proposal()
-            .await
-            .unwrap();
-
-        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
-            .await
-            .unwrap();
-
-        faucet.propose_send(bob_to_alice.clone()).await.unwrap();
-
-        faucet
-            .complete_and_broadcast_stored_proposal()
-            .await
-            .unwrap();
-
-        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
-            .await
-            .unwrap();
-
-        recipient
-            .propose_send(alice_to_charlie.clone())
-            .await
-            .unwrap();
-
-        recipient
-            .complete_and_broadcast_stored_proposal()
-            .await
-            .unwrap();
-
-        faucet.propose_send(charlie_to_alice.clone()).await.unwrap();
-
-        faucet
-            .complete_and_broadcast_stored_proposal()
-            .await
-            .unwrap();
-
-        increase_height_and_wait_for_client(&regtest_manager, &recipient, 1)
-            .await
-            .unwrap();
-
+        // Collect observations
         let value_transfers_bob = &recipient
             .messages_containing(Some(&bob.encode(&recipient.config().chain)))
             .await;
-
         let value_transfers_charlie = &recipient
             .messages_containing(Some(&charlie.encode(&recipient.config().chain)))
             .await;
-
         let all_vts = &recipient.sorted_value_transfers(true).await;
         let all_messages = &recipient.messages_containing(None).await;
 
-        for vt in all_vts.0.iter() {
-            dbg!(vt.blockheight());
-        }
-
-        assert_eq!(value_transfers_bob.0.len(), 3);
-        assert_eq!(value_transfers_charlie.0.len(), 2);
+        // Make assertions
+        assert_eq!(value_transfers_bob.len(), 3);
+        assert_eq!(value_transfers_charlie.len(), 2);
 
         // Also asserting the order now (sorry juanky)
         // ALL MESSAGES (First one should be the oldest one)
         assert!(all_messages
-            .0
             .windows(2)
             .all(|pair| { pair[0].blockheight() <= pair[1].blockheight() }));
-
         // ALL VTS (First one should be the most recent one)
         assert!(all_vts
-            .0
             .windows(2)
             .all(|pair| { pair[0].blockheight() >= pair[1].blockheight() }));
     }
@@ -497,15 +455,15 @@ mod fast {
         let mut value_transfers3 = recipient.sorted_value_transfers(false).await;
         let mut value_transfers4 = recipient.sorted_value_transfers(false).await;
 
-        assert_eq!(value_transfers.0[0].memos().len(), 4);
+        assert_eq!(value_transfers[0].memos().len(), 4);
 
-        value_transfers3.0.reverse();
-        value_transfers4.0.reverse();
+        value_transfers3.reverse();
+        value_transfers4.reverse();
 
         assert_eq!(value_transfers, value_transfers1);
         assert_eq!(value_transfers, value_transfers2);
-        assert_eq!(value_transfers.0, value_transfers3.0);
-        assert_eq!(value_transfers.0, value_transfers4.0);
+        assert_eq!(value_transfers, &value_transfers3);
+        assert_eq!(value_transfers, &value_transfers4);
     }
 
     pub mod tex {
@@ -543,11 +501,11 @@ mod fast {
 
             let proposal = sender.propose_send(transaction_request).await.unwrap();
             assert_eq!(proposal.steps().len(), 2usize);
-            let sent_txids_according_to_broadcast = sender
+            let _sent_txids_according_to_broadcast = sender
                 .complete_and_broadcast_stored_proposal()
                 .await
                 .unwrap();
-            let txids = sender
+            let _txids = sender
                 .wallet
                 .transactions()
                 .read()
@@ -556,8 +514,6 @@ mod fast {
                 .keys()
                 .cloned()
                 .collect::<Vec<TxId>>();
-            dbg!(&txids);
-            dbg!(sent_txids_according_to_broadcast);
             assert_eq!(
                 sender
                     .wallet
