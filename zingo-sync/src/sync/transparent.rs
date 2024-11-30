@@ -8,7 +8,6 @@ use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight};
 use zcash_primitives::legacy::keys::{AccountPubKey, IncomingViewingKey, NonHardenedChildIndex};
 use zcash_primitives::legacy::TransparentAddress;
-use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
 use crate::client::{get_transparent_address_transactions, FetchRequest};
