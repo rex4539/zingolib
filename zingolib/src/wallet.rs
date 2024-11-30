@@ -14,6 +14,7 @@ use log::{info, warn};
 use rand::rngs::OsRng;
 use rand::Rng;
 
+use zingo_sync::primitives::OutPointMap;
 #[cfg(feature = "sync")]
 use zingo_sync::{
     keys::TransparentAddressId,
@@ -234,6 +235,11 @@ pub struct LightWallet {
     #[getset(get = "pub", get_mut = "pub")]
     nullifier_map: NullifierMap,
 
+    /// Outpoint map
+    #[cfg(feature = "sync")]
+    #[getset(get = "pub", get_mut = "pub")]
+    outpoint_map: OutPointMap,
+
     /// Shard trees
     #[cfg(feature = "sync")]
     #[getset(get = "pub", get_mut = "pub")]
@@ -425,6 +431,8 @@ impl LightWallet {
             wallet_transactions: HashMap::new(),
             #[cfg(feature = "sync")]
             nullifier_map: zingo_sync::primitives::NullifierMap::new(),
+            #[cfg(feature = "sync")]
+            outpoint_map: zingo_sync::primitives::OutPointMap::new(),
             #[cfg(feature = "sync")]
             shard_trees: zingo_sync::witness::ShardTrees::new(),
             #[cfg(feature = "sync")]

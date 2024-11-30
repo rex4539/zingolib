@@ -20,6 +20,7 @@ use zcash_primitives::{
 
 use crate::{
     client::FetchRequest,
+    keys::TransparentAddressId,
     primitives::{Locator, WalletBlock},
     sync,
     traits::{SyncBlocks, SyncWallet},
@@ -258,6 +259,7 @@ where
             while let Some(scan_task) = scan_task_receiver.recv().await {
                 is_scanning.store(true, atomic::Ordering::Release);
 
+                let transparent_addresses = scan_task.transparent_addresses;
                 let scan_results = scan(
                     fetch_request_sender.clone(),
                     &consensus_parameters,
@@ -265,6 +267,7 @@ where
                     scan_task.scan_range.clone(),
                     scan_task.previous_wallet_block,
                     scan_task.locators,
+                    &transparent_addresses,
                 )
                 .await;
 
@@ -319,6 +322,7 @@ pub(crate) struct ScanTask {
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
     locators: Vec<Locator>,
+    transparent_addresses: Vec<(TransparentAddressId, String)>,
 }
 
 impl ScanTask {
@@ -326,11 +330,13 @@ impl ScanTask {
         scan_range: ScanRange,
         previous_wallet_block: Option<WalletBlock>,
         locators: Vec<Locator>,
+        transparent_addresses: Vec<(TransparentAddressId, String)>,
     ) -> Self {
         Self {
             scan_range,
             previous_wallet_block,
             locators,
+            transparent_addresses,
         }
     }
 }

@@ -9,8 +9,10 @@ use zcash_keys::keys::{UnifiedFullViewingKey, UnifiedSpendingKey};
 use zcash_primitives::consensus::BlockHeight;
 use zingo_sync::{
     keys::TransparentAddressId,
-    primitives::{NullifierMap, SyncState, WalletBlock},
-    traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet},
+    primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock},
+    traits::{
+        SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
+    },
     witness::ShardTrees,
 };
 use zip32::AccountId;
@@ -104,8 +106,22 @@ impl SyncTransactions for LightWallet {
 }
 
 impl SyncNullifiers for LightWallet {
-    fn get_nullifiers_mut(&mut self) -> Result<&mut NullifierMap, ()> {
+    fn get_nullifiers(&self) -> Result<&NullifierMap, Self::Error> {
+        Ok(self.nullifier_map())
+    }
+
+    fn get_nullifiers_mut(&mut self) -> Result<&mut NullifierMap, Self::Error> {
         Ok(self.nullifier_map_mut())
+    }
+}
+
+impl SyncOutPoints for LightWallet {
+    fn get_outpoints(&self) -> Result<&OutPointMap, Self::Error> {
+        Ok(self.outpoint_map())
+    }
+
+    fn get_outpoints_mut(&mut self) -> Result<&mut OutPointMap, Self::Error> {
+        Ok(self.outpoint_map_mut())
     }
 }
 

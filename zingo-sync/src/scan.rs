@@ -16,7 +16,8 @@ use zcash_primitives::{
 
 use crate::{
     client::{self, FetchRequest},
-    primitives::{Locator, NullifierMap, OutputId, WalletBlock, WalletTransaction},
+    keys::TransparentAddressId,
+    primitives::{Locator, NullifierMap, OutPointMap, OutputId, WalletBlock, WalletTransaction},
     witness::ShardTreeData,
 };
 
@@ -120,6 +121,7 @@ struct ScanData {
 
 pub(crate) struct ScanResults {
     pub(crate) nullifiers: NullifierMap,
+    pub(crate) outpoints: OutPointMap,
     pub(crate) wallet_blocks: BTreeMap<BlockHeight, WalletBlock>,
     pub(crate) wallet_transactions: HashMap<TxId, WalletTransaction>,
     pub(crate) shard_tree_data: ShardTreeData,
@@ -148,6 +150,7 @@ pub(crate) async fn scan<P>(
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
     locators: Vec<Locator>,
+    transparent_addresses: &[(TransparentAddressId, String)],
 ) -> Result<ScanResults, ScanError>
 where
     P: Parameters + Sync + Send + 'static,
@@ -184,6 +187,7 @@ where
         relevant_txids.insert(txid);
     });
 
+    let mut outpoints = OutPointMap::new();
     let wallet_transactions = scan_transactions(
         fetch_request_sender,
         parameters,
@@ -191,12 +195,15 @@ where
         relevant_txids,
         decrypted_note_data,
         &wallet_blocks,
+        &mut outpoints,
+        transparent_addresses,
     )
     .await
     .unwrap();
 
     Ok(ScanResults {
         nullifiers,
+        outpoints,
         wallet_blocks,
         wallet_transactions,
         shard_tree_data,

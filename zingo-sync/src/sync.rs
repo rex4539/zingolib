@@ -5,12 +5,14 @@ use std::time::Duration;
 
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
-use crate::primitives::Locator;
+use crate::primitives::{Locator, OutPointMap};
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
 use crate::scan::transactions::scan_transactions;
 use crate::scan::{DecryptedNoteData, ScanResults};
-use crate::traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet};
+use crate::traits::{
+    SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
+};
 
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
@@ -23,7 +25,7 @@ use tokio::sync::mpsc;
 use zcash_primitives::zip32::AccountId;
 
 pub(crate) mod state;
-mod transparent;
+pub(crate) mod transparent;
 
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
 const BATCH_SIZE: u32 = 1_000;
@@ -38,7 +40,7 @@ pub async fn sync<P, W>(
 ) -> Result<(), SyncError>
 where
     P: consensus::Parameters + Sync + Send + 'static,
-    W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
+    W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints + SyncShardTrees,
 {
     tracing::info!("Syncing wallet...");
 
@@ -155,7 +157,7 @@ async fn process_scan_results<P, W>(
 ) -> Result<(), SyncError>
 where
     P: consensus::Parameters,
-    W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
+    W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints + SyncShardTrees,
 {
     match scan_results {
         Ok(results) => {
@@ -217,13 +219,14 @@ where
 
 fn update_wallet_data<W>(wallet: &mut W, scan_results: ScanResults) -> Result<(), ()>
 where
-    W: SyncBlocks + SyncTransactions + SyncNullifiers + SyncShardTrees,
+    W: SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints + SyncShardTrees,
 {
     let ScanResults {
         nullifiers,
         wallet_blocks,
         wallet_transactions,
         shard_tree_data,
+        outpoints,
     } = scan_results;
 
     wallet.append_wallet_blocks(wallet_blocks).unwrap();
@@ -231,6 +234,7 @@ where
         .extend_wallet_transactions(wallet_transactions)
         .unwrap();
     wallet.append_nullifiers(nullifiers).unwrap();
+    wallet.append_outpoints(outpoints).unwrap();
     // TODO: pararellise shard tree, this is currently the bottleneck on sync
     wallet.update_shard_trees(shard_tree_data).unwrap();
     // TODO: add trait to save wallet data to persistance for in-memory wallets
@@ -290,6 +294,8 @@ where
             wallet.get_wallet_block(*block_height).unwrap(),
         );
     }
+
+    let mut outpoint_map = OutPointMap::new(); // dummy outpoint map
     let spending_transactions = scan_transactions(
         fetch_request_sender,
         parameters,
@@ -297,6 +303,8 @@ where
         spending_txids,
         DecryptedNoteData::new(),
         &wallet_blocks,
+        &mut outpoint_map,
+        &[], // no need to scan transparent bundles as all relevant txs will not be evaded during scanning
     )
     .await
     .unwrap();

@@ -12,7 +12,10 @@ use zcash_primitives::{
     consensus::{BlockHeight, NetworkConstants, Parameters},
     legacy::Script,
     memo::Memo,
-    transaction::TxId,
+    transaction::{
+        components::{amount::NonNegativeAmount, OutPoint},
+        TxId,
+    },
 };
 
 use crate::{
@@ -110,6 +113,29 @@ impl NullifierMap {
 }
 
 impl Default for NullifierMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Binary tree map of OutPoints (transparent spends)
+pub struct OutPointMap(BTreeMap<OutPoint, Locator>);
+
+impl OutPointMap {
+    pub fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
+    pub fn inner(&self) -> &BTreeMap<OutPoint, Locator> {
+        &self.0
+    }
+
+    pub fn inner_mut(&mut self) -> &mut BTreeMap<OutPoint, Locator> {
+        &mut self.0
+    }
+}
+
+impl Default for OutPointMap {
     fn default() -> Self {
         Self::new()
     }
@@ -364,7 +390,7 @@ pub struct TransparentCoin {
     script: Script,
     /// Coin value
     #[getset(get_copy = "pub")]
-    value: u64,
+    value: NonNegativeAmount,
     /// Spend status
     #[getset(get = "pub", set = "pub")]
     spent: bool,
@@ -376,7 +402,7 @@ impl TransparentCoin {
         key_id: TransparentAddressId,
         address: String,
         script: Script,
-        value: u64,
+        value: NonNegativeAmount,
         spent: bool,
     ) -> Self {
         Self {

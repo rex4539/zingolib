@@ -9,7 +9,7 @@ use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
 use crate::keys::TransparentAddressId;
-use crate::primitives::{NullifierMap, SyncState, WalletBlock, WalletTransaction};
+use crate::primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock, WalletTransaction};
 use crate::witness::{ShardTreeData, ShardTrees};
 
 // TODO: clean up interface and move many default impls out of traits. consider merging to a simplified SyncWallet interface.
@@ -145,8 +145,8 @@ pub trait SyncTransactions: SyncWallet {
 
 /// Trait for interfacing nullifiers with wallet data
 pub trait SyncNullifiers: SyncWallet {
-    // /// Get wallet nullifier map
-    // fn get_nullifiers(&self) -> Result<&NullifierMap, Self::Error>;
+    /// Get wallet nullifier map
+    fn get_nullifiers(&self) -> Result<&NullifierMap, Self::Error>;
 
     /// Get mutable reference to wallet nullifier map
     fn get_nullifiers_mut(&mut self) -> Result<&mut NullifierMap, Self::Error>;
@@ -171,6 +171,33 @@ pub trait SyncNullifiers: SyncWallet {
             .retain(|_, (block_height, _)| *block_height <= truncate_height);
         nullifier_map
             .orchard_mut()
+            .retain(|_, (block_height, _)| *block_height <= truncate_height);
+
+        Ok(())
+    }
+}
+
+/// Trait for interfacing outpoints with wallet data
+pub trait SyncOutPoints: SyncWallet {
+    /// Get wallet outpoint map
+    fn get_outpoints(&self) -> Result<&OutPointMap, Self::Error>;
+
+    /// Get mutable reference to wallet outpoint map
+    fn get_outpoints_mut(&mut self) -> Result<&mut OutPointMap, Self::Error>;
+
+    /// Append outpoints to wallet outpoint map
+    fn append_outpoints(&mut self, mut outpoint_map: OutPointMap) -> Result<(), Self::Error> {
+        self.get_outpoints_mut()?
+            .inner_mut()
+            .append(outpoint_map.inner_mut());
+
+        Ok(())
+    }
+
+    /// Removes all mapped outpoints above the given `block_height`.
+    fn truncate_outpoints(&mut self, truncate_height: BlockHeight) -> Result<(), Self::Error> {
+        self.get_outpoints_mut()?
+            .inner_mut()
             .retain(|_, (block_height, _)| *block_height <= truncate_height);
 
         Ok(())

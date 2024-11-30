@@ -12,6 +12,7 @@ use zcash_primitives::{
 };
 
 use crate::{
+    keys::TransparentAddressId,
     primitives::{Locator, SyncState},
     scan::task::ScanTask,
     traits::{SyncBlocks, SyncWallet},
@@ -384,11 +385,18 @@ where
             .ok();
 
         let locators = find_locators(wallet.get_sync_state().unwrap(), scan_range.block_range());
+        let transparent_addresses: Vec<(TransparentAddressId, String)> = wallet
+            .get_transparent_addresses()
+            .unwrap()
+            .iter()
+            .map(|(id, address)| (*id, address.clone()))
+            .collect();
 
         Ok(Some(ScanTask::from_parts(
             scan_range,
             previous_wallet_block,
             locators,
+            transparent_addresses,
         )))
     } else {
         Ok(None)
