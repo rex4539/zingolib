@@ -2741,7 +2741,6 @@ mod slow {
         */
     }
 
-    // FIXME: it seems this test makes assertions on mempool but mempool monitoring is off?
     #[tokio::test]
     async fn mempool_clearing_and_full_batch_syncs_correct_trees() {
         async fn do_maybe_recent_txid(lc: &LightClient) -> JsonValue {
@@ -2901,7 +2900,7 @@ mod slow {
             .find(|tx| tx["txid"] == sent_transaction_id)
             .unwrap()
             .clone();
-        log::debug!("the transactions are: {}", &mempool_only_tx);
+        dbg!(&mempool_only_tx["txid"]);
         assert_eq!(
             mempool_only_tx["outgoing_metadata"][0]["memo"],
             "Outgoing Memo"
@@ -2947,9 +2946,10 @@ mod slow {
 
         let transactions = recipient.do_list_transactions().await;
 
+        dbg!(notes.len());
         // There are 2 unspent notes, the pending transaction, and the final receipt
-        println!("{}", json::stringify_pretty(notes.clone(), 4));
-        println!("{}", json::stringify_pretty(transactions.clone(), 4));
+        //println!("{}", json::stringify_pretty(notes.clone(), 4));
+        //println!("{}", json::stringify_pretty(transactions.clone(), 4));
         // Two unspent notes: one change, pending, one from faucet, confirmed
         assert_eq!(notes["unspent_orchard_notes"].len(), 2);
         assert_eq!(notes["unspent_sapling_notes"].len(), 0);

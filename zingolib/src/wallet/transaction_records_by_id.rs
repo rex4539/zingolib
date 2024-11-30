@@ -466,9 +466,11 @@ impl TransactionRecordsById {
 
     /// Invalidates all those transactions which were broadcast but never 'confirmed' accepted by a miner.
     pub(crate) fn clear_expired_mempool(&mut self, latest_height: u64) {
-        let stale_watch_interval = 3;
-        let cutoff =
-            BlockHeight::from_u32((latest_height.saturating_sub(stale_watch_interval)) as u32);
+        // Pending windows of less than 9 cause
+        // mempool_clearing_and_full_batch_syncs_correct_trees
+        // to FAIL
+        let pending_window = 9;
+        let cutoff = BlockHeight::from_u32((latest_height.saturating_sub(pending_window)) as u32);
 
         let txids_to_remove = self
             .iter()
