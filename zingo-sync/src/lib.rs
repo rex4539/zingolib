@@ -1,11 +1,11 @@
 #![warn(missing_docs)]
 //! Zingo sync engine prototype
 //!
-//! Definitions:
-//!  Sync: Observation of a consensus state
-//!  Consensus State:  Eventually consistent global agreement
-//!  Key-Enabled (keyed): Sync where the observer owns keys that reveal hidden information
-//!  Keyless: The observer doesn't have keys
+//! Definitions, Subordinate to the [Zcash Protocol Specification](<https://zips.z.cash/protocol/protocol-dark.pdf#blockchain>):
+//!  - Sync: Observation of a consensus state
+//!  - Consensus State:  Eventually consistent global agreement
+//!  - Key-Enabled (keyed): Sync where the observer owns keys that reveal hidden information
+//!  - Keyless: The observer doesn't have keys
 //!
 //! Entrypoint: [`crate::sync::sync`]
 
