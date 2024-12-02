@@ -49,11 +49,11 @@ pub enum FetchRequest {
 pub async fn get_chain_height(
     fetch_request_sender: UnboundedSender<FetchRequest>,
 ) -> Result<BlockHeight, ()> {
-    let (sender, receiver) = oneshot::channel();
+    let (reply_sender, reply_receiver) = oneshot::channel();
     fetch_request_sender
-        .send(FetchRequest::ChainTip(sender))
+        .send(FetchRequest::ChainTip(reply_sender))
         .unwrap();
-    let chain_tip = receiver.await.unwrap();
+    let chain_tip = reply_receiver.await.unwrap();
 
     Ok(BlockHeight::from_u32(chain_tip.height as u32))
 }
@@ -65,11 +65,11 @@ pub async fn get_compact_block_range(
     fetch_request_sender: UnboundedSender<FetchRequest>,
     block_range: Range<BlockHeight>,
 ) -> Result<Vec<CompactBlock>, ()> {
-    let (sender, receiver) = oneshot::channel();
+    let (reply_sender, reply_receiver) = oneshot::channel();
     fetch_request_sender
-        .send(FetchRequest::CompactBlockRange(sender, block_range))
+        .send(FetchRequest::CompactBlockRange(reply_sender, block_range))
         .unwrap();
-    let compact_blocks = receiver.await.unwrap();
+    let compact_blocks = reply_receiver.await.unwrap();
 
     Ok(compact_blocks)
 }
@@ -81,11 +81,11 @@ pub async fn get_frontiers(
     fetch_request_sender: UnboundedSender<FetchRequest>,
     block_height: BlockHeight,
 ) -> Result<ChainState, ()> {
-    let (sender, receiver) = oneshot::channel();
+    let (reply_sender, reply_receiver) = oneshot::channel();
     fetch_request_sender
-        .send(FetchRequest::TreeState(sender, block_height))
+        .send(FetchRequest::TreeState(reply_sender, block_height))
         .unwrap();
-    let tree_state = receiver.await.unwrap();
+    let tree_state = reply_receiver.await.unwrap();
     let frontiers = tree_state.to_chain_state().unwrap();
 
     Ok(frontiers)
@@ -98,11 +98,11 @@ pub async fn get_transaction_and_block_height(
     fetch_request_sender: UnboundedSender<FetchRequest>,
     txid: TxId,
 ) -> Result<(Transaction, BlockHeight), ()> {
-    let (sender, receiver) = oneshot::channel();
+    let (reply_sender, reply_receiver) = oneshot::channel();
     fetch_request_sender
-        .send(FetchRequest::Transaction(sender, txid))
+        .send(FetchRequest::Transaction(reply_sender, txid))
         .unwrap();
-    let transaction_and_block_height = receiver.await.unwrap();
+    let transaction_and_block_height = reply_receiver.await.unwrap();
 
     Ok(transaction_and_block_height)
 }
@@ -139,14 +139,14 @@ pub async fn get_transparent_address_transactions(
     transparent_address: String,
     block_range: Range<BlockHeight>,
 ) -> Result<Vec<(BlockHeight, Transaction)>, ()> {
-    let (sender, receiver) = oneshot::channel();
+    let (reply_sender, reply_receiver) = oneshot::channel();
     fetch_request_sender
         .send(FetchRequest::TransparentAddressTxs(
-            sender,
+            reply_sender,
             (transparent_address, block_range),
         ))
         .unwrap();
-    let transactions = receiver.await.unwrap();
+    let transactions = reply_receiver.await.unwrap();
 
     Ok(transactions)
 }
