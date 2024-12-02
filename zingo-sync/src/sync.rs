@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
-use crate::primitives::{Locator, OutPointMap};
+use crate::primitives::{Locator, OutPointMap, OutputId};
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
 use crate::scan::transactions::scan_transactions;
@@ -169,6 +169,7 @@ where
             detect_shielded_spends(consensus_parameters, wallet, fetch_request_sender, ufvks)
                 .await
                 .unwrap();
+            detect_transparent_spends(wallet).unwrap();
             remove_irrelevant_data(wallet, &scan_range).unwrap();
             state::set_scan_priority(
                 wallet.get_sync_state_mut().unwrap(),
@@ -176,7 +177,6 @@ where
                 ScanPriority::Scanned,
             )
             .unwrap();
-            // TODO: also combine adjacent scanned ranges together
             tracing::info!("Scan results processed.");
         }
         Err(ScanError::ContinuityError(ContinuityError::HashDiscontinuity { height, .. })) => {
@@ -336,6 +336,38 @@ where
                 .and_then(|nf| orchard_spend_locators.get(&nf))
             {
                 note.set_spending_transaction(Some(*txid));
+            }
+        });
+
+    Ok(())
+}
+
+fn detect_transparent_spends<W>(wallet: &mut W) -> Result<(), ()>
+where
+    W: SyncBlocks + SyncTransactions + SyncOutPoints,
+{
+    // locate spends
+    let wallet_transactions = wallet.get_wallet_transactions().unwrap();
+    let transparent_output_ids = wallet_transactions
+        .values()
+        .flat_map(|tx| tx.transparent_coins())
+        .map(|coin| coin.output_id())
+        .collect::<Vec<_>>();
+    let outpoint_map = wallet.get_outpoints_mut().unwrap();
+    let transparent_spend_locators: BTreeMap<OutputId, Locator> = transparent_output_ids
+        .iter()
+        .flat_map(|output_id| outpoint_map.inner_mut().remove_entry(output_id))
+        .collect();
+
+    // add spending transaction for all spent coins
+    let wallet_transactions = wallet.get_wallet_transactions_mut().unwrap();
+    wallet_transactions
+        .values_mut()
+        .flat_map(|tx| tx.transparent_coins_mut())
+        .filter(|coin| coin.spending_transaction().is_none())
+        .for_each(|coin| {
+            if let Some((_, txid)) = transparent_spend_locators.get(&coin.output_id()) {
+                coin.set_spending_transaction(Some(*txid));
             }
         });
 

@@ -90,8 +90,9 @@ async fn sync_test() {
     .await
     .unwrap();
 
-    // dbg!(recipient.wallet.wallet_transactions());
+    dbg!(recipient.wallet.wallet_transactions());
     // dbg!(recipient.wallet.wallet_blocks());
     // dbg!(recipient.wallet.nullifier_map());
+    // dbg!(recipient.wallet.outpoint_map());
     // dbg!(recipient.wallet.sync_state());
 }

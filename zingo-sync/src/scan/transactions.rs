@@ -292,7 +292,7 @@ fn scan_incoming_coins<P: consensus::Parameters>(
                     address.clone(),
                     output.script_pubkey.clone(),
                     output.value,
-                    false,
+                    None,
                 ));
             }
         }
@@ -449,8 +449,9 @@ fn collect_outpoints<A: zcash_primitives::transaction::components::transparent::
         .iter()
         .map(|txin| &txin.prevout)
         .for_each(|outpoint| {
-            outpoint_map
-                .inner_mut()
-                .insert(outpoint.clone(), (block_height, txid));
+            outpoint_map.inner_mut().insert(
+                OutputId::from_parts(outpoint.txid().clone(), outpoint.n() as usize),
+                (block_height, txid),
+            );
         });
 }

@@ -12,10 +12,7 @@ use zcash_primitives::{
     consensus::{BlockHeight, NetworkConstants, Parameters},
     legacy::Script,
     memo::Memo,
-    transaction::{
-        components::{amount::NonNegativeAmount, OutPoint},
-        TxId,
-    },
+    transaction::{components::amount::NonNegativeAmount, TxId},
 };
 
 use crate::{
@@ -79,7 +76,7 @@ impl Default for SyncState {
 }
 
 /// Output ID for a given pool type
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, CopyGetters)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, CopyGetters)]
 #[getset(get_copy = "pub")]
 pub struct OutputId {
     /// ID of associated transaction
@@ -118,19 +115,20 @@ impl Default for NullifierMap {
     }
 }
 
-/// Binary tree map of OutPoints (transparent spends)
-pub struct OutPointMap(BTreeMap<OutPoint, Locator>);
+/// Binary tree map of out points (transparent spends)
+#[derive(Debug)]
+pub struct OutPointMap(BTreeMap<OutputId, Locator>);
 
 impl OutPointMap {
     pub fn new() -> Self {
         Self(BTreeMap::new())
     }
 
-    pub fn inner(&self) -> &BTreeMap<OutPoint, Locator> {
+    pub fn inner(&self) -> &BTreeMap<OutputId, Locator> {
         &self.0
     }
 
-    pub fn inner_mut(&mut self) -> &mut BTreeMap<OutPoint, Locator> {
+    pub fn inner_mut(&mut self) -> &mut BTreeMap<OutputId, Locator> {
         &mut self.0
     }
 }
@@ -182,7 +180,7 @@ impl WalletBlock {
 }
 
 /// Wallet transaction
-#[derive(Debug, Getters, CopyGetters)]
+#[derive(Getters, CopyGetters)]
 pub struct WalletTransaction {
     #[getset(get = "pub")]
     transaction: zcash_primitives::transaction::Transaction,
@@ -254,6 +252,18 @@ impl WalletTransaction {
     }
 }
 
+impl std::fmt::Debug for WalletTransaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("WalletTransaction")
+            .field("block_height", &self.block_height)
+            .field("sapling_notes", &self.sapling_notes)
+            .field("orchard_notes", &self.orchard_notes)
+            .field("outgoing_sapling_notes", &self.outgoing_sapling_notes)
+            .field("outgoing_orchard_notes", &self.outgoing_orchard_notes)
+            .field("transparent_coins", &self.transparent_coins)
+            .finish()
+    }
+}
 pub type SaplingNote = WalletNote<sapling_crypto::Note, sapling_crypto::Nullifier>;
 pub type OrchardNote = WalletNote<orchard::Note, orchard::note::Nullifier>;
 
@@ -393,7 +403,7 @@ pub struct TransparentCoin {
     value: NonNegativeAmount,
     /// Spend status
     #[getset(get = "pub", set = "pub")]
-    spent: bool,
+    spending_transaction: Option<TxId>,
 }
 
 impl TransparentCoin {
@@ -403,7 +413,7 @@ impl TransparentCoin {
         address: String,
         script: Script,
         value: NonNegativeAmount,
-        spent: bool,
+        spending_transaction: Option<TxId>,
     ) -> Self {
         Self {
             output_id,
@@ -411,7 +421,7 @@ impl TransparentCoin {
             address,
             script,
             value,
-            spent,
+            spending_transaction,
         }
     }
 }
