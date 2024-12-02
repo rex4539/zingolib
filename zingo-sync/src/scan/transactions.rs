@@ -64,6 +64,7 @@ impl<Proof> ShieldedOutputExt<SaplingDomain> for OutputDescription<Proof> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn scan_transactions<P: consensus::Parameters>(
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     parameters: &P,
@@ -450,7 +451,7 @@ fn collect_outpoints<A: zcash_primitives::transaction::components::transparent::
         .map(|txin| &txin.prevout)
         .for_each(|outpoint| {
             outpoint_map.inner_mut().insert(
-                OutputId::from_parts(outpoint.txid().clone(), outpoint.n() as usize),
+                OutputId::from_parts(*outpoint.txid(), outpoint.n() as usize),
                 (block_height, txid),
             );
         });
