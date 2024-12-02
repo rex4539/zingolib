@@ -2,6 +2,7 @@
 
 use std::{
     cmp,
+    collections::HashMap,
     ops::{Add, Range},
 };
 
@@ -385,11 +386,11 @@ where
             .ok();
 
         let locators = find_locators(wallet.get_sync_state().unwrap(), scan_range.block_range());
-        let transparent_addresses: Vec<(TransparentAddressId, String)> = wallet
+        let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
             .get_transparent_addresses()
             .unwrap()
             .iter()
-            .map(|(id, address)| (*id, address.clone()))
+            .map(|(id, address)| (address.clone(), *id))
             .collect();
 
         Ok(Some(ScanTask::from_parts(

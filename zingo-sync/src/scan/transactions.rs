@@ -18,7 +18,7 @@ use zcash_keys::{
 };
 use zcash_note_encryption::{BatchDomain, Domain, ShieldedOutput, ENC_CIPHERTEXT_SIZE};
 use zcash_primitives::{
-    consensus::{self, BlockHeight, NetworkConstants, Parameters},
+    consensus::{self, BlockHeight, NetworkConstants},
     memo::Memo,
     transaction::{Transaction, TxId},
     zip32::AccountId,
@@ -64,7 +64,7 @@ impl<Proof> ShieldedOutputExt<SaplingDomain> for OutputDescription<Proof> {
     }
 }
 
-pub(crate) async fn scan_transactions<P: Parameters>(
+pub(crate) async fn scan_transactions<P: consensus::Parameters>(
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
@@ -72,7 +72,7 @@ pub(crate) async fn scan_transactions<P: Parameters>(
     decrypted_note_data: DecryptedNoteData,
     wallet_blocks: &BTreeMap<BlockHeight, WalletBlock>,
     outpoint_map: &mut OutPointMap,
-    transparent_addresses: &[(TransparentAddressId, String)],
+    transparent_addresses: HashMap<String, TransparentAddressId>,
 ) -> Result<HashMap<TxId, WalletTransaction>, ()> {
     let mut wallet_transactions = HashMap::with_capacity(relevant_txids.len());
 
@@ -102,7 +102,7 @@ pub(crate) async fn scan_transactions<P: Parameters>(
             block_height,
             &decrypted_note_data,
             outpoint_map,
-            transparent_addresses,
+            &transparent_addresses,
         )
         .unwrap();
         wallet_transactions.insert(txid, wallet_transaction);
@@ -111,14 +111,14 @@ pub(crate) async fn scan_transactions<P: Parameters>(
     Ok(wallet_transactions)
 }
 
-fn scan_transaction<P: Parameters>(
+fn scan_transaction<P: consensus::Parameters>(
     parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     transaction: Transaction,
     block_height: BlockHeight,
     decrypted_note_data: &DecryptedNoteData,
     outpoint_map: &mut OutPointMap,
-    transparent_addresses: &[(TransparentAddressId, String)],
+    transparent_addresses: &HashMap<String, TransparentAddressId>,
 ) -> Result<WalletTransaction, ()> {
     // TODO: price?
     let zip212_enforcement = zcash_primitives::transaction::components::sapling::zip212_enforcement(
@@ -277,18 +277,13 @@ fn scan_incoming_coins<P: consensus::Parameters>(
     consensus_parameters: &P,
     transparent_coins: &mut Vec<TransparentCoin>,
     txid: TxId,
-    transparent_addresses: &[(TransparentAddressId, String)],
+    transparent_addresses: &HashMap<String, TransparentAddressId>,
     transparent_outputs: &[zcash_primitives::transaction::components::TxOut],
 ) {
     for (output_index, output) in transparent_outputs.iter().enumerate() {
         if let Some(address) = output.recipient_address() {
             let encoded_address = keys::transparent::encode_address(consensus_parameters, address);
-            // TODO: consider sending addresses converted as a hashmap with address as the key for efficiency, although
-            // wallets will have a small number of relevant transactions so might be unecessary complication
-            if let Some((key_id, address)) = transparent_addresses
-                .iter()
-                .find(|(_, wallet_address)| **wallet_address == encoded_address)
-            {
+            if let Some((address, key_id)) = transparent_addresses.get_key_value(&encoded_address) {
                 let output_id = OutputId::from_parts(txid, output_index);
 
                 transparent_coins.push(TransparentCoin::from_parts(
@@ -420,7 +415,7 @@ fn add_recipient_unified_address<P, Nz>(
     unified_addresses: Vec<UnifiedAddress>,
     outgoing_notes: &mut [OutgoingNote<Nz>],
 ) where
-    P: Parameters + NetworkConstants,
+    P: consensus::Parameters + NetworkConstants,
     OutgoingNote<Nz>: SyncOutgoingNotes,
 {
     for ua in unified_addresses {

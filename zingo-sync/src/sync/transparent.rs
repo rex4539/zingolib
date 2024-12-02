@@ -7,7 +7,7 @@ use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight};
 use zcash_primitives::zip32::AccountId;
 
-use crate::client::{get_transparent_address_transactions, FetchRequest};
+use crate::client::{self, FetchRequest};
 use crate::keys;
 use crate::keys::transparent::{TransparentAddressId, TransparentScope};
 use crate::primitives::Locator;
@@ -40,7 +40,7 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
 
     // find locators for any new transactions relevant to known addresses
     for address in wallet_addresses.values() {
-        let transactions = get_transparent_address_transactions(
+        let transactions = client::get_transparent_address_transactions(
             fetch_request_sender.clone(),
             address.clone(),
             block_range.clone(),
@@ -103,7 +103,7 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
                     );
                     addresses.push((address_id, address.clone()));
 
-                    let transactions = get_transparent_address_transactions(
+                    let transactions = client::get_transparent_address_transactions(
                         fetch_request_sender.clone(),
                         address,
                         block_range.clone(),

@@ -259,7 +259,6 @@ where
             while let Some(scan_task) = scan_task_receiver.recv().await {
                 is_scanning.store(true, atomic::Ordering::Release);
 
-                let transparent_addresses = scan_task.transparent_addresses;
                 let scan_results = scan(
                     fetch_request_sender.clone(),
                     &consensus_parameters,
@@ -267,7 +266,7 @@ where
                     scan_task.scan_range.clone(),
                     scan_task.previous_wallet_block,
                     scan_task.locators,
-                    &transparent_addresses,
+                    scan_task.transparent_addresses,
                 )
                 .await;
 
@@ -322,7 +321,7 @@ pub(crate) struct ScanTask {
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
     locators: Vec<Locator>,
-    transparent_addresses: Vec<(TransparentAddressId, String)>,
+    transparent_addresses: HashMap<String, TransparentAddressId>,
 }
 
 impl ScanTask {
@@ -330,7 +329,7 @@ impl ScanTask {
         scan_range: ScanRange,
         previous_wallet_block: Option<WalletBlock>,
         locators: Vec<Locator>,
-        transparent_addresses: Vec<(TransparentAddressId, String)>,
+        transparent_addresses: HashMap<String, TransparentAddressId>,
     ) -> Self {
         Self {
             scan_range,

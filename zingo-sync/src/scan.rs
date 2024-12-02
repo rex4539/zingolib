@@ -150,7 +150,7 @@ pub(crate) async fn scan<P>(
     scan_range: ScanRange,
     previous_wallet_block: Option<WalletBlock>,
     locators: Vec<Locator>,
-    transparent_addresses: &[(TransparentAddressId, String)],
+    transparent_addresses: HashMap<String, TransparentAddressId>,
 ) -> Result<ScanResults, ScanError>
 where
     P: Parameters + Sync + Send + 'static,

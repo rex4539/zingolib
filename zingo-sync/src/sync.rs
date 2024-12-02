@@ -166,7 +166,7 @@ where
             }
 
             update_wallet_data(wallet, results).unwrap();
-            link_nullifiers(consensus_parameters, wallet, fetch_request_sender, ufvks)
+            detect_shielded_spends(consensus_parameters, wallet, fetch_request_sender, ufvks)
                 .await
                 .unwrap();
             remove_irrelevant_data(wallet, &scan_range).unwrap();
@@ -242,7 +242,7 @@ where
     Ok(())
 }
 
-async fn link_nullifiers<P, W>(
+async fn detect_shielded_spends<P, W>(
     consensus_parameters: &P,
     wallet: &mut W,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
@@ -304,7 +304,7 @@ where
         DecryptedNoteData::new(),
         &wallet_blocks,
         &mut outpoint_map,
-        &[], // no need to scan transparent bundles as all relevant txs will not be evaded during scanning
+        HashMap::new(), // no need to scan transparent bundles as all relevant txs will not be evaded during scanning
     )
     .await
     .unwrap();
