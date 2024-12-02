@@ -98,7 +98,7 @@ fn select_fetch_request(fetch_request_queue: &mut Vec<FetchRequest>) -> Option<F
 //
 async fn fetch_from_server(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: &impl consensus::Parameters,
+    consensus_parameters: &impl consensus::Parameters,
     fetch_request: FetchRequest,
 ) -> Result<(), ()> {
     match fetch_request {
@@ -119,7 +119,9 @@ async fn fetch_from_server(
         }
         FetchRequest::Transaction(sender, txid) => {
             tracing::info!("Fetching transaction. {:?}", txid);
-            let transaction = get_transaction(client, parameters, txid).await.unwrap();
+            let transaction = get_transaction(client, consensus_parameters, txid)
+                .await
+                .unwrap();
             sender.send(transaction).unwrap();
         }
         FetchRequest::UtxoMetadata(sender, (addresses, start_height)) => {
@@ -139,7 +141,7 @@ async fn fetch_from_server(
                 &block_range,
                 &address
             );
-            let transactions = get_taddress_txs(client, parameters, address, block_range)
+            let transactions = get_taddress_txs(client, consensus_parameters, address, block_range)
                 .await
                 .unwrap();
             sender.send(transactions).unwrap();
@@ -195,7 +197,7 @@ async fn get_tree_state(
 
 async fn get_transaction(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: &impl consensus::Parameters,
+    consensus_parameters: &impl consensus::Parameters,
     txid: TxId,
 ) -> Result<(Transaction, BlockHeight), ()> {
     let request = tonic::Request::new(TxFilter {
@@ -209,7 +211,7 @@ async fn get_transaction(
 
     let transaction = Transaction::read(
         &raw_transaction.data[..],
-        BranchId::for_height(parameters, block_height),
+        BranchId::for_height(consensus_parameters, block_height),
     )
     .unwrap();
 
@@ -239,7 +241,7 @@ async fn get_address_utxos(
 
 async fn get_taddress_txs(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
-    parameters: &impl consensus::Parameters,
+    consensus_parameters: &impl consensus::Parameters,
     address: String,
     block_range: Range<BlockHeight>,
 ) -> Result<Vec<(BlockHeight, Transaction)>, ()> {
@@ -276,7 +278,7 @@ async fn get_taddress_txs(
 
             let transaction = Transaction::read(
                 &raw_transaction.data[..],
-                BranchId::for_height(parameters, block_height),
+                BranchId::for_height(consensus_parameters, block_height),
             )
             .unwrap();
 

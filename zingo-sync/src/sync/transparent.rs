@@ -3,15 +3,13 @@ use std::ops::Range;
 
 use tokio::sync::mpsc;
 
-use zcash_address::{ToAddress, ZcashAddress};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::{self, BlockHeight};
-use zcash_primitives::legacy::keys::{AccountPubKey, IncomingViewingKey, NonHardenedChildIndex};
-use zcash_primitives::legacy::TransparentAddress;
 use zcash_primitives::zip32::AccountId;
 
 use crate::client::{get_transparent_address_transactions, FetchRequest};
-use crate::keys::{AddressIndex, TransparentAddressId, TransparentScope};
+use crate::keys;
+use crate::keys::transparent::{TransparentAddressId, TransparentScope};
 use crate::primitives::Locator;
 use crate::traits::SyncWallet;
 
@@ -23,9 +21,9 @@ const ADDRESS_GAP_LIMIT: usize = 20;
 /// bundles.
 /// `wallet_height` should be the value before updating scan ranges. i.e. the wallet height as of previous sync.
 pub(crate) async fn update_addresses_and_locators<P, W>(
+    consensus_parameters: &P,
     wallet: &mut W,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     wallet_height: BlockHeight,
     chain_height: BlockHeight,
@@ -50,6 +48,23 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
         .await
         .unwrap();
 
+        // The transaction is not scanned here, instead the locator is stored to be later sent to a scan task for these reasons:
+        // - We must search for all relevant transactions MAX_VERIFICATION_WINDOW blocks below wallet height in case of re-org.
+        // These woud be scanned again which would be inefficient
+        // - In case of re-org, any scanned transactons with heights within the re-org range would be wrongly invalidated
+        // - The locator will cause the surrounding range to be set to high priority which will often also contain shielded notes
+        // relevant to the wallet
+        // - Scanning a transaction without scanning the surrounding range of compact blocks in the context of a scan task creates
+        // complications. Instead of writing all the information into a wallet transaction once, it would result in "incomplete"
+        // transactions that only contain transparent outputs and must be updated with shielded notes and other data when scanned.
+        // - We would need to add additional processing here to fetch the compact block for transaction metadata such as block time
+        // and append this to the wallet.
+        // - It allows SyncState to maintain complete knowledge and control of all the tasks that have and will be performed by the
+        // sync engine.
+        //
+        // To summarise, keeping transaction scanning within the scanner is much better co-ordinated and allows us to leverage
+        // any new developments to sync state management and scanning. It also separates concerns, with tasks happening in one
+        // place and performed once, wherever possible.
         transactions.iter().for_each(|(height, tx)| {
             locators.insert((height.clone(), tx.txid()));
         });
@@ -81,7 +96,11 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
                 while unused_address_count < ADDRESS_GAP_LIMIT {
                     let address_id =
                         TransparentAddressId::from_parts(*account_id, scope, address_index);
-                    let address = derive_address(consensus_parameters, account_pubkey, address_id);
+                    let address = keys::transparent::derive_address(
+                        consensus_parameters,
+                        account_pubkey,
+                        address_id,
+                    );
                     addresses.push((address_id, address.clone()));
 
                     let transactions = get_transparent_address_transactions(
@@ -117,86 +136,6 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
         .unwrap()
         .locators_mut()
         .append(&mut locators);
-}
-
-fn derive_address<P>(
-    consensus_parameters: &P,
-    account_pubkey: &AccountPubKey,
-    address_id: TransparentAddressId,
-) -> String
-where
-    P: consensus::Parameters,
-{
-    let address = match address_id.scope() {
-        TransparentScope::External => {
-            derive_external_address(account_pubkey, address_id.address_index())
-        }
-        TransparentScope::Internal => {
-            derive_internal_address(account_pubkey, address_id.address_index())
-        }
-        TransparentScope::Refund => {
-            derive_refund_address(account_pubkey, address_id.address_index())
-        }
-    };
-
-    encode_address(consensus_parameters, address)
-}
-
-fn derive_external_address(
-    account_pubkey: &AccountPubKey,
-    address_index: AddressIndex,
-) -> TransparentAddress {
-    account_pubkey
-        .derive_external_ivk()
-        .unwrap()
-        .derive_address(
-            NonHardenedChildIndex::from_index(address_index)
-                .expect("all non-hardened address indexes in use!"),
-        )
-        .unwrap()
-}
-
-fn derive_internal_address(
-    account_pubkey: &AccountPubKey,
-    address_index: AddressIndex,
-) -> TransparentAddress {
-    account_pubkey
-        .derive_internal_ivk()
-        .unwrap()
-        .derive_address(
-            NonHardenedChildIndex::from_index(address_index)
-                .expect("all non-hardened address indexes in use!"),
-        )
-        .unwrap()
-}
-
-fn derive_refund_address(
-    account_pubkey: &AccountPubKey,
-    address_index: AddressIndex,
-) -> TransparentAddress {
-    account_pubkey
-        .derive_ephemeral_ivk()
-        .unwrap()
-        .derive_ephemeral_address(
-            NonHardenedChildIndex::from_index(address_index)
-                .expect("all non-hardened address indexes in use!"),
-        )
-        .unwrap()
-}
-
-pub(crate) fn encode_address<P>(consensus_parameters: &P, address: TransparentAddress) -> String
-where
-    P: consensus::Parameters,
-{
-    let zcash_address = match address {
-        TransparentAddress::PublicKeyHash(data) => {
-            ZcashAddress::from_transparent_p2pkh(consensus_parameters.network_type(), data)
-        }
-        TransparentAddress::ScriptHash(data) => {
-            ZcashAddress::from_transparent_p2sh(consensus_parameters.network_type(), data)
-        }
-    };
-    zcash_address.to_string()
 }
 
 // TODO: process memo encoded address indexes.

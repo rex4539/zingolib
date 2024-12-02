@@ -8,7 +8,7 @@ use std::{
 use zcash_keys::keys::{UnifiedFullViewingKey, UnifiedSpendingKey};
 use zcash_primitives::consensus::BlockHeight;
 use zingo_sync::{
-    keys::TransparentAddressId,
+    keys::transparent::TransparentAddressId,
     primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock},
     traits::{
         SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,

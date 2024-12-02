@@ -52,7 +52,7 @@ where
         consensus_parameters.clone(),
     ));
 
-    let wallet_height = state::get_wallet_height(wallet, consensus_parameters).unwrap();
+    let wallet_height = state::get_wallet_height(consensus_parameters, wallet).unwrap();
     let chain_height = client::get_chain_height(fetch_request_sender.clone())
         .await
         .unwrap();
@@ -63,9 +63,9 @@ where
     let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
 
     transparent::update_addresses_and_locators(
+        consensus_parameters,
         wallet,
         fetch_request_sender.clone(),
-        consensus_parameters,
         &ufvks,
         wallet_height,
         chain_height,
@@ -83,9 +83,9 @@ where
     // create channel for receiving scan results and launch scanner
     let (scan_results_sender, mut scan_results_receiver) = mpsc::unbounded_channel();
     let mut scanner = Scanner::new(
+        consensus_parameters.clone(),
         scan_results_sender,
         fetch_request_sender.clone(),
-        consensus_parameters.clone(),
         ufvks.clone(),
     );
     scanner.spawn_workers();
@@ -95,9 +95,9 @@ where
         tokio::select! {
             Some((scan_range, scan_results)) = scan_results_receiver.recv() => {
                 process_scan_results(
+                    consensus_parameters,
                     wallet,
                     fetch_request_sender.clone(),
-                    consensus_parameters,
                     &ufvks,
                     scan_range,
                     scan_results,
@@ -147,9 +147,9 @@ where
 
 /// Scan post-processing
 async fn process_scan_results<P, W>(
+    consensus_parameters: &P,
     wallet: &mut W,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     scan_results: Result<ScanResults, ScanError>,
@@ -166,7 +166,7 @@ where
             }
 
             update_wallet_data(wallet, results).unwrap();
-            link_nullifiers(wallet, fetch_request_sender, consensus_parameters, ufvks)
+            link_nullifiers(consensus_parameters, wallet, fetch_request_sender, ufvks)
                 .await
                 .unwrap();
             remove_irrelevant_data(wallet, &scan_range).unwrap();
@@ -243,9 +243,9 @@ where
 }
 
 async fn link_nullifiers<P, W>(
+    consensus_parameters: &P,
     wallet: &mut W,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
 ) -> Result<(), ()>
 where
@@ -298,7 +298,7 @@ where
     let mut outpoint_map = OutPointMap::new(); // dummy outpoint map
     let spending_transactions = scan_transactions(
         fetch_request_sender,
-        parameters,
+        consensus_parameters,
         ufvks,
         spending_txids,
         DecryptedNoteData::new(),

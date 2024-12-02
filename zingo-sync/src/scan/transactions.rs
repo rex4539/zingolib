@@ -27,13 +27,12 @@ use zingo_memo::ParsedMemo;
 
 use crate::{
     client::{self, FetchRequest},
-    keys::{KeyId, TransparentAddressId},
+    keys::{self, transparent::TransparentAddressId, KeyId},
     primitives::{
         OrchardNote, OutPointMap, OutgoingNote, OutgoingOrchardNote, OutgoingSaplingNote, OutputId,
         SaplingNote, SyncOutgoingNotes, TransparentCoin, WalletBlock, WalletNote,
         WalletTransaction,
     },
-    sync::transparent,
     utils,
 };
 
@@ -283,7 +282,7 @@ fn scan_incoming_coins<P: consensus::Parameters>(
 ) {
     for (output_index, output) in transparent_outputs.iter().enumerate() {
         if let Some(address) = output.recipient_address() {
-            let encoded_address = transparent::encode_address(consensus_parameters, address);
+            let encoded_address = keys::transparent::encode_address(consensus_parameters, address);
             // TODO: consider sending addresses converted as a hashmap with address as the key for efficiency, although
             // wallets will have a small number of relevant transactions so might be unecessary complication
             if let Some((key_id, address)) = transparent_addresses

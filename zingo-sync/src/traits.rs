@@ -8,7 +8,7 @@ use zcash_primitives::consensus::BlockHeight;
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
-use crate::keys::TransparentAddressId;
+use crate::keys::transparent::TransparentAddressId;
 use crate::primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock, WalletTransaction};
 use crate::witness::{ShardTreeData, ShardTrees};
 

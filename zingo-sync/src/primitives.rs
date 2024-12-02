@@ -19,7 +19,7 @@ use zcash_primitives::{
 };
 
 use crate::{
-    keys::{KeyId, TransparentAddressId},
+    keys::{transparent::TransparentAddressId, KeyId},
     utils,
 };
 

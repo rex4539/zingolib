@@ -12,7 +12,7 @@ use zcash_primitives::{
 };
 
 use crate::{
-    keys::TransparentAddressId,
+    keys::transparent::TransparentAddressId,
     primitives::{Locator, SyncState},
     scan::task::ScanTask,
     traits::{SyncBlocks, SyncWallet},
@@ -21,8 +21,8 @@ use crate::{
 use super::{BATCH_SIZE, VERIFY_BLOCK_RANGE_SIZE};
 
 pub(super) fn get_wallet_height<P, W>(
-    wallet: &W,
     consensus_parameters: &P,
+    wallet: &W,
 ) -> Result<BlockHeight, ()>
 where
     P: consensus::Parameters,

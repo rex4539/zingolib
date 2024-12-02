@@ -20,7 +20,7 @@ use zcash_primitives::{
 
 use crate::{
     client::FetchRequest,
-    keys::TransparentAddressId,
+    keys::transparent::TransparentAddressId,
     primitives::{Locator, WalletBlock},
     sync,
     traits::{SyncBlocks, SyncWallet},
@@ -68,9 +68,9 @@ where
     P: consensus::Parameters + Sync + Send + 'static,
 {
     pub(crate) fn new(
+        consensus_parameters: P,
         scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-        consensus_parameters: P,
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
     ) -> Self {
         let workers: Vec<ScanWorker<P>> = Vec::with_capacity(MAX_WORKER_POOLSIZE);
@@ -79,9 +79,9 @@ where
             state: ScannerState::Verification,
             workers,
             unique_id: 0,
+            consensus_parameters,
             scan_results_sender,
             fetch_request_sender,
-            consensus_parameters,
             ufvks,
         }
     }
@@ -101,10 +101,10 @@ where
         tracing::info!("Spawning worker {}", self.unique_id);
         let mut worker = ScanWorker::new(
             self.unique_id,
+            self.consensus_parameters.clone(),
             None,
             self.scan_results_sender.clone(),
             self.fetch_request_sender.clone(),
-            self.consensus_parameters.clone(),
             self.ufvks.clone(),
         );
         worker.run().unwrap();
@@ -212,10 +212,10 @@ struct ScanWorker<P> {
     id: usize,
     handle: Option<JoinHandle<()>>,
     is_scanning: Arc<AtomicBool>,
+    consensus_parameters: P,
     scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
     scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    consensus_parameters: P,
     ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
 }
 
@@ -225,20 +225,20 @@ where
 {
     fn new(
         id: usize,
+        consensus_parameters: P,
         scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
         scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-        consensus_parameters: P,
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
     ) -> Self {
         Self {
             id,
             handle: None,
             is_scanning: Arc::new(AtomicBool::new(false)),
+            consensus_parameters,
             scan_task_sender,
             scan_results_sender,
             fetch_request_sender,
-            consensus_parameters,
             ufvks,
         }
     }

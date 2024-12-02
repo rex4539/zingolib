@@ -17,7 +17,7 @@ use rand::Rng;
 use zingo_sync::primitives::OutPointMap;
 #[cfg(feature = "sync")]
 use zingo_sync::{
-    keys::TransparentAddressId,
+    keys::transparent::TransparentAddressId,
     primitives::{NullifierMap, SyncState, WalletBlock, WalletTransaction},
     witness::ShardTrees,
 };

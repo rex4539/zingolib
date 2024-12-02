@@ -13,7 +13,6 @@ use sapling_crypto::{
 };
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_note_encryption::Domain;
-use zcash_primitives::zip32::AccountId;
 
 /// Child index for the `address_index` path level in the BIP44 hierarchy.
 pub type AddressIndex = u32;
@@ -24,6 +23,8 @@ pub struct KeyId {
     account_id: zcash_primitives::zip32::AccountId,
     scope: Scope,
 }
+
+pub mod transparent;
 
 impl KeyId {
     pub(crate) fn from_parts(account_id: zcash_primitives::zip32::AccountId, scope: Scope) -> Self {
@@ -39,54 +40,6 @@ impl memuse::DynamicUsage for KeyId {
     fn dynamic_usage_bounds(&self) -> (usize, Option<usize>) {
         self.scope.dynamic_usage_bounds()
     }
-}
-
-/// Unique ID for transparent addresses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TransparentAddressId {
-    account_id: AccountId,
-    scope: TransparentScope,
-    address_index: AddressIndex,
-}
-
-impl TransparentAddressId {
-    pub(crate) fn from_parts(
-        account_id: zcash_primitives::zip32::AccountId,
-        scope: TransparentScope,
-        address_index: AddressIndex,
-    ) -> Self {
-        Self {
-            account_id,
-            scope,
-            address_index,
-        }
-    }
-
-    /// Gets address account ID
-    pub fn account_id(&self) -> AccountId {
-        self.account_id
-    }
-
-    /// Gets address scope
-    pub fn scope(&self) -> TransparentScope {
-        self.scope
-    }
-
-    /// Gets address index
-    pub fn address_index(&self) -> AddressIndex {
-        self.address_index
-    }
-}
-
-/// Child index for the `change` path level in the BIP44 hierarchy (a.k.a. scope/chain).
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TransparentScope {
-    /// External scope
-    External,
-    /// Internal scope (a.k.a. change)
-    Internal,
-    /// Refund scope (a.k.a. ephemeral)
-    Refund,
 }
 
 /// A key that can be used to perform trial decryption and nullifier
