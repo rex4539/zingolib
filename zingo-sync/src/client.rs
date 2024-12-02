@@ -119,14 +119,14 @@ pub async fn get_utxo_metadata(
         panic!("addresses must be non-empty!");
     }
 
-    let (sender, receiver) = oneshot::channel();
+    let (reply_sender, reply_receiver) = oneshot::channel();
     fetch_request_sender
         .send(FetchRequest::UtxoMetadata(
-            sender,
+            reply_sender,
             (transparent_addresses, start_height),
         ))
         .unwrap();
-    let transparent_output_metadata = receiver.await.unwrap();
+    let transparent_output_metadata = reply_receiver.await.unwrap();
 
     Ok(transparent_output_metadata)
 }
