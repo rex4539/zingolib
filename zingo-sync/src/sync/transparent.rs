@@ -66,7 +66,7 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
         // any new developments to sync state management and scanning. It also separates concerns, with tasks happening in one
         // place and performed once, wherever possible.
         transactions.iter().for_each(|(height, tx)| {
-            locators.insert((height.clone(), tx.txid()));
+            locators.insert((*height, tx.txid()));
         });
     }
 
@@ -83,8 +83,7 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
                     .iter()
                     .map(|(id, _)| id)
                     .filter(|id| id.account_id() == *account_id && id.scope() == scope)
-                    .rev()
-                    .next()
+                    .next_back()
                 {
                     id.address_index() + 1
                 } else {
@@ -115,7 +114,7 @@ pub(crate) async fn update_addresses_and_locators<P, W>(
                         unused_address_count += 1;
                     } else {
                         transactions.iter().for_each(|(height, tx)| {
-                            locators.insert((height.clone(), tx.txid()));
+                            locators.insert((*height, tx.txid()));
                         });
                         unused_address_count = 0;
                     }
