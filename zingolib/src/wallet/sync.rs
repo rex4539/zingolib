@@ -8,8 +8,11 @@ use std::{
 use zcash_keys::keys::{UnifiedFullViewingKey, UnifiedSpendingKey};
 use zcash_primitives::consensus::BlockHeight;
 use zingo_sync::{
-    primitives::{NullifierMap, SyncState, WalletBlock},
-    traits::{SyncBlocks, SyncNullifiers, SyncShardTrees, SyncTransactions, SyncWallet},
+    keys::transparent::TransparentAddressId,
+    primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock},
+    traits::{
+        SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
+    },
     witness::ShardTrees,
 };
 use zip32::AccountId;
@@ -53,6 +56,18 @@ impl SyncWallet for LightWallet {
 
         Ok(ufvk_map)
     }
+
+    fn get_transparent_addresses(
+        &self,
+    ) -> Result<&BTreeMap<TransparentAddressId, String>, Self::Error> {
+        Ok(&self.transparent_addresses)
+    }
+
+    fn get_transparent_addresses_mut(
+        &mut self,
+    ) -> Result<&mut BTreeMap<TransparentAddressId, String>, Self::Error> {
+        Ok(&mut self.transparent_addresses)
+    }
 }
 
 impl SyncBlocks for LightWallet {
@@ -91,8 +106,22 @@ impl SyncTransactions for LightWallet {
 }
 
 impl SyncNullifiers for LightWallet {
+    fn get_nullifiers(&self) -> Result<&NullifierMap, Self::Error> {
+        Ok(&self.nullifier_map)
+    }
+
     fn get_nullifiers_mut(&mut self) -> Result<&mut NullifierMap, ()> {
         Ok(&mut self.nullifier_map)
+    }
+}
+
+impl SyncOutPoints for LightWallet {
+    fn get_outpoints(&self) -> Result<&OutPointMap, Self::Error> {
+        Ok(&self.outpoint_map)
+    }
+
+    fn get_outpoints_mut(&mut self) -> Result<&mut OutPointMap, Self::Error> {
+        Ok(&mut self.outpoint_map)
     }
 }
 
