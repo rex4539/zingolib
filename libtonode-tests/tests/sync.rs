@@ -43,9 +43,9 @@ async fn sync_mainnet_test() {
         .await
         .unwrap();
 
-    dbg!(lightclient.wallet.wallet_blocks());
-    dbg!(lightclient.wallet.nullifier_map());
-    dbg!(lightclient.wallet.sync_state());
+    dbg!(lightclient.wallet.wallet_blocks);
+    dbg!(lightclient.wallet.nullifier_map);
+    dbg!(lightclient.wallet.sync_state);
 }
 
 #[tokio::test]
@@ -90,7 +90,7 @@ async fn sync_test() {
     .await
     .unwrap();
 
-    dbg!(recipient.wallet.wallet_transactions());
+    dbg!(&recipient.wallet.wallet_transactions);
     // dbg!(recipient.wallet.wallet_blocks());
     // dbg!(recipient.wallet.nullifier_map());
     // dbg!(recipient.wallet.outpoint_map());

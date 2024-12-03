@@ -4,7 +4,6 @@
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use error::KeyError;
-use getset::{Getters, MutGetters};
 use zcash_keys::keys::UnifiedFullViewingKey;
 #[cfg(feature = "sync")]
 use zcash_primitives::consensus::BlockHeight;
@@ -190,7 +189,6 @@ impl WalletBase {
 }
 
 /// In-memory wallet data struct
-#[derive(Getters, MutGetters)]
 pub struct LightWallet {
     // The block at which this wallet was born. Rescans
     // will start from here.
@@ -222,38 +220,31 @@ pub struct LightWallet {
 
     /// Wallet compact blocks
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
-    wallet_blocks: BTreeMap<BlockHeight, WalletBlock>,
+    pub wallet_blocks: BTreeMap<BlockHeight, WalletBlock>,
 
     /// Wallet transactions
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
-    wallet_transactions: HashMap<zcash_primitives::transaction::TxId, WalletTransaction>,
+    pub wallet_transactions: HashMap<zcash_primitives::transaction::TxId, WalletTransaction>,
 
     /// Nullifier map
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
-    nullifier_map: NullifierMap,
+    pub nullifier_map: NullifierMap,
 
     /// Outpoint map
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
     outpoint_map: OutPointMap,
 
     /// Shard trees
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
     shard_trees: ShardTrees,
 
     /// Sync state
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
-    sync_state: SyncState,
+    pub sync_state: SyncState,
 
     /// Transparent addresses
     #[cfg(feature = "sync")]
-    #[getset(get = "pub", get_mut = "pub")]
-    transparent_addresses: BTreeMap<TransparentAddressId, String>,
+    pub transparent_addresses: BTreeMap<TransparentAddressId, String>,
 }
 
 impl LightWallet {
@@ -286,7 +277,7 @@ impl LightWallet {
     ///TODO: Make this work for orchard too
     pub async fn decrypt_message(&self, enc: Vec<u8>) -> Result<Message, String> {
         let ufvk: UnifiedFullViewingKey =
-            match self.wallet_capability().unified_key_store().try_into() {
+            match (&self.wallet_capability().unified_key_store).try_into() {
                 Ok(ufvk) => ufvk,
                 Err(e) => return Err(e.to_string()),
             };
@@ -398,7 +389,7 @@ impl LightWallet {
                 format!("could not create initial address: {e}"),
             ));
         };
-        let transaction_metadata_set = if wc.unified_key_store().is_spending_key() {
+        let transaction_metadata_set = if wc.unified_key_store.is_spending_key() {
             Arc::new(RwLock::new(TxMap::new_with_witness_trees(
                 wc.transparent_child_addresses().clone(),
                 wc.get_rejection_addresses().clone(),
