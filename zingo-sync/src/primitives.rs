@@ -284,7 +284,7 @@ pub struct WalletNote<N, Nf: Copy> {
     nullifier: Option<Nf>, //TODO: syncing without nullfiier deriving key
     /// Commitment tree leaf position
     #[getset(get_copy = "pub")]
-    position: Position,
+    position: Option<Position>,
     /// Memo
     #[getset(get = "pub")]
     memo: Memo,
@@ -298,7 +298,7 @@ impl<N, Nf: Copy> WalletNote<N, Nf> {
         key_id: KeyId,
         note: N,
         nullifier: Option<Nf>,
-        position: Position,
+        position: Option<Position>,
         memo: Memo,
         spending_transaction: Option<TxId>,
     ) -> Self {

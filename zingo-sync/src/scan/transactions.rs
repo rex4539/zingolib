@@ -29,9 +29,9 @@ use crate::{
     client::{self, FetchRequest},
     keys::{self, transparent::TransparentAddressId, KeyId},
     primitives::{
-        OrchardNote, OutPointMap, OutgoingNote, OutgoingOrchardNote, OutgoingSaplingNote, OutputId,
-        SaplingNote, SyncOutgoingNotes, TransparentCoin, WalletBlock, WalletNote,
-        WalletTransaction,
+        NullifierMap, OrchardNote, OutPointMap, OutgoingNote, OutgoingOrchardNote,
+        OutgoingSaplingNote, OutputId, SaplingNote, SyncOutgoingNotes, TransparentCoin,
+        WalletBlock, WalletNote, WalletTransaction,
     },
     utils,
 };
@@ -67,7 +67,7 @@ impl<Proof> ShieldedOutputExt<SaplingDomain> for OutputDescription<Proof> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn scan_transactions<P: consensus::Parameters>(
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    parameters: &P,
+    consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     relevant_txids: HashSet<TxId>,
     decrypted_note_data: DecryptedNoteData,
@@ -97,13 +97,15 @@ pub(crate) async fn scan_transactions<P: consensus::Parameters>(
         }
 
         let wallet_transaction = scan_transaction(
-            parameters,
+            consensus_parameters,
             ufvks,
             transaction,
             block_height,
             &decrypted_note_data,
+            &mut NullifierMap::new(),
             outpoint_map,
             &transparent_addresses,
+            false,
         )
         .unwrap();
         wallet_transactions.insert(txid, wallet_transaction);
@@ -112,18 +114,21 @@ pub(crate) async fn scan_transactions<P: consensus::Parameters>(
     Ok(wallet_transactions)
 }
 
-fn scan_transaction<P: consensus::Parameters>(
-    parameters: &P,
+pub(crate) fn scan_transaction<P: consensus::Parameters>(
+    consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     transaction: Transaction,
     block_height: BlockHeight,
     decrypted_note_data: &DecryptedNoteData,
+    nullifier_map: &mut NullifierMap,
     outpoint_map: &mut OutPointMap,
     transparent_addresses: &HashMap<String, TransparentAddressId>,
+    pending: bool, // TODO: change for confirmation status
 ) -> Result<WalletTransaction, ()> {
-    // TODO: price?
+    // TODO: condsider splitting into seperate fns for pending and confirmed etc.
+    // TODO: price? save in wallet block as its relative to time mined?
     let zip212_enforcement = zcash_primitives::transaction::components::sapling::zip212_enforcement(
-        parameters,
+        consensus_parameters,
         block_height,
     );
     let mut transparent_coins: Vec<TransparentCoin> = Vec::new();
@@ -166,7 +171,7 @@ fn scan_transaction<P: consensus::Parameters>(
     if let Some(bundle) = transaction.transparent_bundle() {
         let transparent_outputs = &bundle.vout;
         scan_incoming_coins(
-            parameters,
+            consensus_parameters,
             &mut transparent_coins,
             transaction.txid(),
             transparent_addresses,
@@ -240,18 +245,39 @@ fn scan_transaction<P: consensus::Parameters>(
         encoded_memos.append(&mut parse_encoded_memos(&orchard_notes).unwrap());
     }
 
+    // for confirmed transactions nullifiers are collected during compact block scanning
+    if pending {
+        collect_nullifiers(nullifier_map, block_height, &transaction);
+    }
+
     for encoded_memo in encoded_memos {
         match encoded_memo {
             ParsedMemo::Version0 { uas } => {
-                add_recipient_unified_address(parameters, uas.clone(), &mut outgoing_sapling_notes);
-                add_recipient_unified_address(parameters, uas, &mut outgoing_orchard_notes);
+                add_recipient_unified_address(
+                    consensus_parameters,
+                    uas.clone(),
+                    &mut outgoing_sapling_notes,
+                );
+                add_recipient_unified_address(
+                    consensus_parameters,
+                    uas,
+                    &mut outgoing_orchard_notes,
+                );
             }
             ParsedMemo::Version1 {
                 uas,
                 rejection_address_indexes: _,
             } => {
-                add_recipient_unified_address(parameters, uas.clone(), &mut outgoing_sapling_notes);
-                add_recipient_unified_address(parameters, uas, &mut outgoing_orchard_notes);
+                add_recipient_unified_address(
+                    consensus_parameters,
+                    uas.clone(),
+                    &mut outgoing_sapling_notes,
+                );
+                add_recipient_unified_address(
+                    consensus_parameters,
+                    uas,
+                    &mut outgoing_orchard_notes,
+                );
 
                 // TODO: handle rejection addresses from encoded memos
             }
@@ -261,7 +287,7 @@ fn scan_transaction<P: consensus::Parameters>(
         }
     }
 
-    // TODO: consider adding nullifiers and transparent txin data for efficiency
+    // TODO: consider adding nullifiers and transparent outpoint data for efficiency
 
     Ok(WalletTransaction::from_parts(
         transaction,
@@ -327,7 +353,7 @@ where
                 key_ids[key_index],
                 note,
                 Some(*nullifier),
-                *position,
+                Some(*position),
                 Memo::from_bytes(memo_bytes.as_ref()).unwrap(),
                 None,
             ));
@@ -434,6 +460,36 @@ fn add_recipient_unified_address<P, Nz>(
             .filter(|note| ua_receivers.contains(&note.encoded_recipient(parameters)))
             .for_each(|note| {
                 note.set_recipient_ua(Some(ua.clone()));
+            });
+    }
+}
+
+/// Converts and adds the nullifiers from a transaction to the nullifier map
+fn collect_nullifiers(
+    nullifier_map: &mut NullifierMap,
+    block_height: BlockHeight,
+    transaction: &Transaction,
+) {
+    if let Some(bundle) = transaction.sapling_bundle() {
+        bundle
+            .shielded_spends()
+            .iter()
+            .map(|spend| spend.nullifier())
+            .for_each(|nullifier| {
+                nullifier_map
+                    .sapling_mut()
+                    .insert(*nullifier, (block_height, transaction.txid()));
+            });
+    }
+    if let Some(bundle) = transaction.orchard_bundle() {
+        bundle
+            .actions()
+            .iter()
+            .map(|action| action.nullifier())
+            .for_each(|nullifier| {
+                nullifier_map
+                    .orchard_mut()
+                    .insert(*nullifier, (block_height, transaction.txid()));
             });
     }
 }

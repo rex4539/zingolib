@@ -5,10 +5,11 @@ use std::time::Duration;
 
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
-use crate::primitives::{Locator, OutPointMap, OutputId};
+use crate::keys::transparent::TransparentAddressId;
+use crate::primitives::{Locator, NullifierMap, OutPointMap, OutputId};
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
-use crate::scan::transactions::scan_transactions;
+use crate::scan::transactions::{scan_transaction, scan_transactions};
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{
     SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
@@ -91,7 +92,7 @@ where
     );
     scanner.spawn_workers();
 
-    // Setup the initial mempool stream
+    // setup the initial mempool stream
     let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
         .await
         .unwrap();
@@ -119,6 +120,8 @@ where
                 process_mempool_stream_response(
                     consensus_parameters,
                     fetch_request_sender.clone(),
+                    &ufvks,
+                    wallet,
                     mempool_stream_response,
                     &mut mempool_stream)
                 .await;
@@ -338,7 +341,7 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.sapling_notes_mut())
-        .filter(|note| note.spending_transaction().is_none())
+        .filter(|note| note.spending_transaction().is_none()) // TODO: add logic for spending tx pending
         .for_each(|note| {
             if let Some((_, txid)) = note
                 .nullifier()
@@ -350,7 +353,7 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.orchard_notes_mut())
-        .filter(|note| note.spending_transaction().is_none())
+        .filter(|note| note.spending_transaction().is_none()) // TODO: add logic for spending tx pending
         .for_each(|note| {
             if let Some((_, txid)) = note
                 .nullifier()
@@ -385,7 +388,7 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.transparent_coins_mut())
-        .filter(|coin| coin.spending_transaction().is_none())
+        .filter(|coin| coin.spending_transaction().is_none()) // TODO: add logic for spending tx pending
         .for_each(|coin| {
             if let Some((_, txid)) = transparent_spend_locators.get(&coin.output_id()) {
                 coin.set_spending_transaction(Some(*txid));
@@ -438,12 +441,16 @@ where
     Ok(())
 }
 
-async fn process_mempool_stream_response(
+async fn process_mempool_stream_response<W>(
     consensus_parameters: &impl consensus::Parameters,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    wallet: &mut W,
     mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
     mempool_stream: &mut tonic::Streaming<RawTransaction>,
-) {
+) where
+    W: SyncWallet + SyncNullifiers + SyncOutPoints,
+{
     match mempool_stream_response.unwrap() {
         Some(raw_transaction) => {
             let block_height =
@@ -460,11 +467,33 @@ async fn process_mempool_stream_response(
                 block_height
             );
 
-            // TODO: scan tx
+            // TODO: create confirmation status
+            let mut nullifiers = NullifierMap::new();
+            let mut outpoints = OutPointMap::new();
+            let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
+                .get_transparent_addresses()
+                .unwrap()
+                .iter()
+                .map(|(id, address)| (address.clone(), *id))
+                .collect();
+            let wallet_transaction = scan_transaction(
+                consensus_parameters,
+                ufvks,
+                transaction,
+                block_height,
+                &DecryptedNoteData::new(),
+                &mut nullifiers,
+                &mut outpoints,
+                &transparent_addresses,
+                true,
+            )
+            .unwrap();
+            wallet.append_nullifiers(nullifiers).unwrap();
+            wallet.append_outpoints(outpoints).unwrap();
+            // TODO: add wallet transactions to wallet
         }
         None => {
             // A block was mined, setup a new mempool stream until the next block is mined.
-            tracing::info!("mempool response is None");
             *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
                 .await
                 .unwrap();
