@@ -239,7 +239,7 @@ pub struct LightWallet {
 
     /// Transparent addresses
     #[cfg(feature = "sync")]
-    transparent_addresses: BTreeMap<TransparentAddressId, String>,
+    pub transparent_addresses: BTreeMap<TransparentAddressId, String>,
 }
 
 impl LightWallet {

@@ -58,13 +58,13 @@ impl SyncWallet for LightWallet {
     fn get_transparent_addresses(
         &self,
     ) -> Result<&BTreeMap<TransparentAddressId, String>, Self::Error> {
-        Ok(self.transparent_addresses())
+        Ok(&self.transparent_addresses)
     }
 
     fn get_transparent_addresses_mut(
         &mut self,
     ) -> Result<&mut BTreeMap<TransparentAddressId, String>, Self::Error> {
-        Ok(self.transparent_addresses_mut())
+        Ok(&mut self.transparent_addresses)
     }
 }
 
