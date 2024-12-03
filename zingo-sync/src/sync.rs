@@ -14,6 +14,7 @@ use crate::traits::{
     SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
 };
 
+use zcash_client_backend::proto::service::RawTransaction;
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
@@ -48,7 +49,7 @@ where
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
     let fetcher_handle = tokio::spawn(client::fetch::fetch(
         fetch_request_receiver,
-        client,
+        client.clone(),
         consensus_parameters.clone(),
     ));
 
@@ -90,6 +91,13 @@ where
     );
     scanner.spawn_workers();
 
+    // Setup the initial mempool stream
+    let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+        .await
+        .unwrap();
+
+    // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
+
     let mut interval = tokio::time::interval(Duration::from_millis(30));
     loop {
         tokio::select! {
@@ -107,7 +115,20 @@ where
                 .unwrap();
             }
 
-            _ = interval.tick() => {
+            mempool_stream_response = mempool_stream.message() => {
+                process_mempool_stream_response(
+                    consensus_parameters,
+                    fetch_request_sender.clone(),
+                    mempool_stream_response,
+                    &mut mempool_stream)
+                .await;
+
+                // reset interval to ensure all mempool transactions have been scanned before sync completes.
+                // if a full interval passes without receiving a transaction from the mempool we can safely finish sync.
+                interval.reset();
+            }
+
+            _update_scanner = interval.tick() => {
                 scanner.update(wallet).await;
 
                 if sync_complete(&scanner, &scan_results_receiver, wallet) {
@@ -415,4 +436,38 @@ where
         .retain(|_, (height, _)| *height >= scan_range.block_range().end);
 
     Ok(())
+}
+
+async fn process_mempool_stream_response(
+    consensus_parameters: &impl consensus::Parameters,
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
+    mempool_stream: &mut tonic::Streaming<RawTransaction>,
+) {
+    match mempool_stream_response.unwrap() {
+        Some(raw_transaction) => {
+            let block_height =
+                BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
+            let transaction = zcash_primitives::transaction::Transaction::read(
+                &raw_transaction.data[..],
+                consensus::BranchId::for_height(consensus_parameters, block_height),
+            )
+            .unwrap();
+
+            tracing::info!(
+                "mempool received txid {} at height {}",
+                transaction.txid(),
+                block_height
+            );
+
+            // TODO: scan tx
+        }
+        None => {
+            // A block was mined, setup a new mempool stream until the next block is mined.
+            tracing::info!("mempool response is None");
+            *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+                .await
+                .unwrap();
+        }
+    }
 }

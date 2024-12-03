@@ -8,7 +8,7 @@ use zcash_client_backend::{
     data_api::chain::ChainState,
     proto::{
         compact_formats::CompactBlock,
-        service::{BlockId, GetAddressUtxosReply, TreeState},
+        service::{BlockId, GetAddressUtxosReply, RawTransaction, TreeState},
     },
 };
 use zcash_primitives::{
@@ -41,6 +41,8 @@ pub enum FetchRequest {
         oneshot::Sender<Vec<(BlockHeight, Transaction)>>,
         (String, Range<BlockHeight>),
     ),
+    /// Get a stream of mempool transactions until a new block is mined.
+    MempoolStream(oneshot::Sender<tonic::Streaming<RawTransaction>>),
 }
 
 /// Gets the height of the blockchain from the server.
@@ -149,4 +151,19 @@ pub async fn get_transparent_address_transactions(
     let transactions = reply_receiver.await.unwrap();
 
     Ok(transactions)
+}
+
+/// Gets stream of mempool transactions until the next block is mined.
+///
+/// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
+pub async fn get_mempool_transaction_stream(
+    fetch_request_sender: UnboundedSender<FetchRequest>,
+) -> Result<tonic::Streaming<RawTransaction>, ()> {
+    let (reply_sender, reply_receiver) = oneshot::channel();
+    fetch_request_sender
+        .send(FetchRequest::MempoolStream(reply_sender))
+        .unwrap();
+    let mempool_stream = reply_receiver.await.unwrap();
+
+    Ok(mempool_stream)
 }

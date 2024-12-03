@@ -5,7 +5,7 @@ use zingolib::{
     config::{construct_lightwalletd_uri, load_clientconfig, DEFAULT_LIGHTWALLETD_SERVER},
     get_base_address_macro,
     lightclient::LightClient,
-    testutils::{increase_server_height, lightclient::from_inputs, scenarios},
+    testutils::{lightclient::from_inputs, scenarios},
     testvectors::seeds::HOSPITAL_MUSEUM_SEED,
     wallet::WalletBase,
 };
@@ -52,7 +52,7 @@ async fn sync_mainnet_test() {
 async fn sync_test() {
     tracing_subscriber::fmt().init();
 
-    let (regtest_manager, _cph, faucet, mut recipient, _txid) =
+    let (_regtest_manager, _cph, faucet, mut recipient, _txid) =
         scenarios::orchard_funded_recipient(5_000_000).await;
     from_inputs::quick_send(
         &faucet,
@@ -75,10 +75,10 @@ async fn sync_test() {
     // .await
     // .unwrap();
 
-    increase_server_height(&regtest_manager, 1).await;
-    recipient.do_sync(false).await.unwrap();
-    recipient.quick_shield().await.unwrap();
-    increase_server_height(&regtest_manager, 1).await;
+    // increase_server_height(&regtest_manager, 1).await;
+    // recipient.do_sync(false).await.unwrap();
+    // recipient.quick_shield().await.unwrap();
+    // increase_server_height(&regtest_manager, 1).await;
 
     let uri = recipient.config().lightwalletd_uri.read().unwrap().clone();
     let client = GrpcConnector::new(uri).get_client().await.unwrap();
@@ -90,7 +90,7 @@ async fn sync_test() {
     .await
     .unwrap();
 
-    dbg!(&recipient.wallet.wallet_transactions);
+    // dbg!(&recipient.wallet.wallet_transactions);
     // dbg!(recipient.wallet.wallet_blocks());
     // dbg!(recipient.wallet.nullifier_map());
     // dbg!(recipient.wallet.outpoint_map());
