@@ -24,6 +24,7 @@ use zcash_primitives::{
     zip32::AccountId,
 };
 use zingo_memo::ParsedMemo;
+use zingo_status::confirmation_status::ConfirmationStatus;
 
 use crate::{
     client::{self, FetchRequest},
@@ -96,16 +97,16 @@ pub(crate) async fn scan_transactions<P: consensus::Parameters>(
             panic!("wallet block at transaction height not found!");
         }
 
+        let confirmation_status = ConfirmationStatus::Confirmed(block_height);
         let wallet_transaction = scan_transaction(
             consensus_parameters,
             ufvks,
             transaction,
-            block_height,
+            confirmation_status,
             &decrypted_note_data,
             &mut NullifierMap::new(),
             outpoint_map,
             &transparent_addresses,
-            false,
         )
         .unwrap();
         wallet_transactions.insert(txid, wallet_transaction);
@@ -118,15 +119,15 @@ pub(crate) fn scan_transaction<P: consensus::Parameters>(
     consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     transaction: Transaction,
-    block_height: BlockHeight,
+    confirmation_status: ConfirmationStatus,
     decrypted_note_data: &DecryptedNoteData,
     nullifier_map: &mut NullifierMap,
     outpoint_map: &mut OutPointMap,
     transparent_addresses: &HashMap<String, TransparentAddressId>,
-    pending: bool, // TODO: change for confirmation status
 ) -> Result<WalletTransaction, ()> {
     // TODO: condsider splitting into seperate fns for pending and confirmed etc.
     // TODO: price? save in wallet block as its relative to time mined?
+    let block_height = confirmation_status.get_height();
     let zip212_enforcement = zcash_primitives::transaction::components::sapling::zip212_enforcement(
         consensus_parameters,
         block_height,
@@ -245,8 +246,9 @@ pub(crate) fn scan_transaction<P: consensus::Parameters>(
         encoded_memos.append(&mut parse_encoded_memos(&orchard_notes).unwrap());
     }
 
-    // for confirmed transactions nullifiers are collected during compact block scanning
-    if pending {
+    // collect nullifiers for pending transactions
+    // nullifiers for confirmed transactions are collected during compact block scanning
+    if !confirmation_status.is_confirmed() {
         collect_nullifiers(nullifier_map, block_height, &transaction);
     }
 
@@ -290,8 +292,9 @@ pub(crate) fn scan_transaction<P: consensus::Parameters>(
     // TODO: consider adding nullifiers and transparent outpoint data for efficiency
 
     Ok(WalletTransaction::from_parts(
+        transaction.txid(),
         transaction,
-        block_height,
+        confirmation_status,
         sapling_notes,
         orchard_notes,
         outgoing_sapling_notes,

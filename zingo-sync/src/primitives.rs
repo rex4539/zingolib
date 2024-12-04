@@ -14,6 +14,7 @@ use zcash_primitives::{
     memo::Memo,
     transaction::{components::amount::NonNegativeAmount, TxId},
 };
+use zingo_status::confirmation_status::ConfirmationStatus;
 
 use crate::{
     keys::{transparent::TransparentAddressId, KeyId},
@@ -183,9 +184,11 @@ impl WalletBlock {
 #[derive(Getters, CopyGetters)]
 pub struct WalletTransaction {
     #[getset(get = "pub")]
+    txid: TxId,
+    #[getset(get = "pub")]
     transaction: zcash_primitives::transaction::Transaction,
     #[getset(get_copy = "pub")]
-    block_height: BlockHeight,
+    confirmation_status: ConfirmationStatus,
     #[getset(skip)]
     sapling_notes: Vec<SaplingNote>,
     #[getset(skip)]
@@ -200,8 +203,9 @@ pub struct WalletTransaction {
 
 impl WalletTransaction {
     pub fn from_parts(
+        txid: TxId,
         transaction: zcash_primitives::transaction::Transaction,
-        block_height: BlockHeight,
+        confirmation_status: ConfirmationStatus,
         sapling_notes: Vec<SaplingNote>,
         orchard_notes: Vec<OrchardNote>,
         outgoing_sapling_notes: Vec<OutgoingSaplingNote>,
@@ -209,8 +213,9 @@ impl WalletTransaction {
         transparent_coins: Vec<TransparentCoin>,
     ) -> Self {
         Self {
+            txid,
             transaction,
-            block_height,
+            confirmation_status,
             sapling_notes,
             orchard_notes,
             outgoing_sapling_notes,
@@ -255,7 +260,7 @@ impl WalletTransaction {
 impl std::fmt::Debug for WalletTransaction {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("WalletTransaction")
-            .field("block_height", &self.block_height)
+            .field("confirmation_status", &self.confirmation_status)
             .field("sapling_notes", &self.sapling_notes)
             .field("orchard_notes", &self.orchard_notes)
             .field("outgoing_sapling_notes", &self.outgoing_sapling_notes)

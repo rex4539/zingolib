@@ -25,6 +25,7 @@ use zcash_primitives::consensus::{self, BlockHeight};
 
 use tokio::sync::mpsc;
 use zcash_primitives::zip32::AccountId;
+use zingo_status::confirmation_status::ConfirmationStatus;
 
 pub(crate) mod state;
 pub(crate) mod transparent;
@@ -226,6 +227,77 @@ where
     Ok(())
 }
 
+async fn process_mempool_stream_response<W>(
+    consensus_parameters: &impl consensus::Parameters,
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    wallet: &mut W,
+    mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
+    mempool_stream: &mut tonic::Streaming<RawTransaction>,
+) where
+    W: SyncWallet + SyncTransactions + SyncNullifiers + SyncOutPoints,
+{
+    match mempool_stream_response.unwrap() {
+        Some(raw_transaction) => {
+            let block_height =
+                BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
+            let transaction = zcash_primitives::transaction::Transaction::read(
+                &raw_transaction.data[..],
+                consensus::BranchId::for_height(consensus_parameters, block_height),
+            )
+            .unwrap();
+
+            tracing::info!(
+                "mempool received txid {} at height {}",
+                transaction.txid(),
+                block_height
+            );
+
+            let confirmation_status = ConfirmationStatus::Mempool(block_height);
+            let mut nullifiers = NullifierMap::new();
+            let mut outpoints = OutPointMap::new();
+            let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
+                .get_transparent_addresses()
+                .unwrap()
+                .iter()
+                .map(|(id, address)| (address.clone(), *id))
+                .collect();
+            let wallet_transaction = scan_transaction(
+                consensus_parameters,
+                ufvks,
+                transaction,
+                confirmation_status,
+                &DecryptedNoteData::new(),
+                &mut nullifiers,
+                &mut outpoints,
+                &transparent_addresses,
+            )
+            .unwrap();
+            wallet.append_nullifiers(nullifiers).unwrap();
+            wallet.append_outpoints(outpoints).unwrap();
+            // TODO: add wallet transactions to wallet
+            if let Some(tx) = wallet
+                .get_wallet_transactions()
+                .unwrap()
+                .get(wallet_transaction.txid())
+            {
+                if tx.confirmation_status().is_confirmed() {
+                    return;
+                }
+            }
+            wallet
+                .insert_wallet_transaction(wallet_transaction)
+                .unwrap();
+        }
+        None => {
+            // A block was mined, setup a new mempool stream until the next block is mined.
+            *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+                .await
+                .unwrap();
+        }
+    }
+}
+
 /// Removes all wallet data above the given `truncate_height`.
 fn truncate_wallet_data<W>(wallet: &mut W, truncate_height: BlockHeight) -> Result<(), ()>
 where
@@ -420,7 +492,7 @@ where
         .get_wallet_transactions()
         .unwrap()
         .values()
-        .map(|tx| tx.block_height())
+        .filter_map(|tx| tx.confirmation_status().get_confirmed_height())
         .collect::<Vec<_>>();
     wallet.get_wallet_blocks_mut().unwrap().retain(|height, _| {
         *height >= scan_range.block_range().end - 1
@@ -439,64 +511,4 @@ where
         .retain(|_, (height, _)| *height >= scan_range.block_range().end);
 
     Ok(())
-}
-
-async fn process_mempool_stream_response<W>(
-    consensus_parameters: &impl consensus::Parameters,
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
-    wallet: &mut W,
-    mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
-    mempool_stream: &mut tonic::Streaming<RawTransaction>,
-) where
-    W: SyncWallet + SyncNullifiers + SyncOutPoints,
-{
-    match mempool_stream_response.unwrap() {
-        Some(raw_transaction) => {
-            let block_height =
-                BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
-            let transaction = zcash_primitives::transaction::Transaction::read(
-                &raw_transaction.data[..],
-                consensus::BranchId::for_height(consensus_parameters, block_height),
-            )
-            .unwrap();
-
-            tracing::info!(
-                "mempool received txid {} at height {}",
-                transaction.txid(),
-                block_height
-            );
-
-            // TODO: create confirmation status
-            let mut nullifiers = NullifierMap::new();
-            let mut outpoints = OutPointMap::new();
-            let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
-                .get_transparent_addresses()
-                .unwrap()
-                .iter()
-                .map(|(id, address)| (address.clone(), *id))
-                .collect();
-            let wallet_transaction = scan_transaction(
-                consensus_parameters,
-                ufvks,
-                transaction,
-                block_height,
-                &DecryptedNoteData::new(),
-                &mut nullifiers,
-                &mut outpoints,
-                &transparent_addresses,
-                true,
-            )
-            .unwrap();
-            wallet.append_nullifiers(nullifiers).unwrap();
-            wallet.append_outpoints(outpoints).unwrap();
-            // TODO: add wallet transactions to wallet
-        }
-        None => {
-            // A block was mined, setup a new mempool stream until the next block is mined.
-            *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
-                .await
-                .unwrap();
-        }
-    }
 }

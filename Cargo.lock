@@ -4558,6 +4558,7 @@ dependencies = [
  "zcash_primitives",
  "zingo-memo",
  "zingo-netutils",
+ "zingo-status",
  "zip32",
 ]
 

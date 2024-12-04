@@ -84,6 +84,17 @@ pub trait SyncTransactions: SyncWallet {
         &mut self,
     ) -> Result<&mut HashMap<TxId, WalletTransaction>, Self::Error>;
 
+    /// Insert wallet transaction
+    fn insert_wallet_transaction(
+        &mut self,
+        wallet_transaction: WalletTransaction,
+    ) -> Result<(), Self::Error> {
+        self.get_wallet_transactions_mut()?
+            .insert(*wallet_transaction.txid(), wallet_transaction);
+
+        Ok(())
+    }
+
     /// Extend wallet transaction map with new wallet transactions
     fn extend_wallet_transactions(
         &mut self,
@@ -95,7 +106,7 @@ pub trait SyncTransactions: SyncWallet {
         Ok(())
     }
 
-    /// Removes all wallet transactions above the given `block_height`.
+    /// Removes all confirmed wallet transactions above the given `block_height`.
     /// Also sets any output's spending_transaction field to `None` if it's spending transaction was removed.
     fn truncate_wallet_transactions(
         &mut self,
@@ -105,7 +116,10 @@ pub trait SyncTransactions: SyncWallet {
         let invalid_txids: Vec<TxId> = self
             .get_wallet_transactions()?
             .values()
-            .filter(|tx| tx.block_height() > truncate_height)
+            .filter(|tx| {
+                tx.confirmation_status()
+                    .is_confirmed_after(&truncate_height)
+            })
             .map(|tx| tx.transaction().txid())
             .collect();
 
