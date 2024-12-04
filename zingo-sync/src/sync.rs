@@ -51,7 +51,7 @@ where
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
     let fetcher_handle = tokio::spawn(client::fetch::fetch(
         fetch_request_receiver,
-        client.clone(),
+        client,
         consensus_parameters.clone(),
     ));
 
