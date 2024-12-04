@@ -90,7 +90,7 @@ pub trait SyncTransactions: SyncWallet {
         wallet_transaction: WalletTransaction,
     ) -> Result<(), Self::Error> {
         self.get_wallet_transactions_mut()?
-            .insert(*wallet_transaction.txid(), wallet_transaction);
+            .insert(wallet_transaction.txid(), wallet_transaction);
 
         Ok(())
     }

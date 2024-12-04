@@ -115,6 +115,7 @@ pub(crate) async fn scan_transactions<P: consensus::Parameters>(
     Ok(wallet_transactions)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn scan_transaction<P: consensus::Parameters>(
     consensus_parameters: &P,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,

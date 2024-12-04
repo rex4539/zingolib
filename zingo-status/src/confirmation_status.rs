@@ -79,18 +79,18 @@ impl ConfirmationStatus {
     /// use zingo_status::confirmation_status::ConfirmationStatus;
     /// use zcash_primitives::consensus::BlockHeight;
     ///
-    /// assert!(!ConfirmationStatus::Calculated(10.into()).is_confirmed_after_or_at(&9.into()));
-    /// assert!(!ConfirmationStatus::Calculated(10.into()).is_confirmed_after_or_at(&10.into()));
-    /// assert!(!ConfirmationStatus::Calculated(10.into()).is_confirmed_after_or_at(&11.into()));
-    /// assert!(!ConfirmationStatus::Transmitted(10.into()).is_confirmed_after_or_at(&9.into()));
-    /// assert!(!ConfirmationStatus::Transmitted(10.into()).is_confirmed_after_or_at(&10.into()));
-    /// assert!(!ConfirmationStatus::Transmitted(10.into()).is_confirmed_after_or_at(&11.into()));
-    /// assert!(!ConfirmationStatus::Mempool(10.into()).is_confirmed_after_or_at(&9.into()));
-    /// assert!(!ConfirmationStatus::Mempool(10.into()).is_confirmed_after_or_at(&10.into()));
-    /// assert!(!ConfirmationStatus::Mempool(10.into()).is_confirmed_after_or_at(&11.into()));
-    /// assert!(ConfirmationStatus::Confirmed(10.into()).is_confirmed_after_or_at(&9.into()));
-    /// assert!(!ConfirmationStatus::Confirmed(10.into()).is_confirmed_after_or_at(&10.into()));
-    /// assert!(!ConfirmationStatus::Confirmed(10.into()).is_confirmed_after_or_at(&11.into()));
+    /// assert!(!ConfirmationStatus::Calculated(10.into()).is_confirmed_after(&9.into()));
+    /// assert!(!ConfirmationStatus::Calculated(10.into()).is_confirmed_after(&10.into()));
+    /// assert!(!ConfirmationStatus::Calculated(10.into()).is_confirmed_after(&11.into()));
+    /// assert!(!ConfirmationStatus::Transmitted(10.into()).is_confirmed_after(&9.into()));
+    /// assert!(!ConfirmationStatus::Transmitted(10.into()).is_confirmed_after(&10.into()));
+    /// assert!(!ConfirmationStatus::Transmitted(10.into()).is_confirmed_after(&11.into()));
+    /// assert!(!ConfirmationStatus::Mempool(10.into()).is_confirmed_after(&9.into()));
+    /// assert!(!ConfirmationStatus::Mempool(10.into()).is_confirmed_after(&10.into()));
+    /// assert!(!ConfirmationStatus::Mempool(10.into()).is_confirmed_after(&11.into()));
+    /// assert!(ConfirmationStatus::Confirmed(10.into()).is_confirmed_after(&9.into()));
+    /// assert!(!ConfirmationStatus::Confirmed(10.into()).is_confirmed_after(&10.into()));
+    /// assert!(!ConfirmationStatus::Confirmed(10.into()).is_confirmed_after(&11.into()));
     /// ```
     pub fn is_confirmed_after(&self, comparison_height: &BlockHeight) -> bool {
         matches!(self, Self::Confirmed(self_height) if self_height > comparison_height)

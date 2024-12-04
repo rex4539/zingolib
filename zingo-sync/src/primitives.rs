@@ -183,7 +183,7 @@ impl WalletBlock {
 /// Wallet transaction
 #[derive(Getters, CopyGetters)]
 pub struct WalletTransaction {
-    #[getset(get = "pub")]
+    #[getset(get_copy = "pub")]
     txid: TxId,
     #[getset(get = "pub")]
     transaction: zcash_primitives::transaction::Transaction,
@@ -202,6 +202,7 @@ pub struct WalletTransaction {
 }
 
 impl WalletTransaction {
+    #[allow(clippy::too_many_arguments)]
     pub fn from_parts(
         txid: TxId,
         transaction: zcash_primitives::transaction::Transaction,

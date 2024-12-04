@@ -74,7 +74,6 @@ where
             incoming_orchard_outputs.iter().for_each(|(output_id, _)| {
                 relevant_txids.insert(output_id.txid());
             });
-            // TODO: add outgoing outputs to relevant txids
 
             collect_nullifiers(&mut nullifiers, block.height(), transaction).unwrap();
 
@@ -130,7 +129,6 @@ where
 
         wallet_blocks.insert(wallet_block.block_height(), wallet_block);
     }
-    // TODO: map nullifiers
 
     Ok(ScanData {
         nullifiers,

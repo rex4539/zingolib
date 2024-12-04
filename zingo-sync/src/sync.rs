@@ -99,6 +99,7 @@ where
         .unwrap();
 
     // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
+    // TODO: invalidate any pending transactions after eviction height (40 below best chain height?)
 
     let mut interval = tokio::time::interval(Duration::from_millis(30));
     loop {
@@ -235,7 +236,7 @@ async fn process_mempool_stream_response<W>(
     mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
     mempool_stream: &mut tonic::Streaming<RawTransaction>,
 ) where
-    W: SyncWallet + SyncTransactions + SyncNullifiers + SyncOutPoints,
+    W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints,
 {
     match mempool_stream_response.unwrap() {
         Some(raw_transaction) => {
@@ -253,6 +254,16 @@ async fn process_mempool_stream_response<W>(
                 block_height
             );
 
+            if let Some(tx) = wallet
+                .get_wallet_transactions()
+                .unwrap()
+                .get(&transaction.txid())
+            {
+                if tx.confirmation_status().is_confirmed() {
+                    return;
+                }
+            }
+
             let confirmation_status = ConfirmationStatus::Mempool(block_height);
             let mut nullifiers = NullifierMap::new();
             let mut outpoints = OutPointMap::new();
@@ -262,7 +273,7 @@ async fn process_mempool_stream_response<W>(
                 .iter()
                 .map(|(id, address)| (address.clone(), *id))
                 .collect();
-            let wallet_transaction = scan_transaction(
+            let mempool_transaction = scan_transaction(
                 consensus_parameters,
                 ufvks,
                 transaction,
@@ -273,21 +284,36 @@ async fn process_mempool_stream_response<W>(
                 &transparent_addresses,
             )
             .unwrap();
+
+            // only add to wallet if tx is relavent
+            if mempool_transaction.transparent_coins().is_empty()
+                && mempool_transaction.sapling_notes().is_empty()
+                && mempool_transaction.orchard_notes().is_empty()
+                && mempool_transaction.outgoing_orchard_notes().is_empty()
+                && mempool_transaction.outgoing_sapling_notes().is_empty()
+            {
+                return;
+            }
+
+            // TODO: there is an edge case where txs sent to the mempool that do not return change or create outgoing notes
+            // will not show up
+            wallet
+                .insert_wallet_transaction(mempool_transaction)
+                .unwrap();
             wallet.append_nullifiers(nullifiers).unwrap();
             wallet.append_outpoints(outpoints).unwrap();
-            // TODO: add wallet transactions to wallet
-            if let Some(tx) = wallet
-                .get_wallet_transactions()
-                .unwrap()
-                .get(wallet_transaction.txid())
-            {
-                if tx.confirmation_status().is_confirmed() {
-                    return;
-                }
-            }
-            wallet
-                .insert_wallet_transaction(wallet_transaction)
-                .unwrap();
+            detect_shielded_spends(
+                consensus_parameters,
+                wallet,
+                fetch_request_sender.clone(),
+                ufvks,
+            )
+            .await
+            .unwrap();
+            detect_transparent_spends(wallet).unwrap();
+
+            // TODO: consider logic for pending spent being set back to None when txs are evicted / never make it on chain
+            // similar logic to truncate
         }
         None => {
             // A block was mined, setup a new mempool stream until the next block is mined.
@@ -413,7 +439,6 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.sapling_notes_mut())
-        .filter(|note| note.spending_transaction().is_none()) // TODO: add logic for spending tx pending
         .for_each(|note| {
             if let Some((_, txid)) = note
                 .nullifier()
@@ -425,7 +450,6 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.orchard_notes_mut())
-        .filter(|note| note.spending_transaction().is_none()) // TODO: add logic for spending tx pending
         .for_each(|note| {
             if let Some((_, txid)) = note
                 .nullifier()
@@ -460,7 +484,6 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.transparent_coins_mut())
-        .filter(|coin| coin.spending_transaction().is_none()) // TODO: add logic for spending tx pending
         .for_each(|coin| {
             if let Some((_, txid)) = transparent_spend_locators.get(&coin.output_id()) {
                 coin.set_spending_transaction(Some(*txid));
