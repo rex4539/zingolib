@@ -262,6 +262,7 @@ pub trait SyncShardTrees: SyncWallet {
                 })
             }
         });
+        drop((orchard_sender, sapling_sender));
 
         let trees = self.get_shard_trees_mut()?;
         for tree in sapling_receiver.iter() {
