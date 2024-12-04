@@ -165,7 +165,7 @@ where
                 scanner_state.verify();
             }
 
-            update_wallet_data(wallet, results).unwrap();
+            update_wallet_data(wallet, results).await.unwrap();
             detect_shielded_spends(consensus_parameters, wallet, fetch_request_sender, ufvks)
                 .await
                 .unwrap();
@@ -217,7 +217,7 @@ where
     Ok(())
 }
 
-fn update_wallet_data<W>(wallet: &mut W, scan_results: ScanResults) -> Result<(), ()>
+async fn update_wallet_data<W>(wallet: &mut W, scan_results: ScanResults) -> Result<(), ()>
 where
     W: SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints + SyncShardTrees,
 {
@@ -236,7 +236,7 @@ where
     wallet.append_nullifiers(nullifiers).unwrap();
     wallet.append_outpoints(outpoints).unwrap();
     // TODO: pararellise shard tree, this is currently the bottleneck on sync
-    wallet.update_shard_trees(shard_tree_data).unwrap();
+    wallet.update_shard_trees(shard_tree_data).await.unwrap();
     // TODO: add trait to save wallet data to persistance for in-memory wallets
 
     Ok(())
