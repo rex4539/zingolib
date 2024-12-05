@@ -79,8 +79,6 @@ where
         );
     });
 
-    let send_ua_id = sender.do_addresses().await[0]["address"].clone();
-
     if test_mempool {
         // mempool scan shows the same
         sender.do_sync(false).await.unwrap();
@@ -105,23 +103,22 @@ where
 
         // TODO: distribute receivers
         for (recipient, _, _, _) in sends.clone() {
-            if send_ua_id != recipient.do_addresses().await[0]["address"].clone() {
-                recipient.do_sync(false).await.unwrap();
-                let records = &recipient
-                    .wallet
-                    .transaction_context
-                    .transaction_metadata_set
-                    .read()
-                    .await
-                    .transaction_records_by_id;
-                for txid in &txids {
-                    let record = records.get(txid).expect("recipient must recognize txid");
+            recipient.do_sync(false).await.unwrap();
+            lookup_fees_with_proposal_check(recipient, &proposal, &txids)
+                .await
+                .first()
+                .expect("one transaction to be proposed")
+                .as_ref()
+                .expect("record to be ok");
+
+            lookup_statuses(recipient, txids.clone())
+                .await
+                .map(|status| {
                     assert_eq!(
-                        record.status,
-                        ConfirmationStatus::Mempool(server_height_at_send + 1),
+                        status,
+                        Some(ConfirmationStatus::Mempool(server_height_at_send + 1)),
                     )
-                }
-            }
+                });
         }
     }
 
@@ -140,10 +137,22 @@ where
     });
 
     for (recipient, _, _, _) in sends {
-        if send_ua_id != recipient.do_addresses().await[0]["address"].clone() {
-            recipient.do_sync(false).await.unwrap();
-            assert_recipient_total_lte_to_proposal_total(recipient, &proposal, &txids).await;
-        }
+        recipient.do_sync(false).await.unwrap();
+        lookup_fees_with_proposal_check(recipient, &proposal, &txids)
+            .await
+            .first()
+            .expect("one transaction to be proposed")
+            .as_ref()
+            .expect("record to be ok");
+
+        lookup_statuses(recipient, txids.clone())
+            .await
+            .map(|status| {
+                assert_eq!(
+                    status,
+                    Some(ConfirmationStatus::Confirmed(server_height_at_send + 1)),
+                )
+            });
     }
     recorded_fee
 }
