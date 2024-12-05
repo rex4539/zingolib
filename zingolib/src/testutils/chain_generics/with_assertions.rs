@@ -7,9 +7,8 @@ use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::lightclient::from_inputs;
 use crate::testutils::lightclient::get_base_address;
 use crate::testutils::lightclient::lookup_statuses;
-use std::num::NonZeroU32;
-use zcash_client_backend::data_api::WalletRead as _;
 use zcash_client_backend::PoolType;
+use zcash_primitives::consensus::BlockHeight;
 use zingo_status::confirmation_status::ConfirmationStatus;
 
 /// this function handles inputs and their lifetimes to create a proposal
@@ -51,16 +50,12 @@ where
 {
     let proposal = to_clients_proposal(sender, &sends).await;
 
-    let send_height = sender
-        .wallet
-        .transaction_context
-        .transaction_metadata_set
-        .read()
-        .await
-        .get_target_and_anchor_heights(NonZeroU32::MIN)
-        .expect("sender has a target height")
-        .expect("sender has a target height")
-        .0;
+    let server_height_at_send = BlockHeight::from(
+        crate::grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
+            .await
+            .unwrap()
+            .height as u32,
+    );
 
     let txids = sender
         .complete_and_broadcast_stored_proposal()
@@ -76,19 +71,10 @@ where
         .as_ref()
         .expect("record is ok");
 
-    dbg!(
-        crate::grpc_connector::get_latest_block(
-            sender.config.lightwalletd_uri.read().unwrap().to_owned()
-        )
-        .await
-        .unwrap()
-        .height
-    );
-
     lookup_statuses(sender, txids.clone()).await.map(|status| {
         assert_eq!(
             status,
-            Some(ConfirmationStatus::Transmitted(send_height.into()))
+            Some(ConfirmationStatus::Transmitted(server_height_at_send))
         );
     });
 
@@ -126,7 +112,10 @@ where
                     .transaction_records_by_id;
                 for txid in &txids {
                     let record = records.get(txid).expect("recipient must recognize txid");
-                    assert_eq!(record.status, ConfirmationStatus::Mempool(send_height),)
+                    assert_eq!(
+                        record.status,
+                        ConfirmationStatus::Mempool(server_height_at_send),
+                    )
                 }
             }
         }
@@ -169,16 +158,12 @@ where
 {
     let proposal = client.propose_shield().await.map_err(|e| e.to_string())?;
 
-    let send_height = client
-        .wallet
-        .transaction_context
-        .transaction_metadata_set
-        .read()
-        .await
-        .get_target_and_anchor_heights(NonZeroU32::MIN)
-        .expect("sender has a target height")
-        .expect("sender has a target height")
-        .0;
+    let server_height_at_send = BlockHeight::from(
+        crate::grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
+            .await
+            .unwrap()
+            .height as u32,
+    );
 
     let txids = client
         .complete_and_broadcast_stored_proposal()
@@ -196,7 +181,7 @@ where
     lookup_statuses(client, txids.clone()).await.map(|status| {
         assert_eq!(
             status,
-            Some(ConfirmationStatus::Transmitted(send_height.into()))
+            Some(ConfirmationStatus::Transmitted(server_height_at_send))
         );
     });
 
