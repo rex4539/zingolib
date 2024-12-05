@@ -9,6 +9,8 @@ use zcash_client_backend::ShieldedProtocol::Orchard;
 use zcash_client_backend::ShieldedProtocol::Sapling;
 
 use zingolib::testutils::chain_generics::fixtures;
+use zingolib::testutils::int_to_pooltype;
+use zingolib::testutils::int_to_shieldedprotocol;
 
 use crate::utils::scenarios::DarksideEnvironment;
 
@@ -30,6 +32,12 @@ proptest! {
     fn send_pvalue_to_sapling(value in 0..90u64) {
         Runtime::new().unwrap().block_on(async {
     fixtures::send_value_to_pool::<DarksideEnvironment>(value * 1_000, Shielded(Sapling)).await;
+        });
+     }
+    #[test]
+    fn single_send(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 1..2) {
+        Runtime::new().unwrap().block_on(async {
+            fixtures::single_sufficient_send::<DarksideEnvironment>(int_to_shieldedprotocol(sender_protocol), int_to_pooltype(receiver_pool), send_value, change_value, false).await;
         });
      }
 }
