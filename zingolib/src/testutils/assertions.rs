@@ -92,7 +92,11 @@ pub async fn assert_recipient_total_lte_to_proposal_total<NoteId>(
     assert_eq!(proposal.steps().len(), txids.len());
     let mut total_output = 0;
     for (i, step) in proposal.steps().iter().enumerate() {
-        let record = records.get(&txids[i]).expect("sender must recognize txid");
+        dbg!(records.0.keys());
+        let record = records
+            .get(&txids[i])
+            .ok_or(format!("sender must recognize txid {}", &txids[i]))
+            .unwrap();
 
         let recorded_output = record.query_sum_value(OutputQuery::any());
         assert!(recorded_output <= step.transaction_request().total().unwrap().into_u64());

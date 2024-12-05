@@ -17,7 +17,7 @@ use crate::utils::scenarios::DarksideEnvironment;
 proptest! {
     #![proptest_config(proptest::test_runner::Config::with_cases(8))]
     #[test]
-    fn single_sufficient_send(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 1..2) {
+    fn single_sufficient_send_darkside(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 0..2) {
         // note: this darkside test does not check the mempool
         Runtime::new().unwrap().block_on(async {
             fixtures::single_sufficient_send::<DarksideEnvironment>(int_to_shieldedprotocol(sender_protocol), int_to_pooltype(receiver_pool), send_value, change_value, false).await;
@@ -26,8 +26,8 @@ proptest! {
 }
 pub(crate) mod conduct_chain {
     //! known issues include
-    //!   - transparent sends do not work
-    //!   - txids are regenerated randomly. this means zingo has to do extra work to adjust.
+    //! when a send includes a transparent note, a new txid is generated, replacing the originally sent txid.
+
     //!   - these tests cannot portray the full range of network weather.
 
     use orchard::tree::MerkleHashOrchard;
