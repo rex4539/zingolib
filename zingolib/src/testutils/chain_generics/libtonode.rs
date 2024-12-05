@@ -68,6 +68,6 @@ impl ConductChain for LibtonodeEnvironment {
     }
 
     fn lightserver_uri(&self) -> Option<http::Uri> {
-        todo!()
+        Some(self.scenario_builder.client_builder.server_id.clone())
     }
 }

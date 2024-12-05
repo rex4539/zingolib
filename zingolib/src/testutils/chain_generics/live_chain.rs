@@ -27,6 +27,6 @@ impl ConductChain for LiveChain {
     }
 
     fn lightserver_uri(&self) -> Option<http::Uri> {
-        todo!()
+        unimplemented!()
     }
 }
