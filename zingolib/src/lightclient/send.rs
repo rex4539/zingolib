@@ -197,7 +197,6 @@ pub mod send_with_proposal {
         async fn broadcast_created_transactions(
             &self,
         ) -> Result<Vec<TxId>, BroadcastCachedTransactionsError> {
-            println!("send!");
             let mut tx_map = self
                 .wallet
                 .transaction_context
@@ -245,7 +244,6 @@ pub mod send_with_proposal {
                                                 "served txid {} does not match calulated txid {}",
                                                 reported_txid, txid,
                                             );
-                                            dbg!(tx_map.transaction_records_by_id.keys());
                                             // during darkside tests, the server may generate a new txid.
                                             // If this option is enabled, the LightClient will replace outgoing TxId records with the TxId picked by the server. necessary for darkside.
                                             #[cfg(feature = "darkside_tests")]
@@ -267,7 +265,6 @@ pub mod send_with_proposal {
                                                 // crash
                                                 todo!();
                                             }
-                                            dbg!(tx_map.transaction_records_by_id.keys());
                                         };
                                     }
                                     Err(e) => {

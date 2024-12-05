@@ -104,12 +104,6 @@ where
         // TODO: distribute receivers
         for (recipient, _, _, _) in sends.clone() {
             recipient.do_sync(false).await.unwrap();
-            lookup_fees_with_proposal_check(recipient, &proposal, &txids)
-                .await
-                .first()
-                .expect("one transaction to be proposed")
-                .as_ref()
-                .expect("record to be ok");
 
             lookup_statuses(recipient, txids.clone())
                 .await
@@ -138,13 +132,6 @@ where
 
     for (recipient, _, _, _) in sends {
         recipient.do_sync(false).await.unwrap();
-        lookup_fees_with_proposal_check(recipient, &proposal, &txids)
-            .await
-            .first()
-            .expect("one transaction to be proposed")
-            .as_ref()
-            .expect("record to be ok");
-
         lookup_statuses(recipient, txids.clone())
             .await
             .map(|status| {
