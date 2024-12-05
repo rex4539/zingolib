@@ -231,7 +231,7 @@ pub mod send_with_proposal {
                         {
                             Ok(serverz_txid_string) => {
                                 let new_status =
-                                    ConfirmationStatus::Transmitted(current_height - 1);
+                                    ConfirmationStatus::Transmitted(current_height + 1);
 
                                 transaction_record.status = new_status;
 

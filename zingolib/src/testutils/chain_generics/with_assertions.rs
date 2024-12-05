@@ -48,14 +48,15 @@ pub async fn propose_send_bump_sync_all_recipients<CC>(
 where
     CC: ConductChain,
 {
-    let proposal = to_clients_proposal(sender, &sends).await;
-
-    let server_height_at_send = BlockHeight::from(
+    sender.do_sync(false).await.unwrap();
+    let server_height_at_send = dbg!(BlockHeight::from(
         crate::grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
             .await
             .unwrap()
             .height as u32,
-    );
+    ));
+
+    let proposal = to_clients_proposal(sender, &sends).await;
 
     let txids = sender
         .complete_and_broadcast_stored_proposal()
