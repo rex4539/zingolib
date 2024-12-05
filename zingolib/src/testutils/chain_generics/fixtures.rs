@@ -507,38 +507,45 @@ where
 }
 
 /// the simplest test that sends from a specific shielded pool to another specific pool. also known as simpool.
-pub async fn shpool_to_pool<CC>(shpool: ShieldedProtocol, pool: PoolType, make_change: u64)
-where
+pub async fn shpool_to_pool<CC>(
+    shpool: ShieldedProtocol,
+    pool: PoolType,
+    make_change: u64,
+    test_mempool: bool,
+) where
     CC: ConductChain,
 {
     let mut environment = CC::setup().await;
 
     let primary = environment.fund_client_orchard(1_000_000).await;
     let secondary = environment.create_client().await;
-    with_assertions::propose_send_bump_sync_all_recipients(
-        &mut environment,
-        &primary,
-        vec![(&secondary, Shielded(shpool), 100_000 + make_change, None)],
-        false,
-    )
-    .await;
-
     let tertiary = environment.create_client().await;
-    let expected_fee = fee_tables::one_to_one(Some(shpool), pool, true);
-
     let ref_primary: Arc<LightClient> = Arc::new(primary);
     let ref_secondary: Arc<LightClient> = Arc::new(secondary);
     let ref_tertiary: Arc<LightClient> = Arc::new(tertiary);
 
     // mempool monitor
-    let check_mempool = !cfg!(feature = "ci");
-    if check_mempool {
+    if test_mempool {
         for lightclient in [&ref_primary, &ref_secondary, &ref_tertiary] {
             assert!(LightClient::start_mempool_monitor(lightclient.clone()).is_ok());
-            dbg!("mm started");
         }
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
+
+    with_assertions::propose_send_bump_sync_all_recipients(
+        &mut environment,
+        &ref_primary,
+        vec![(
+            &ref_secondary,
+            Shielded(shpool),
+            100_000 + make_change,
+            None,
+        )],
+        test_mempool,
+    )
+    .await;
+
+    let expected_fee = fee_tables::one_to_one(Some(shpool), pool, true);
 
     assert_eq!(
         expected_fee,
@@ -546,7 +553,7 @@ where
             &mut environment,
             &ref_secondary,
             vec![(&ref_tertiary, pool, 100_000 - expected_fee, None)],
-            check_mempool,
+            test_mempool,
         )
         .await
     );

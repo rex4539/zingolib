@@ -49,12 +49,12 @@ where
     CC: ConductChain,
 {
     sender.do_sync(false).await.unwrap();
-    let server_height_at_send = dbg!(BlockHeight::from(
+    let server_height_at_send = BlockHeight::from(
         crate::grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
             .await
             .unwrap()
             .height as u32,
-    ));
+    );
 
     let proposal = to_clients_proposal(sender, &sends).await;
 

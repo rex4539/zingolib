@@ -14,7 +14,8 @@ use crate::utils::scenarios::DarksideEnvironment;
 
 #[tokio::test]
 async fn simpool_change_50_000_orchard_to_orchard() {
-    fixtures::shpool_to_pool::<DarksideEnvironment>(Orchard, Shielded(Orchard), 50_000).await;
+    fixtures::shpool_to_pool::<DarksideEnvironment>(Orchard, Shielded(Orchard), 50_000, false)
+        .await;
 }
 
 proptest! {
