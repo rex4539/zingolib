@@ -74,7 +74,7 @@ where
     lookup_statuses(sender, txids.clone()).await.map(|status| {
         assert_eq!(
             status,
-            Some(ConfirmationStatus::Transmitted(server_height_at_send))
+            Some(ConfirmationStatus::Transmitted(server_height_at_send + 1))
         );
     });
 
@@ -96,7 +96,10 @@ where
             .expect("record to be ok");
 
         lookup_statuses(sender, txids.clone()).await.map(|status| {
-            assert!(matches!(status, Some(ConfirmationStatus::Mempool(_))));
+            assert_eq!(
+                status,
+                Some(ConfirmationStatus::Mempool(server_height_at_send + 1)),
+            )
         });
 
         // TODO: distribute receivers
@@ -114,7 +117,7 @@ where
                     let record = records.get(txid).expect("recipient must recognize txid");
                     assert_eq!(
                         record.status,
-                        ConfirmationStatus::Mempool(server_height_at_send),
+                        ConfirmationStatus::Mempool(server_height_at_send + 1),
                     )
                 }
             }
