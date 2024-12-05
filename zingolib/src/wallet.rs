@@ -13,8 +13,10 @@ use log::{info, warn};
 use rand::rngs::OsRng;
 use rand::Rng;
 
+use zingo_sync::primitives::OutPointMap;
 #[cfg(feature = "sync")]
 use zingo_sync::{
+    keys::transparent::TransparentAddressId,
     primitives::{NullifierMap, SyncState, WalletBlock, WalletTransaction},
     witness::ShardTrees,
 };
@@ -222,11 +224,15 @@ pub struct LightWallet {
 
     /// Wallet transactions
     #[cfg(feature = "sync")]
-    wallet_transactions: HashMap<zcash_primitives::transaction::TxId, WalletTransaction>,
+    pub wallet_transactions: HashMap<zcash_primitives::transaction::TxId, WalletTransaction>,
 
     /// Nullifier map
     #[cfg(feature = "sync")]
     pub nullifier_map: NullifierMap,
+
+    /// Outpoint map
+    #[cfg(feature = "sync")]
+    outpoint_map: OutPointMap,
 
     /// Shard trees
     #[cfg(feature = "sync")]
@@ -235,6 +241,10 @@ pub struct LightWallet {
     /// Sync state
     #[cfg(feature = "sync")]
     pub sync_state: SyncState,
+
+    /// Transparent addresses
+    #[cfg(feature = "sync")]
+    pub transparent_addresses: BTreeMap<TransparentAddressId, String>,
 }
 
 impl LightWallet {
@@ -413,9 +423,13 @@ impl LightWallet {
             #[cfg(feature = "sync")]
             nullifier_map: zingo_sync::primitives::NullifierMap::new(),
             #[cfg(feature = "sync")]
+            outpoint_map: zingo_sync::primitives::OutPointMap::new(),
+            #[cfg(feature = "sync")]
             shard_trees: zingo_sync::witness::ShardTrees::new(),
             #[cfg(feature = "sync")]
             sync_state: zingo_sync::primitives::SyncState::new(),
+            #[cfg(feature = "sync")]
+            transparent_addresses: BTreeMap::new(),
         })
     }
 
