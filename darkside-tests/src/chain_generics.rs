@@ -14,28 +14,11 @@ use zingolib::testutils::int_to_shieldedprotocol;
 
 use crate::utils::scenarios::DarksideEnvironment;
 
-#[tokio::test]
-async fn simpool_change_50_000_orchard_to_orchard() {
-    fixtures::shpool_to_pool::<DarksideEnvironment>(Orchard, Shielded(Orchard), 50_000, false)
-        .await;
-}
-
 proptest! {
-    #![proptest_config(proptest::test_runner::Config::with_cases(4))]
+    #![proptest_config(proptest::test_runner::Config::with_cases(8))]
     #[test]
-    fn send_pvalue_to_orchard(value in 0..90u64) {
-        Runtime::new().unwrap().block_on(async {
-    fixtures::send_value_to_pool::<DarksideEnvironment>(value * 1_000, Shielded(Orchard)).await;
-        });
-     }
-    #[test]
-    fn send_pvalue_to_sapling(value in 0..90u64) {
-        Runtime::new().unwrap().block_on(async {
-    fixtures::send_value_to_pool::<DarksideEnvironment>(value * 1_000, Shielded(Sapling)).await;
-        });
-     }
-    #[test]
-    fn single_send(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 1..2) {
+    fn single_sufficient_send(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 1..2) {
+        // note: this darkside test does not check the mempool
         Runtime::new().unwrap().block_on(async {
             fixtures::single_sufficient_send::<DarksideEnvironment>(int_to_shieldedprotocol(sender_protocol), int_to_pooltype(receiver_pool), send_value, change_value, false).await;
         });

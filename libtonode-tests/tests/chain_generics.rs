@@ -1,3 +1,20 @@
+use tokio::runtime::Runtime;
+use zingolib::testutils::{
+    chain_generics::{fixtures, libtonode::LibtonodeEnvironment},
+    int_to_pooltype, int_to_shieldedprotocol,
+};
+
+proptest::proptest! {
+    #![proptest_config(proptest::test_runner::Config::with_cases(8))]
+    #[test]
+    fn single_sufficient_send(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 1..2) {
+        // note: this darkside test does not check the mempool
+        Runtime::new().unwrap().block_on(async {
+            fixtures::single_sufficient_send::<LibtonodeEnvironment>(int_to_shieldedprotocol(sender_protocol), int_to_pooltype(receiver_pool), send_value, change_value, false).await;
+        });
+     }
+}
+
 mod chain_generics {
     use zcash_client_backend::PoolType::Shielded;
     use zcash_client_backend::PoolType::Transparent;
