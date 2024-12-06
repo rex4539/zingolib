@@ -34,6 +34,18 @@ pub enum ProposalToTransactionRecordComparisonError {
     Mismatch(Result<u64, crate::wallet::error::FeeError>, u64),
 }
 
+pub fn compare_fee<NoteRef>(
+    records: &TransactionRecordsById,
+    record: &TransactionRecord,
+    step: &Step<NoteRef>,
+) -> Result<u64, ProposalToTransactionRecordComparisonError> {
+    let recorded_fee_result = records.calculate_transaction_fee(record);
+    let proposed_fee = step.balance().fee_required().into_u64();
+    compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
+        ProposalToTransactionRecordComparisonError::Mismatch(recorded_fee_result, proposed_fee)
+    })
+}
+
 /// currently checks:
 /// 1. len of txids == num steps
 /// 2. the txid is stored in the records_by_ids database
@@ -46,11 +58,7 @@ pub async fn lookup_fees_with_proposal_check<NoteId>(
     txids: &NonEmpty<TxId>,
 ) -> Vec<Result<u64, ProposalToTransactionRecordComparisonError>> {
     for_each_proposed_record(client, proposal, txids, |records, record, step| {
-        let recorded_fee_result = records.calculate_transaction_fee(record);
-        let proposed_fee = step.balance().fee_required().into_u64();
-        compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
-            ProposalToTransactionRecordComparisonError::Mismatch(recorded_fee_result, proposed_fee)
-        })
+        compare_fee(records, record, step)
     })
     .await
     .into_iter()
