@@ -2,10 +2,16 @@
 
 use nonempty::NonEmpty;
 
-use zcash_client_backend::proposal::Proposal;
+use zcash_client_backend::proposal::{Proposal, Step};
 use zcash_primitives::transaction::TxId;
 
-use crate::{lightclient::LightClient, wallet::notes::query::OutputQuery};
+use crate::{
+    lightclient::LightClient,
+    wallet::{
+        data::TransactionRecord, notes::query::OutputQuery,
+        transaction_records_by_id::TransactionRecordsById,
+    },
+};
 
 fn compare_fee_result(
     recorded_fee_result: &Result<u64, crate::wallet::error::FeeError>,
@@ -22,10 +28,8 @@ fn compare_fee_result(
 #[allow(missing_docs)] // error types document themselves
 #[derive(Debug, thiserror::Error)]
 pub enum ProposalToTransactionRecordComparisonError {
-    #[error("TxId missing from broadcast.")]
-    MissingFromBroadcast,
-    #[error("Could not look up TransactionRecord with txid {0:?}.")]
-    MissingRecord(TxId),
+    #[error("{0:?}")]
+    LookupError(#[from] LookupRecordsPairStepsError),
     #[error("Mismatch: Recorded fee: {0:?} ; Expected fee: {1:?}")]
     Mismatch(Result<u64, crate::wallet::error::FeeError>, u64),
 }
@@ -41,6 +45,39 @@ pub async fn lookup_fees_with_proposal_check<NoteId>(
     proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
     txids: &NonEmpty<TxId>,
 ) -> Vec<Result<u64, ProposalToTransactionRecordComparisonError>> {
+    for_each_proposed_record(client, proposal, txids, |records, record, step| {
+        let recorded_fee_result = records.calculate_transaction_fee(record);
+        let proposed_fee = step.balance().fee_required().into_u64();
+        compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
+            ProposalToTransactionRecordComparisonError::Mismatch(recorded_fee_result, proposed_fee)
+        })
+    })
+    .await
+    .into_iter()
+    .map(|stepwise_result| {
+        stepwise_result
+            .map_err(ProposalToTransactionRecordComparisonError::LookupError)
+            .and_then(|fee_comparison_result| fee_comparison_result)
+    })
+    .collect()
+}
+
+#[allow(missing_docs)] // error types document themselves
+#[derive(Debug, thiserror::Error)]
+pub enum LookupRecordsPairStepsError {
+    #[error("TxId missing from broadcast.")]
+    MissingFromBroadcast,
+    #[error("Could not look up TransactionRecord with txid {0:?}.")]
+    MissingRecord(TxId),
+}
+
+/// checks the client for record of each of the expected transactions, and does anything to them.
+pub async fn for_each_proposed_record<NoteId, Res>(
+    client: &LightClient,
+    proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
+    txids: &NonEmpty<TxId>,
+    f: fn(&TransactionRecordsById, &TransactionRecord, &Step<NoteId>) -> Res,
+) -> Vec<Result<Res, LookupRecordsPairStepsError>> {
     let records = &client
         .wallet
         .transaction_context
@@ -54,53 +91,14 @@ pub async fn lookup_fees_with_proposal_check<NoteId>(
         step_results.push({
             if let Some(txid) = txids.get(step_number) {
                 if let Some(record) = records.get(txid) {
-                    let recorded_fee_result = records.calculate_transaction_fee(record);
-                    let proposed_fee = step.balance().fee_required().into_u64();
-                    compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
-                        ProposalToTransactionRecordComparisonError::Mismatch(
-                            recorded_fee_result,
-                            proposed_fee,
-                        )
-                    })
+                    Ok(f(records, record, step))
                 } else {
-                    Err(ProposalToTransactionRecordComparisonError::MissingRecord(
-                        *txid,
-                    ))
+                    Err(LookupRecordsPairStepsError::MissingRecord(*txid))
                 }
             } else {
-                Err(ProposalToTransactionRecordComparisonError::MissingFromBroadcast)
+                Err(LookupRecordsPairStepsError::MissingFromBroadcast)
             }
         });
     }
     step_results
-}
-
-/// currently only checks if the received total matches
-pub async fn assert_recipient_total_lte_to_proposal_total<NoteId>(
-    recipient: &LightClient,
-    proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
-    txids: &NonEmpty<TxId>,
-) -> u64 {
-    let records = &recipient
-        .wallet
-        .transaction_context
-        .transaction_metadata_set
-        .read()
-        .await
-        .transaction_records_by_id;
-
-    assert_eq!(proposal.steps().len(), txids.len());
-    let mut total_output = 0;
-    for (i, step) in proposal.steps().iter().enumerate() {
-        dbg!(records.0.keys());
-        let record = records
-            .get(&txids[i])
-            .ok_or(format!("sender must recognize txid {}", &txids[i]))
-            .unwrap();
-
-        let recorded_output = record.query_sum_value(OutputQuery::any());
-        assert!(recorded_output <= step.transaction_request().total().unwrap().into_u64());
-        total_output += recorded_output;
-    }
-    total_output
 }

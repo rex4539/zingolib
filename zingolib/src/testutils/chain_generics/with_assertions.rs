@@ -1,7 +1,6 @@
 //! lightclient functions with added assertions. used for tests.
 
 use crate::lightclient::LightClient;
-use crate::testutils::assertions::assert_recipient_total_lte_to_proposal_total;
 use crate::testutils::assertions::lookup_fees_with_proposal_check;
 use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::lightclient::from_inputs;
@@ -93,7 +92,7 @@ where
         .await
         .unwrap();
 
-    follow_proposal(environment, sender, vec![], &proposal, txids, test_mempool).await
+    follow_proposal(environment, client, vec![], &proposal, txids, test_mempool).await
 }
 
 /// given a just-broadcast proposal, confirms that it achieves all expected checkpoints.
