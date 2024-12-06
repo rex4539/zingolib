@@ -7,6 +7,7 @@ use crate::testutils::assertions::ProposalToTransactionRecordComparisonError;
 use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::lightclient::from_inputs;
 use crate::testutils::lightclient::get_base_address;
+use crate::wallet::notes::query::OutputQuery;
 use nonempty::NonEmpty;
 use zcash_client_backend::proposal::Proposal;
 use zcash_client_backend::PoolType;
@@ -108,6 +109,8 @@ pub async fn follow_proposal<CC, NoteRef>(
 where
     CC: ConductChain,
 {
+    println!("following proposal, preparing to unwind if an assertion fails.");
+
     let server_height_at_send = BlockHeight::from(
         crate::grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
             .await
@@ -116,33 +119,35 @@ where
     );
 
     // check that each record has the expected fee and status, returning the fee
-    let recorded_fee = *for_each_proposed_record(
-        sender,
-        proposal,
-        &txids,
-        server_height_at_send + 1,
-        |records, record, step, expected_height| {
-            assert_eq!(
-                record.status,
-                ConfirmationStatus::Transmitted(expected_height)
-            );
-            compare_fee(records, record, step)
-        },
-    )
-    .await
-    .into_iter()
-    .map(|stepwise_result| {
-        stepwise_result
-            .map_err(ProposalToTransactionRecordComparisonError::LookupError)
-            .and_then(|fee_comparison_result| fee_comparison_result)
-    })
-    .collect::<Vec<Result<u64, ProposalToTransactionRecordComparisonError>>>()
-    .first()
-    .expect("one transaction proposed")
-    .as_ref()
-    .expect("record is ok");
+    let (sender_recorded_fees, sender_recorded_outputs): (Vec<u64>, Vec<u64>) =
+        for_each_proposed_record(
+            sender,
+            proposal,
+            &txids,
+            server_height_at_send + 1,
+            |records, record, step, expected_height| {
+                assert_eq!(
+                    record.status,
+                    ConfirmationStatus::Transmitted(expected_height)
+                );
+                (
+                    compare_fee(records, record, step),
+                    record.query_sum_value(OutputQuery::any()),
+                )
+            },
+        )
+        .await
+        .into_iter()
+        .map(|stepwise_result| {
+            stepwise_result
+                .map(|(fee_comparison_result, sender_output_value)| {
+                    (fee_comparison_result.unwrap(), sender_output_value)
+                })
+                .unwrap()
+        })
+        .unzip();
 
-    if test_mempool {
+    let option_recipient_mempool_outputs = if test_mempool {
         // mempool scan shows the same
         sender.do_sync(false).await.unwrap();
 
@@ -150,81 +155,128 @@ where
         // to listen
         tokio::time::sleep(std::time::Duration::from_secs(6)).await;
 
-        // check that each record has the expected fee and status
-        for_each_proposed_record(
-            sender,
-            proposal,
-            &txids,
-            (server_height_at_send + 1, recorded_fee),
-            |records, record, step, (expected_height, recorded_fee)| {
-                assert_eq!(record.status, ConfirmationStatus::Mempool(expected_height));
-                assert_eq!(compare_fee(records, record, step).unwrap(), recorded_fee);
-            },
-        )
-        .await
-        .into_iter()
-        .for_each(|stepwise_result| stepwise_result.unwrap());
-
-        for recipient in recipients.clone() {
-            recipient.do_sync(false).await.unwrap();
-
-            // check that each record has the expected fee and status
+        // check that each record has the expected fee and status, returning the fee and outputs
+        let (sender_mempool_fees, sender_mempool_outputs): (Vec<u64>, Vec<u64>) =
             for_each_proposed_record(
                 sender,
                 proposal,
                 &txids,
-                (server_height_at_send + 1, recorded_fee),
-                |_records, record, _step, (expected_height, _recorded_fee)| {
+                server_height_at_send + 1,
+                |records, record, step, expected_height| {
                     assert_eq!(record.status, ConfirmationStatus::Mempool(expected_height));
+                    (
+                        compare_fee(records, record, step),
+                        record.query_sum_value(OutputQuery::any()),
+                    )
                 },
             )
             .await
             .into_iter()
-            .for_each(|stepwise_result| stepwise_result.unwrap());
+            .map(|stepwise_result| {
+                stepwise_result
+                    .map(|(fee_comparison_result, sender_output_value)| {
+                        (fee_comparison_result.unwrap(), sender_output_value)
+                    })
+                    .unwrap()
+            })
+            .unzip();
+
+        assert_eq!(sender_mempool_fees, sender_recorded_fees);
+        assert_eq!(sender_mempool_outputs, sender_recorded_outputs);
+
+        let mut recipients_mempool_outputs = vec![];
+        for recipient in recipients.clone() {
+            recipient.do_sync(false).await.unwrap();
+
+            // check that each record has the status, returning the output value
+            let recipient_mempool_outputs: Vec<u64> = for_each_proposed_record(
+                sender,
+                proposal,
+                &txids,
+                server_height_at_send + 1,
+                |records, record, step, expected_height| {
+                    assert_eq!(
+                        record.status,
+                        ConfirmationStatus::Confirmed(expected_height)
+                    );
+                    record.query_sum_value(OutputQuery::any())
+                },
+            )
+            .await
+            .into_iter()
+            .map(|stepwise_result| stepwise_result.unwrap())
+            .collect();
+            recipients_mempool_outputs.push(recipient_mempool_outputs);
         }
-    }
+        Some(recipients_mempool_outputs)
+    } else {
+        None
+    };
 
     environment.bump_chain().await;
     // chain scan shows the same
     sender.do_sync(false).await.unwrap();
 
-    // check that each record has the expected fee and status
-    for_each_proposed_record(
-        sender,
-        proposal,
-        &txids,
-        (server_height_at_send + 1, recorded_fee),
-        |records, record, step, (expected_height, recorded_fee)| {
-            assert_eq!(
-                record.status,
-                ConfirmationStatus::Confirmed(expected_height)
-            );
-            assert_eq!(compare_fee(records, record, step).unwrap(), recorded_fee);
-        },
-    )
-    .await
-    .into_iter()
-    .for_each(|stepwise_result| stepwise_result.unwrap());
-
-    for recipient in recipients {
-        recipient.do_sync(false).await.unwrap();
-        // check that each record has the expected fee and status
+    // check that each record has the expected fee and status, returning the fee and outputs
+    let (sender_confirmed_fees, sender_confirmed_outputs): (Vec<u64>, Vec<u64>) =
         for_each_proposed_record(
             sender,
             proposal,
             &txids,
-            (server_height_at_send + 1, recorded_fee),
-            |_records, record, _step, (expected_height, _recorded_fee)| {
+            server_height_at_send + 1,
+            |records, record, step, expected_height| {
                 assert_eq!(
                     record.status,
                     ConfirmationStatus::Confirmed(expected_height)
                 );
+                (
+                    compare_fee(records, record, step),
+                    record.query_sum_value(OutputQuery::any()),
+                )
             },
         )
         .await
         .into_iter()
-        .for_each(|stepwise_result| stepwise_result.unwrap());
+        .map(|stepwise_result| {
+            stepwise_result
+                .map(|(fee_comparison_result, sender_output_value)| {
+                    (fee_comparison_result.unwrap(), sender_output_value)
+                })
+                .unwrap()
+        })
+        .unzip();
+
+    assert_eq!(sender_confirmed_fees, sender_recorded_fees);
+    assert_eq!(sender_confirmed_outputs, sender_recorded_outputs);
+
+    let mut recipients_confirmed_outputs = vec![];
+    for recipient in recipients {
+        recipient.do_sync(false).await.unwrap();
+
+        // check that each record has the status, returning the output value
+        let recipient_confirmed_outputs: Vec<u64> = for_each_proposed_record(
+            sender,
+            proposal,
+            &txids,
+            server_height_at_send + 1,
+            |records, record, step, expected_height| {
+                assert_eq!(
+                    record.status,
+                    ConfirmationStatus::Confirmed(expected_height)
+                );
+                record.query_sum_value(OutputQuery::any())
+            },
+        )
+        .await
+        .into_iter()
+        .map(|stepwise_result| stepwise_result.unwrap())
+        .collect();
+        recipients_confirmed_outputs.push(recipient_confirmed_outputs);
     }
 
-    Ok(recorded_fee)
+    option_recipient_mempool_outputs.inspect(|recipient_mempool_outputs| {
+        assert_eq!(recipients_confirmed_outputs, *recipient_mempool_outputs);
+    });
+
+    Ok(sender_recorded_fees.iter().sum())
 }
