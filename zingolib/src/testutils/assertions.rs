@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-fn compare_fee_result(
+pub fn compare_fee_result(
     recorded_fee_result: &Result<u64, crate::wallet::error::FeeError>,
     proposed_fee: u64,
 ) -> Result<u64, ()> {

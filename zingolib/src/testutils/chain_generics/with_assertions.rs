@@ -1,7 +1,10 @@
 //! lightclient functions with added assertions. used for tests.
 
 use crate::lightclient::LightClient;
+use crate::testutils::assertions::compare_fee_result;
+use crate::testutils::assertions::for_each_proposed_record;
 use crate::testutils::assertions::lookup_fees_with_proposal_check;
+use crate::testutils::assertions::ProposalToTransactionRecordComparisonError;
 use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::lightclient::from_inputs;
 use crate::testutils::lightclient::get_base_address;
@@ -114,10 +117,26 @@ where
             .height as u32,
     );
 
-    // digesting the calculated transaction
-    // this step happens after transaction is recorded locally, but before learning anything about whether the server accepted it
-    let recorded_fee = *lookup_fees_with_proposal_check(sender, &proposal, &txids)
+    // check that each record has the expected fee
+    let recorded_fee =
+        *for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
+            let recorded_fee_result = records.calculate_transaction_fee(record);
+            let proposed_fee = step.balance().fee_required().into_u64();
+            compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
+                ProposalToTransactionRecordComparisonError::Mismatch(
+                    recorded_fee_result,
+                    proposed_fee,
+                )
+            })
+        })
         .await
+        .into_iter()
+        .map(|stepwise_result| {
+            stepwise_result
+                .map_err(ProposalToTransactionRecordComparisonError::LookupError)
+                .and_then(|fee_comparison_result| fee_comparison_result)
+        })
+        .collect::<Vec<Result<u64, ProposalToTransactionRecordComparisonError>>>()
         .first()
         .expect("one transaction proposed")
         .as_ref()
