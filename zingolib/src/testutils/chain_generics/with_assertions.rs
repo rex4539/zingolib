@@ -119,24 +119,20 @@ where
     );
 
     // check that each record has the expected fee and status, returning the fee
-    let (sender_recorded_fees, sender_recorded_outputs, sender_recorded_statuses): (
+    let (sender_recorded_fees, (sender_recorded_outputs, sender_recorded_statuses)): (
         Vec<u64>,
-        Vec<u64>,
-        Vec<ConfirmationStatus>,
+        (Vec<u64>, Vec<ConfirmationStatus>),
     ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
         (
             compare_fee(records, record, step),
-            record.query_sum_value(OutputQuery::any()),
-            record.status,
+            (record.query_sum_value(OutputQuery::any()), record.status),
         )
     })
     .await
     .into_iter()
     .map(|stepwise_result| {
         stepwise_result
-            .map(|(fee_comparison_result, output_value, status)| {
-                (fee_comparison_result.unwrap(), output_value, status)
-            })
+            .map(|(fee_comparison_result, others)| (fee_comparison_result.unwrap(), others))
             .unwrap()
     })
     .unzip();
@@ -157,24 +153,20 @@ where
         tokio::time::sleep(std::time::Duration::from_secs(6)).await;
 
         // check that each record has the expected fee and status, returning the fee and outputs
-        let (sender_mempool_fees, sender_mempool_outputs, sender_mempool_statuses): (
+        let (sender_mempool_fees, (sender_mempool_outputs, sender_mempool_statuses)): (
             Vec<u64>,
-            Vec<u64>,
-            Vec<ConfirmationStatus>,
+            (Vec<u64>, Vec<ConfirmationStatus>),
         ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
             (
                 compare_fee(records, record, step),
-                record.query_sum_value(OutputQuery::any()),
-                record.status,
+                (record.query_sum_value(OutputQuery::any()), record.status),
             )
         })
         .await
         .into_iter()
         .map(|stepwise_result| {
             stepwise_result
-                .map(|(fee_comparison_result, output_value, status)| {
-                    (fee_comparison_result.unwrap(), output_value, status)
-                })
+                .map(|(fee_comparison_result, others)| (fee_comparison_result.unwrap(), others))
                 .unwrap()
         })
         .unzip();
@@ -188,19 +180,21 @@ where
             );
         }
 
-        let mut recipients_mempool_outputs = vec![];
+        let mut recipients_mempool_outputs: Vec<Vec<u64>> = vec![];
         for recipient in recipients.clone() {
             recipient.do_sync(false).await.unwrap();
 
             // check that each record has the status, returning the output value
-            let (recipient_mempool_outputs, recipient_mempool_statuses) =
-                for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
-                    (record.query_sum_value(OutputQuery::any()), record.status)
-                })
-                .await
-                .into_iter()
-                .map(|stepwise_result| stepwise_result.unwrap())
-                .collect();
+            let (recipient_mempool_outputs, recipient_mempool_statuses): (
+                Vec<u64>,
+                Vec<ConfirmationStatus>,
+            ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
+                (record.query_sum_value(OutputQuery::any()), record.status)
+            })
+            .await
+            .into_iter()
+            .map(|stepwise_result| stepwise_result.unwrap())
+            .unzip();
             for status in recipient_mempool_statuses {
                 assert_eq!(
                     status,
@@ -219,24 +213,20 @@ where
     sender.do_sync(false).await.unwrap();
 
     // check that each record has the expected fee and status, returning the fee and outputs
-    let (sender_confirmed_fees, sender_confirmed_outputs, sender_confirmed_statuses): (
+    let (sender_confirmed_fees, (sender_confirmed_outputs, sender_confirmed_statuses)): (
         Vec<u64>,
-        Vec<u64>,
-        Vec<ConfirmationStatus>,
+        (Vec<u64>, Vec<ConfirmationStatus>),
     ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
         (
             compare_fee(records, record, step),
-            record.query_sum_value(OutputQuery::any()),
-            record.status,
+            (record.query_sum_value(OutputQuery::any()), record.status),
         )
     })
     .await
     .into_iter()
     .map(|stepwise_result| {
         stepwise_result
-            .map(|(fee_comparison_result, output_value, status)| {
-                (fee_comparison_result.unwrap(), output_value, status)
-            })
+            .map(|(fee_comparison_result, others)| (fee_comparison_result.unwrap(), others))
             .unwrap()
     })
     .unzip();
@@ -255,14 +245,22 @@ where
         recipient.do_sync(false).await.unwrap();
 
         // check that each record has the status, returning the output value
-        let recipient_confirmed_outputs: Vec<u64> =
-            for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
-                (record.query_sum_value(OutputQuery::any()), record.status)
-            })
-            .await
-            .into_iter()
-            .map(|stepwise_result| stepwise_result.unwrap())
-            .collect();
+        let (recipient_confirmed_outputs, recipient_confirmed_statuses): (
+            Vec<u64>,
+            Vec<ConfirmationStatus>,
+        ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
+            (record.query_sum_value(OutputQuery::any()), record.status)
+        })
+        .await
+        .into_iter()
+        .map(|stepwise_result| stepwise_result.unwrap())
+        .collect();
+        for status in recipient_confirmed_statuses {
+            assert_eq!(
+                status,
+                ConfirmationStatus::Confirmed(server_height_at_send + 1)
+            );
+        }
         recipients_confirmed_outputs.push(recipient_confirmed_outputs);
     }
 
