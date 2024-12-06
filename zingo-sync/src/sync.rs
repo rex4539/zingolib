@@ -216,7 +216,11 @@ where
                     scan_range.priority(),
                 )
                 .unwrap(); // reset scan range to initial priority in wallet sync state
-                let scan_range_to_verify = state::verify_scan_range_tip(sync_state, height - 1);
+                let scan_range_to_verify = state::set_verify_scan_range(
+                    sync_state,
+                    height - 1,
+                    state::VerifyEnd::VerifyHighest,
+                );
                 truncate_wallet_data(wallet, scan_range_to_verify.block_range().start - 1).unwrap();
             } else {
                 scan_results?;
