@@ -3,12 +3,10 @@
 use crate::lightclient::LightClient;
 use crate::testutils::assertions::compare_fee;
 use crate::testutils::assertions::for_each_proposed_record;
-use crate::testutils::assertions::lookup_fees_with_proposal_check;
 use crate::testutils::assertions::ProposalToTransactionRecordComparisonError;
 use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::lightclient::from_inputs;
 use crate::testutils::lightclient::get_base_address;
-use crate::testutils::lightclient::lookup_statuses;
 use nonempty::NonEmpty;
 use zcash_client_backend::proposal::Proposal;
 use zcash_client_backend::PoolType;
@@ -117,7 +115,7 @@ where
             .height as u32,
     );
 
-    // check that each record has the expected fee
+    // check that each record has the expected fee and status, returning the fee
     let recorded_fee = *for_each_proposed_record(
         sender,
         proposal,
@@ -144,13 +142,6 @@ where
     .as_ref()
     .expect("record is ok");
 
-    lookup_statuses(sender, txids.clone()).await.map(|status| {
-        assert_eq!(
-            status,
-            Some(ConfirmationStatus::Transmitted(server_height_at_send + 1))
-        );
-    });
-
     if test_mempool {
         // mempool scan shows the same
         sender.do_sync(false).await.unwrap();
@@ -159,58 +150,80 @@ where
         // to listen
         tokio::time::sleep(std::time::Duration::from_secs(6)).await;
 
-        lookup_fees_with_proposal_check(sender, &proposal, &txids)
-            .await
-            .first()
-            .expect("one transaction to be proposed")
-            .as_ref()
-            .expect("record to be ok");
-
-        lookup_statuses(sender, txids.clone()).await.map(|status| {
-            assert_eq!(
-                status,
-                Some(ConfirmationStatus::Mempool(server_height_at_send + 1)),
-            )
-        });
+        // check that each record has the expected fee and status
+        for_each_proposed_record(
+            sender,
+            proposal,
+            &txids,
+            (server_height_at_send + 1, recorded_fee),
+            |records, record, step, (expected_height, recorded_fee)| {
+                assert_eq!(record.status, ConfirmationStatus::Mempool(expected_height));
+                assert_eq!(compare_fee(records, record, step).unwrap(), recorded_fee);
+            },
+        )
+        .await
+        .into_iter()
+        .for_each(|stepwise_result| stepwise_result.unwrap());
 
         for recipient in recipients.clone() {
             recipient.do_sync(false).await.unwrap();
 
-            lookup_statuses(recipient, txids.clone())
-                .await
-                .map(|status| {
-                    assert_eq!(
-                        status,
-                        Some(ConfirmationStatus::Mempool(server_height_at_send + 1)),
-                    )
-                });
+            // check that each record has the expected fee and status
+            for_each_proposed_record(
+                sender,
+                proposal,
+                &txids,
+                (server_height_at_send + 1, recorded_fee),
+                |_records, record, _step, (expected_height, _recorded_fee)| {
+                    assert_eq!(record.status, ConfirmationStatus::Mempool(expected_height));
+                },
+            )
+            .await
+            .into_iter()
+            .for_each(|stepwise_result| stepwise_result.unwrap());
         }
     }
 
     environment.bump_chain().await;
     // chain scan shows the same
     sender.do_sync(false).await.unwrap();
-    lookup_fees_with_proposal_check(sender, &proposal, &txids)
-        .await
-        .first()
-        .expect("one transaction to be proposed")
-        .as_ref()
-        .expect("record to be ok");
 
-    lookup_statuses(sender, txids.clone()).await.map(|status| {
-        assert!(matches!(status, Some(ConfirmationStatus::Confirmed(_))));
-    });
+    // check that each record has the expected fee and status
+    for_each_proposed_record(
+        sender,
+        proposal,
+        &txids,
+        (server_height_at_send + 1, recorded_fee),
+        |records, record, step, (expected_height, recorded_fee)| {
+            assert_eq!(
+                record.status,
+                ConfirmationStatus::Confirmed(expected_height)
+            );
+            assert_eq!(compare_fee(records, record, step).unwrap(), recorded_fee);
+        },
+    )
+    .await
+    .into_iter()
+    .for_each(|stepwise_result| stepwise_result.unwrap());
 
     for recipient in recipients {
         recipient.do_sync(false).await.unwrap();
-        lookup_statuses(recipient, txids.clone())
-            .await
-            .map(|status| {
+        // check that each record has the expected fee and status
+        for_each_proposed_record(
+            sender,
+            proposal,
+            &txids,
+            (server_height_at_send + 1, recorded_fee),
+            |_records, record, _step, (expected_height, _recorded_fee)| {
                 assert_eq!(
-                    status,
-                    Some(ConfirmationStatus::Confirmed(server_height_at_send + 1)),
-                )
-            });
+                    record.status,
+                    ConfirmationStatus::Confirmed(expected_height)
+                );
+            },
+        )
+        .await
+        .into_iter()
+        .for_each(|stepwise_result| stepwise_result.unwrap());
     }
 
     Ok(recorded_fee)
