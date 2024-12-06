@@ -257,11 +257,8 @@ async fn evicted_transaction_is_rebroadcast() {
     let secondary = environment.create_client().await;
     primary.do_sync(false).await.unwrap();
 
-    let proposal = to_clients_proposal(
-        &primary,
-        &[(&secondary, Shielded(Orchard), 100_000, None)],
-    )
-    .await;
+    let proposal =
+        to_clients_proposal(&primary, &[(&secondary, Shielded(Orchard), 100_000, None)]).await;
 
     let mut send_height = 0;
 

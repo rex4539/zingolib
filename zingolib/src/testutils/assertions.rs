@@ -7,10 +7,7 @@ use zcash_primitives::transaction::TxId;
 
 use crate::{
     lightclient::LightClient,
-    wallet::{
-        data::TransactionRecord,
-        transaction_records_by_id::TransactionRecordsById,
-    },
+    wallet::{data::TransactionRecord, transaction_records_by_id::TransactionRecordsById},
 };
 
 #[allow(missing_docs)] // error types document themselves
