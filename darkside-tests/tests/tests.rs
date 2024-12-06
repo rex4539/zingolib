@@ -259,7 +259,7 @@ async fn evicted_transaction_is_rebroadcast() {
 
     let proposal = to_clients_proposal(
         &primary,
-        &vec![(&secondary, Shielded(Orchard), 100_000, None)],
+        &[(&secondary, Shielded(Orchard), 100_000, None)],
     )
     .await;
 

@@ -3,7 +3,6 @@
 use crate::lightclient::LightClient;
 use crate::testutils::assertions::compare_fee;
 use crate::testutils::assertions::for_each_proposed_record;
-use crate::testutils::assertions::ProposalToTransactionRecordComparisonError;
 use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::lightclient::from_inputs;
 use crate::testutils::lightclient::get_base_address;

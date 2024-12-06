@@ -8,7 +8,7 @@ use zcash_primitives::transaction::TxId;
 use crate::{
     lightclient::LightClient,
     wallet::{
-        data::TransactionRecord, notes::query::OutputQuery,
+        data::TransactionRecord,
         transaction_records_by_id::TransactionRecordsById,
     },
 };
