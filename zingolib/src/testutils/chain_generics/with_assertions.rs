@@ -118,22 +118,31 @@ where
     );
 
     // check that each record has the expected fee
-    let recorded_fee =
-        *for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
+    let recorded_fee = *for_each_proposed_record(
+        sender,
+        proposal,
+        &txids,
+        server_height_at_send + 1,
+        |records, record, step, expected_height| {
+            assert_eq!(
+                record.status,
+                ConfirmationStatus::Transmitted(expected_height)
+            );
             compare_fee(records, record, step)
-        })
-        .await
-        .into_iter()
-        .map(|stepwise_result| {
-            stepwise_result
-                .map_err(ProposalToTransactionRecordComparisonError::LookupError)
-                .and_then(|fee_comparison_result| fee_comparison_result)
-        })
-        .collect::<Vec<Result<u64, ProposalToTransactionRecordComparisonError>>>()
-        .first()
-        .expect("one transaction proposed")
-        .as_ref()
-        .expect("record is ok");
+        },
+    )
+    .await
+    .into_iter()
+    .map(|stepwise_result| {
+        stepwise_result
+            .map_err(ProposalToTransactionRecordComparisonError::LookupError)
+            .and_then(|fee_comparison_result| fee_comparison_result)
+    })
+    .collect::<Vec<Result<u64, ProposalToTransactionRecordComparisonError>>>()
+    .first()
+    .expect("one transaction proposed")
+    .as_ref()
+    .expect("record is ok");
 
     lookup_statuses(sender, txids.clone()).await.map(|status| {
         assert_eq!(
