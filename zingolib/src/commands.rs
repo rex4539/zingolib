@@ -85,6 +85,10 @@ impl Command for ChangeServerCommand {
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
         match args.len() {
+            0 => {
+                lightclient.set_server(http::Uri::default());
+                "server set".to_string()
+            }
             1 => match http::Uri::from_str(args[0]) {
                 Ok(uri) => {
                     lightclient.set_server(uri);
