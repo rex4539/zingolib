@@ -52,7 +52,7 @@ pub async fn lookup_fees_with_proposal_check<NoteId>(
     proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
     txids: &NonEmpty<TxId>,
 ) -> Vec<Result<u64, ProposalToTransactionRecordComparisonError>> {
-    for_each_proposed_record(client, proposal, txids, (), |records, record, step, _| {
+    for_each_proposed_record(client, proposal, txids, |records, record, step| {
         compare_fee(records, record, step)
     })
     .await
@@ -75,16 +75,12 @@ pub enum LookupRecordsPairStepsError {
 }
 
 /// checks the client for record of each of the expected transactions, and does anything to them.
-pub async fn for_each_proposed_record<NoteId, MI, Res>(
+pub async fn for_each_proposed_record<NoteId, Res>(
     client: &LightClient,
     proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteId>,
     txids: &NonEmpty<TxId>,
-    move_inputs: MI,
-    f: fn(&TransactionRecordsById, &TransactionRecord, &Step<NoteId>, MI) -> Res,
-) -> Vec<Result<Res, LookupRecordsPairStepsError>>
-where
-    MI: Clone,
-{
+    f: fn(&TransactionRecordsById, &TransactionRecord, &Step<NoteId>) -> Res,
+) -> Vec<Result<Res, LookupRecordsPairStepsError>> {
     let records = &client
         .wallet
         .transaction_context
@@ -98,7 +94,7 @@ where
         step_results.push({
             if let Some(txid) = txids.get(step_number) {
                 if let Some(record) = records.get(txid) {
-                    Ok(f(records, record, step, move_inputs.clone()))
+                    Ok(f(records, record, step))
                 } else {
                     Err(LookupRecordsPairStepsError::MissingRecord(*txid))
                 }
