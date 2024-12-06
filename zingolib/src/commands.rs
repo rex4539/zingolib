@@ -90,7 +90,13 @@ impl Command for ChangeServerCommand {
                     lightclient.set_server(uri);
                     "server set"
                 }
-                Err(_) => "invalid server uri",
+                Err(_) => match args[0] {
+                    "" => {
+                        lightclient.set_server(http::Uri::default());
+                        "server set"
+                    }
+                    _ => "invalid server uri",
+                },
             }
             .to_string(),
             _ => self.help().to_string(),
