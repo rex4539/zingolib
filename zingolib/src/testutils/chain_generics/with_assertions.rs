@@ -1,7 +1,7 @@
 //! lightclient functions with added assertions. used for tests.
 
 use crate::lightclient::LightClient;
-use crate::testutils::assertions::compare_fee_result;
+use crate::testutils::assertions::compare_fee;
 use crate::testutils::assertions::for_each_proposed_record;
 use crate::testutils::assertions::lookup_fees_with_proposal_check;
 use crate::testutils::assertions::ProposalToTransactionRecordComparisonError;
@@ -120,14 +120,7 @@ where
     // check that each record has the expected fee
     let recorded_fee =
         *for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
-            let recorded_fee_result = records.calculate_transaction_fee(record);
-            let proposed_fee = step.balance().fee_required().into_u64();
-            compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
-                ProposalToTransactionRecordComparisonError::Mismatch(
-                    recorded_fee_result,
-                    proposed_fee,
-                )
-            })
+            compare_fee(records, record, step)
         })
         .await
         .into_iter()

@@ -13,18 +13,6 @@ use crate::{
     },
 };
 
-pub fn compare_fee_result(
-    recorded_fee_result: &Result<u64, crate::wallet::error::FeeError>,
-    proposed_fee: u64,
-) -> Result<u64, ()> {
-    if let Ok(recorded_fee) = recorded_fee_result {
-        if *recorded_fee == proposed_fee {
-            return Ok(*recorded_fee);
-        }
-    }
-    Err(())
-}
-
 #[allow(missing_docs)] // error types document themselves
 #[derive(Debug, thiserror::Error)]
 pub enum ProposalToTransactionRecordComparisonError {
@@ -41,9 +29,15 @@ pub fn compare_fee<NoteRef>(
 ) -> Result<u64, ProposalToTransactionRecordComparisonError> {
     let recorded_fee_result = records.calculate_transaction_fee(record);
     let proposed_fee = step.balance().fee_required().into_u64();
-    compare_fee_result(&recorded_fee_result, proposed_fee).map_err(|_| {
-        ProposalToTransactionRecordComparisonError::Mismatch(recorded_fee_result, proposed_fee)
-    })
+    if let Ok(recorded_fee) = recorded_fee_result {
+        if recorded_fee == proposed_fee {
+            return Ok(recorded_fee);
+        }
+    }
+    Err(ProposalToTransactionRecordComparisonError::Mismatch(
+        recorded_fee_result,
+        proposed_fee,
+    ))
 }
 
 /// currently checks:
