@@ -150,85 +150,6 @@ where
     }
 }
 
-/// uses a dust input to pad another input to finish a transaction
-pub async fn send_required_dust<CC>()
-where
-    CC: ConductChain,
-{
-    let mut environment = CC::setup().await;
-    let primary = environment.fund_client_orchard(120_000).await;
-    let secondary = environment.create_client().await;
-
-    assert_eq!(
-        with_assertions::propose_send_bump_sync_all_recipients(
-            &mut environment,
-            &primary,
-            vec![
-                (&secondary, Shielded(Orchard), 1, None),
-                (&secondary, Shielded(Orchard), 99_999, None)
-            ],
-            false,
-        )
-        .await,
-        3 * MARGINAL_FEE.into_u64()
-    );
-
-    assert_eq!(
-        with_assertions::propose_send_bump_sync_all_recipients(
-            &mut environment,
-            &secondary,
-            vec![(&primary, Shielded(Orchard), 90_000, None)],
-            false,
-        )
-        .await,
-        2 * MARGINAL_FEE.into_u64()
-    );
-}
-
-/// uses a dust input to pad another input to finish a transaction
-pub async fn send_grace_dust<CC>()
-where
-    CC: ConductChain,
-{
-    let mut environment = CC::setup().await;
-    let primary = environment.fund_client_orchard(120_000).await;
-    let secondary = environment.create_client().await;
-
-    assert_eq!(
-        with_assertions::propose_send_bump_sync_all_recipients(
-            &mut environment,
-            &primary,
-            vec![
-                (&secondary, Shielded(Orchard), 1, None),
-                (&secondary, Shielded(Orchard), 99_999, None)
-            ],
-            false,
-        )
-        .await,
-        3 * MARGINAL_FEE.into_u64()
-    );
-
-    assert_eq!(
-        with_assertions::propose_send_bump_sync_all_recipients(
-            &mut environment,
-            &secondary,
-            vec![(&primary, Shielded(Orchard), 30_000, None)],
-            false,
-        )
-        .await,
-        2 * MARGINAL_FEE.into_u64()
-    );
-
-    // since we used our dust as a freebie in the last send, we should only have 1
-    let secondary_outputs = secondary.list_outputs().await;
-    let spent_orchard_outputs: Vec<_> = secondary_outputs
-        .iter()
-        .filter(|o| matches!(o.pool_type(), Shielded(Orchard)))
-        .filter(|o| o.is_spent_confirmed())
-        .collect();
-    assert_eq!(spent_orchard_outputs.len(), 1);
-}
-
 /// overlooks a bunch of dust inputs to find a pair of inputs marginally big enough to send
 pub async fn ignore_dust_inputs<CC>()
 where
@@ -272,47 +193,6 @@ where
         )
         .await,
         4 * MARGINAL_FEE.into_u64()
-    );
-}
-
-/// creates a proposal, sends it and receives it (upcoming: compares that it was executed correctly) in a chain-generic context
-pub async fn send_value_to_pool<CC>(send_value: u64, pooltype: PoolType)
-where
-    CC: ConductChain,
-{
-    let multiple = match pooltype {
-        PoolType::Shielded(Orchard) => 2u64,
-        PoolType::Shielded(Sapling) => 4u64,
-        PoolType::Transparent => 3u64,
-    };
-    let mut environment = CC::setup().await;
-
-    let sender = environment
-        .fund_client_orchard(send_value + multiple * (MARGINAL_FEE.into_u64()))
-        .await;
-
-    let recipient = environment.create_client().await;
-    let recipient_address = get_base_address(&recipient, pooltype).await;
-
-    from_inputs::quick_send(
-        &sender,
-        vec![(recipient_address.as_str(), send_value, None)],
-    )
-    .await
-    .unwrap();
-
-    environment.bump_chain().await;
-
-    recipient.do_sync(false).await.unwrap();
-
-    assert_eq!(
-        recipient
-            .query_sum_value(OutputQuery {
-                spend_status: OutputSpendStatusQuery::only_unspent(),
-                pools: OutputPoolQuery::one_pool(pooltype),
-            })
-            .await,
-        send_value
     );
 }
 
