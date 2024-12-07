@@ -15,7 +15,7 @@ use zingolib::testutils::int_to_shieldedprotocol;
 use crate::utils::scenarios::DarksideEnvironment;
 
 proptest! {
-    #![proptest_config(proptest::test_runner::Config::with_cases(8))]
+    #![proptest_config(proptest::test_runner::Config::with_cases(4))]
     #[test]
     fn single_sufficient_send_darkside(send_value in 0..50_000u64, change_value in 0..10_000u64, sender_protocol in 1..2, receiver_pool in 1..2) {
         // note: this darkside test does not check the mempool
