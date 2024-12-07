@@ -196,7 +196,7 @@ where
             let (recipient_mempool_outputs, recipient_mempool_statuses): (
                 Vec<u64>,
                 Vec<ConfirmationStatus>,
-            ) = for_each_proposed_record(sender, proposal, &txids, |_records, record, _step| {
+            ) = for_each_proposed_record(recipient, proposal, &txids, |_records, record, _step| {
                 (record.query_sum_value(OutputQuery::any()), record.status)
             })
             .await
@@ -256,7 +256,7 @@ where
         let (recipient_confirmed_outputs, recipient_confirmed_statuses): (
             Vec<u64>,
             Vec<ConfirmationStatus>,
-        ) = for_each_proposed_record(sender, proposal, &txids, |_records, record, _step| {
+        ) = for_each_proposed_record(recipient, proposal, &txids, |_records, record, _step| {
             (record.query_sum_value(OutputQuery::any()), record.status)
         })
         .await
