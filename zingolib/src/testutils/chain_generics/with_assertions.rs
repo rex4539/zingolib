@@ -279,6 +279,6 @@ where
     Ok((
         sender_confirmed_fees.iter().sum(),
         recipients_confirmed_outputs.into_iter().flatten().sum(),
-        sender_confirmed_fees.iter().sum(),
+        sender_confirmed_outputs.iter().sum(),
     ))
 }
