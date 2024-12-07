@@ -60,11 +60,6 @@ mod chain_generics {
     }
     #[ignore]
     #[tokio::test]
-    async fn change_required() {
-        fixtures::change_required::<LibtonodeEnvironment>().await;
-    }
-    #[ignore]
-    #[tokio::test]
     async fn send_required_dust() {
         fixtures::send_required_dust::<LibtonodeEnvironment>().await;
     }

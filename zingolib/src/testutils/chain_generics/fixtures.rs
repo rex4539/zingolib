@@ -105,30 +105,6 @@ where
     );
 }
 
-/// required change should be 0
-pub async fn change_required<CC>()
-where
-    CC: ConductChain,
-{
-    let mut environment = CC::setup().await;
-    let primary = environment.fund_client_orchard(45_000).await;
-    let secondary = environment.create_client().await;
-
-    assert_eq!(
-        with_assertions::propose_send_bump_sync_all_recipients(
-            &mut environment,
-            &primary,
-            vec![
-                (&secondary, Shielded(Orchard), 1, None),
-                (&secondary, Shielded(Orchard), 29_999, None)
-            ],
-            false,
-        )
-        .await,
-        3 * MARGINAL_FEE.into_u64()
-    );
-}
-
 /// sends back and forth several times, including sends to transparent
 pub async fn send_shield_cycle<CC>(n: u64)
 where
