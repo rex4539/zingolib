@@ -21,7 +21,6 @@ use crate::testutils::chain_generics::conduct_chain::ConductChain;
 use crate::testutils::chain_generics::with_assertions;
 use crate::testutils::fee_tables;
 use crate::testutils::lightclient::from_inputs;
-use crate::testutils::lightclient::get_base_address;
 
 /// Fixture for testing various vt transactions
 pub async fn create_various_value_transfers<CC>()
