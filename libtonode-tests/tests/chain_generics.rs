@@ -53,16 +53,6 @@ mod chain_generics {
     async fn ignore_dust_inputs() {
         fixtures::ignore_dust_inputs::<LibtonodeEnvironment>().await;
     }
-    #[ignore]
-    #[tokio::test]
-    async fn send_grace_dust() {
-        fixtures::send_grace_dust::<LibtonodeEnvironment>().await;
-    }
-    #[ignore]
-    #[tokio::test]
-    async fn send_required_dust() {
-        fixtures::send_required_dust::<LibtonodeEnvironment>().await;
-    }
     #[tokio::test]
     async fn note_selection_order() {
         fixtures::note_selection_order::<LibtonodeEnvironment>().await;
