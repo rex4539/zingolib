@@ -104,56 +104,6 @@ where
         ValueTransferKind::Sent(SentValueTransfer::SendToSelf(SelfSendValueTransfer::Shield))
     );
 }
-/// runs a send-to-receiver and receives it in a chain-generic context
-pub async fn propose_and_broadcast_value_to_pool<CC>(send_value: u64, pooltype: PoolType)
-where
-    CC: ConductChain,
-{
-    let mut environment = CC::setup().await;
-
-    println!("chain set up, funding client now");
-
-    let expected_fee = MARGINAL_FEE.into_u64()
-        * match pooltype {
-            // contribution_transparent = 1
-            //  1 transfer
-            // contribution_orchard = 2
-            //  1 input
-            //  1 dummy output
-            Transparent => 3,
-            // contribution_sapling = 2
-            //  1 output
-            //  1 dummy input
-            // contribution_orchard = 2
-            //  1 input
-            //  1 dummy output
-            Shielded(Sapling) => 4,
-            // contribution_orchard = 2
-            //  1 input
-            //  1 output
-            Shielded(Orchard) => 2,
-        };
-
-    let sender = environment
-        .fund_client_orchard(send_value + expected_fee)
-        .await;
-
-    println!("client is ready to send");
-
-    let recipient = environment.create_client().await;
-
-    println!("recipient ready");
-
-    let recorded_fee = with_assertions::propose_send_bump_sync_all_recipients(
-        &mut environment,
-        &sender,
-        vec![(&recipient, pooltype, send_value, None)],
-        false,
-    )
-    .await;
-
-    assert_eq!(expected_fee, recorded_fee);
-}
 
 /// required change should be 0
 pub async fn change_required<CC>()
