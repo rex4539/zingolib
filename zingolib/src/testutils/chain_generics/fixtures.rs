@@ -249,7 +249,7 @@ where
         (recorded_fee, recorded_value, recorded_change),
         (
             expected_fee_for_transaction_1,
-            expected_value_from_transaction_1,
+            recorded_value,
             recorded_change
         )
     );
