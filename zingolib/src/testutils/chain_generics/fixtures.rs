@@ -56,7 +56,8 @@ where
         ],
         false,
     )
-    .await;
+    .await
+    .unwrap();
 
     assert_eq!(sender.sorted_value_transfers(true).await.len(), 3);
 
@@ -87,7 +88,8 @@ where
         vec![(&sender, PoolType::Shielded(Orchard), send_value_self, None)],
         false,
     )
-    .await;
+    .await
+    .unwrap();
 
     assert_eq!(sender.sorted_value_transfers(true).await.len(), 4);
     assert_eq!(
@@ -117,36 +119,37 @@ where
     let secondary = environment.create_client().await;
 
     for _ in 0..n {
-        assert_eq!(
+        let (recorded_fee, recorded_value, _recorded_change) =
             with_assertions::propose_send_bump_sync_all_recipients(
                 &mut environment,
                 &primary,
                 vec![
                     (&secondary, Transparent, 100_000, None),
-                    (&secondary, Transparent, 4_000, None)
+                    (&secondary, Transparent, 4_000, None),
                 ],
                 false,
             )
-            .await,
-            MARGINAL_FEE.into_u64() * 4
-        );
+            .await
+            .unwrap();
 
-        assert_eq!(
-            with_assertions::assure_propose_shield_bump_sync(&mut environment, &secondary, false,)
-                .await,
-            Ok(MARGINAL_FEE.into_u64() * 3)
-        );
+        assert_eq!(recorded_fee, MARGINAL_FEE.into_u64() * 4);
 
-        assert_eq!(
+        let (recorded_fee, recorded_value) =
+            with_assertions::assure_propose_shield_bump_sync(&mut environment, &secondary, false)
+                .await
+                .unwrap();
+        assert_eq!(recorded_fee, MARGINAL_FEE.into_u64() * 3);
+
+        let (recorded_fee, recorded_value, _recorded_change) =
             with_assertions::propose_send_bump_sync_all_recipients(
                 &mut environment,
                 &secondary,
                 vec![(&primary, Shielded(Orchard), 50_000, None)],
                 false,
             )
-            .await,
-            MARGINAL_FEE.into_u64() * 2
-        );
+            .await
+            .unwrap();
+        assert_eq!(recorded_fee, MARGINAL_FEE.into_u64() * 2);
     }
 }
 
@@ -161,7 +164,7 @@ where
     let secondary = environment.create_client().await;
 
     // send a bunch of dust
-    assert_eq!(
+    let (recorded_fee, recorded_value, _recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &primary,
@@ -179,21 +182,21 @@ where
             ],
             false,
         )
-        .await,
-        11 * MARGINAL_FEE.into_u64()
-    );
+        .await
+        .unwrap();
+    assert_eq!(recorded_fee, 11 * MARGINAL_FEE.into_u64());
 
     // combine the only valid sapling note with the only valid orchard note to send
-    assert_eq!(
+    let (recorded_fee, recorded_value, _recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &secondary,
-            vec![(&primary, Shielded(Orchard), 10_000, None),],
+            vec![(&primary, Shielded(Orchard), 10_000, None)],
             false,
         )
-        .await,
-        4 * MARGINAL_FEE.into_u64()
-    );
+        .await
+        .unwrap();
+    assert_eq!(recorded_fee, 4 * MARGINAL_FEE.into_u64());
 }
 
 /// In order to fund a transaction multiple notes may be selected and consumed.
@@ -218,7 +221,7 @@ where
     let secondary = environment.create_client().await;
 
     // Send number_of_notes transfers in increasing 10_000 zat increments
-    assert_eq!(
+    let (recorded_fee, recorded_value, _recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &primary,
@@ -227,19 +230,10 @@ where
                 .collect(),
             false,
         )
-        .await,
-        expected_fee_for_transaction_1
-    );
-
-    assert_eq!(
-        secondary
-            .query_sum_value(OutputQuery {
-                spend_status: OutputSpendStatusQuery::only_unspent(),
-                pools: OutputPoolQuery::one_pool(Shielded(Sapling)),
-            })
-            .await,
-        expected_value_from_transaction_1
-    );
+        .await
+        .unwrap();
+    assert_eq!(recorded_fee, expected_fee_for_transaction_1);
+    assert_eq!(recorded_value, expected_value_from_transaction_1);
 
     let expected_orchard_contribution_for_transaction_2 = 2;
 
@@ -267,27 +261,23 @@ where
     let expected_fee_for_transaction_2 = (expected_inputs_for_transaction_2
         + expected_orchard_contribution_for_transaction_2)
         * MARGINAL_FEE.into_u64();
+    let expected_debit_from_transaction_2 =
+        expected_fee_for_transaction_2 + value_from_transaction_2;
+
     // the second client selects notes to cover the transaction.
-    assert_eq!(
+    let (recorded_fee, recorded_value, recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &secondary,
             vec![(&primary, Shielded(Orchard), value_from_transaction_2, None)],
             false,
         )
-        .await,
-        expected_fee_for_transaction_2
-    );
-
-    let expected_debit_from_transaction_2 =
-        expected_fee_for_transaction_2 + value_from_transaction_2;
+        .await
+        .unwrap();
+    assert_eq!(recorded_fee, expected_fee_for_transaction_2);
+    assert_eq!(recorded_value, value_from_transaction_2);
     assert_eq!(
-        secondary
-            .query_sum_value(OutputQuery {
-                spend_status: OutputSpendStatusQuery::only_unspent(),
-                pools: OutputPoolQuery::shielded(),
-            })
-            .await,
+        recorded_change,
         expected_value_from_transaction_1 - expected_debit_from_transaction_2
     );
 
@@ -333,7 +323,8 @@ pub async fn shpool_to_pool_insufficient_error<CC>(
         vec![(&secondary, Shielded(shpool), secondary_fund, None)],
         false,
     )
-    .await;
+    .await
+    .unwrap();
 
     let tertiary = environment.create_client().await;
 
@@ -446,9 +437,10 @@ pub async fn single_sufficient_send<CC>(
         )],
         test_mempool,
     )
-    .await;
-    assert_eq!(
-        expected_fee,
+    .await
+    .unwrap();
+
+    let (recorded_fee, recorded_value, recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &ref_secondary,
@@ -456,5 +448,8 @@ pub async fn single_sufficient_send<CC>(
             test_mempool,
         )
         .await
-    );
+        .unwrap();
+    assert_eq!(recorded_fee, expected_fee);
+    assert_eq!(recorded_value, receiver_value);
+    assert_eq!(recorded_change, change);
 }

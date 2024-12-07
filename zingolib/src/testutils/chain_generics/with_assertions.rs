@@ -39,15 +39,14 @@ pub async fn to_clients_proposal(
 /// sends to any combo of recipient clients checks that each recipient also recieved the expected balances
 /// test-only generic
 /// NOTICE this function bumps the chain and syncs the client
-/// only compatible with zip317
-/// returns the total fee for the transfer
-/// test_mempool can be enabled when the test harness supports it: TBI
+/// test_mempool can be enabled when the test harness supports it
+/// returns Ok(total_fee, total_received, total_change)
 pub async fn propose_send_bump_sync_all_recipients<CC>(
     environment: &mut CC,
     sender: &LightClient,
     sends: Vec<(&LightClient, PoolType, u64, Option<&str>)>,
     test_mempool: bool,
-) -> u64
+) -> Result<(u64, u64, u64), String>
 where
     CC: ConductChain,
 {
@@ -71,18 +70,17 @@ where
         test_mempool,
     )
     .await
-    .unwrap()
 }
 
 /// a test-only generic version of shield that includes assertions that the proposal was fulfilled
 /// NOTICE this function bumps the chain and syncs the client
 /// only compatible with zip317
-/// returns the total fee for the transfer
+/// returns Ok(total_fee, total_shielded)
 pub async fn assure_propose_shield_bump_sync<CC>(
     environment: &mut CC,
     client: &LightClient,
     test_mempool: bool,
-) -> Result<u64, String>
+) -> Result<(u64, u64), String>
 where
     CC: ConductChain,
 {
@@ -93,10 +91,21 @@ where
         .await
         .unwrap();
 
-    follow_proposal(environment, client, vec![], &proposal, txids, test_mempool).await
+    let (total_fee, r_shielded, s_shielded) = follow_proposal(
+        environment,
+        client,
+        vec![client],
+        &proposal,
+        txids,
+        test_mempool,
+    )
+    .await?;
+    assert_eq!(r_shielded, s_shielded);
+    Ok((total_fee, s_shielded))
 }
 
 /// given a just-broadcast proposal, confirms that it achieves all expected checkpoints.
+/// returns Ok(total_fee, total_received, total_change)
 pub async fn follow_proposal<CC, NoteRef>(
     environment: &mut CC,
     sender: &LightClient,
@@ -104,7 +113,7 @@ pub async fn follow_proposal<CC, NoteRef>(
     proposal: &Proposal<zcash_primitives::transaction::fees::zip317::FeeRule, NoteRef>,
     txids: NonEmpty<TxId>,
     test_mempool: bool,
-) -> Result<u64, String>
+) -> Result<(u64, u64, u64), String>
 where
     CC: ConductChain,
 {
@@ -187,7 +196,7 @@ where
             let (recipient_mempool_outputs, recipient_mempool_statuses): (
                 Vec<u64>,
                 Vec<ConfirmationStatus>,
-            ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
+            ) = for_each_proposed_record(sender, proposal, &txids, |_records, record, _step| {
                 (record.query_sum_value(OutputQuery::any()), record.status)
             })
             .await
@@ -247,7 +256,7 @@ where
         let (recipient_confirmed_outputs, recipient_confirmed_statuses): (
             Vec<u64>,
             Vec<ConfirmationStatus>,
-        ) = for_each_proposed_record(sender, proposal, &txids, |records, record, step| {
+        ) = for_each_proposed_record(sender, proposal, &txids, |_records, record, _step| {
             (record.query_sum_value(OutputQuery::any()), record.status)
         })
         .await
@@ -267,5 +276,9 @@ where
         assert_eq!(recipients_confirmed_outputs, *recipient_mempool_outputs);
     });
 
-    Ok(sender_recorded_fees.iter().sum())
+    Ok((
+        sender_confirmed_fees.iter().sum(),
+        recipients_confirmed_outputs.into_iter().flatten().sum(),
+        sender_confirmed_fees.iter().sum(),
+    ))
 }

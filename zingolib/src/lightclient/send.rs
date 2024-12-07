@@ -451,7 +451,8 @@ pub mod send_with_proposal {
                     )],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
 
             #[ignore = "live testnet: testnet relies on NU6"]
@@ -512,7 +513,8 @@ pub mod send_with_proposal {
                     vec![(&client, target_pool, 10_000, None)],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
 
             /// requires 1 confirmation: expect 3 minute runtime
@@ -544,7 +546,8 @@ pub mod send_with_proposal {
                     vec![(&client, target_pool, 400_000, None)],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
 
             /// requires 2 confirmations: expect 6 minute runtime
@@ -564,7 +567,8 @@ pub mod send_with_proposal {
                     vec![(&client, target_pool, 400_000, None)],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
 
                 with_assertions::assure_propose_shield_bump_sync(
                     &mut LiveChain::setup().await,

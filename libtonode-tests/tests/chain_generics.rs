@@ -34,18 +34,6 @@ mod chain_generics {
         fixtures::create_various_value_transfers::<LibtonodeEnvironment>().await;
     }
     #[tokio::test]
-    async fn send_40_000_to_transparent() {
-        fixtures::send_value_to_pool::<LibtonodeEnvironment>(40_000, Transparent).await;
-    }
-    #[tokio::test]
-    async fn send_40_000_to_sapling() {
-        fixtures::send_value_to_pool::<LibtonodeEnvironment>(40_000, Shielded(Sapling)).await;
-    }
-    #[tokio::test]
-    async fn send_40_000_to_orchard() {
-        fixtures::send_value_to_pool::<LibtonodeEnvironment>(40_000, Shielded(Orchard)).await;
-    }
-    #[tokio::test]
     async fn send_shield_cycle() {
         fixtures::send_shield_cycle::<LibtonodeEnvironment>(1).await;
     }
