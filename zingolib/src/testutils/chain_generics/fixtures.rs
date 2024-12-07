@@ -220,7 +220,7 @@ where
 {
     // toDo: proptest different values for these first two variables
     let number_of_notes = 4;
-    let value_from_transaction_2: u64 = 40_000;
+    let expected_value_from_transaction_2: u64 = 40_000;
 
     let transaction_1_values = (1..=number_of_notes).map(|n| n * 10_000);
 
@@ -234,7 +234,7 @@ where
     let secondary = environment.create_client().await;
 
     // Send number_of_notes transfers in increasing 10_000 zat increments
-    let (recorded_fee, recorded_value, _recorded_change) =
+    let (recorded_fee, recorded_value, recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &primary,
@@ -245,16 +245,23 @@ where
         )
         .await
         .unwrap();
-    assert_eq!(recorded_fee, expected_fee_for_transaction_1);
-    assert_eq!(recorded_value, expected_value_from_transaction_1);
+    assert_eq!(
+        (recorded_fee, recorded_value, recorded_change),
+        (
+            expected_fee_for_transaction_1,
+            expected_value_from_transaction_1,
+            recorded_change
+        )
+    );
 
     let expected_orchard_contribution_for_transaction_2 = 2;
 
     // calculate what will be spent
     let mut expected_highest_unselected: i64 = 10_000 * number_of_notes as i64;
     let mut expected_inputs_for_transaction_2 = 0;
-    let mut max_unselected_value_for_transaction_2: i64 =
-        (value_from_transaction_2 + expected_orchard_contribution_for_transaction_2) as i64;
+    let mut max_unselected_value_for_transaction_2: i64 = (expected_value_from_transaction_2
+        + expected_orchard_contribution_for_transaction_2)
+        as i64;
     loop {
         // add an input
         expected_inputs_for_transaction_2 += 1;
@@ -275,23 +282,30 @@ where
         + expected_orchard_contribution_for_transaction_2)
         * MARGINAL_FEE.into_u64();
     let expected_debit_from_transaction_2 =
-        expected_fee_for_transaction_2 + value_from_transaction_2;
+        expected_fee_for_transaction_2 + expected_value_from_transaction_2;
 
     // the second client selects notes to cover the transaction.
     let (recorded_fee, recorded_value, recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &secondary,
-            vec![(&primary, Shielded(Orchard), value_from_transaction_2, None)],
+            vec![(
+                &primary,
+                Shielded(Orchard),
+                expected_value_from_transaction_2,
+                None,
+            )],
             false,
         )
         .await
         .unwrap();
-    assert_eq!(recorded_fee, expected_fee_for_transaction_2);
-    assert_eq!(recorded_value, value_from_transaction_2);
     assert_eq!(
-        recorded_change,
-        expected_value_from_transaction_1 - expected_debit_from_transaction_2
+        (recorded_fee, recorded_value, recorded_change),
+        (
+            expected_fee_for_transaction_2,
+            expected_value_from_transaction_2,
+            expected_value_from_transaction_1 - expected_debit_from_transaction_2
+        )
     );
 
     let received_change_from_transaction_2 = secondary
