@@ -118,7 +118,7 @@ where
     let secondary = environment.create_client().await;
 
     for _ in 0..n {
-        let (recorded_fee, recorded_value, _recorded_change) =
+        let (recorded_fee, recorded_value, recorded_change) =
             with_assertions::propose_send_bump_sync_all_recipients(
                 &mut environment,
                 &primary,
@@ -130,16 +130,21 @@ where
             )
             .await
             .unwrap();
-
-        assert_eq!(recorded_fee, MARGINAL_FEE.into_u64() * 4);
+        assert_eq!(
+            (recorded_fee, recorded_value, recorded_change),
+            (MARGINAL_FEE.into_u64() * 4, 104_000, recorded_change)
+        );
 
         let (recorded_fee, recorded_value) =
             with_assertions::assure_propose_shield_bump_sync(&mut environment, &secondary, false)
                 .await
                 .unwrap();
-        assert_eq!(recorded_fee, MARGINAL_FEE.into_u64() * 3);
+        assert_eq!(
+            (recorded_fee, recorded_value),
+            (MARGINAL_FEE.into_u64() * 3, 104_000 - recorded_fee)
+        );
 
-        let (recorded_fee, recorded_value, _recorded_change) =
+        let (recorded_fee, recorded_value, recorded_change) =
             with_assertions::propose_send_bump_sync_all_recipients(
                 &mut environment,
                 &secondary,
@@ -148,7 +153,10 @@ where
             )
             .await
             .unwrap();
-        assert_eq!(recorded_fee, MARGINAL_FEE.into_u64() * 2);
+        assert_eq!(
+            (recorded_fee, recorded_value, recorded_change),
+            (MARGINAL_FEE.into_u64() * 2, 104_000, recorded_change)
+        );
     }
 }
 
@@ -163,7 +171,7 @@ where
     let secondary = environment.create_client().await;
 
     // send a bunch of dust
-    let (recorded_fee, recorded_value, _recorded_change) =
+    let (recorded_fee, recorded_value, recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &primary,
@@ -183,10 +191,13 @@ where
         )
         .await
         .unwrap();
-    assert_eq!(recorded_fee, 11 * MARGINAL_FEE.into_u64());
+    assert_eq!(
+        (recorded_fee, recorded_value, recorded_change),
+        (11 * MARGINAL_FEE.into_u64(), 39_000, recorded_change)
+    );
 
     // combine the only valid sapling note with the only valid orchard note to send
-    let (recorded_fee, recorded_value, _recorded_change) =
+    let (recorded_fee, recorded_value, recorded_change) =
         with_assertions::propose_send_bump_sync_all_recipients(
             &mut environment,
             &secondary,
@@ -195,7 +206,10 @@ where
         )
         .await
         .unwrap();
-    assert_eq!(recorded_fee, 4 * MARGINAL_FEE.into_u64());
+    assert_eq!(
+        (recorded_fee, recorded_value, recorded_change),
+        (4 * MARGINAL_FEE.into_u64(), 10_000, recorded_change)
+    );
 }
 
 /// In order to fund a transaction multiple notes may be selected and consumed.
