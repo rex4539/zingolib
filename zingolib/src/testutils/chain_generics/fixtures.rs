@@ -448,7 +448,8 @@ pub async fn single_sufficient_send<CC>(
         )
         .await
         .unwrap();
-    assert_eq!(recorded_fee, expected_fee);
-    assert_eq!(recorded_value, receiver_value);
-    assert_eq!(recorded_change, change);
+    assert_eq!(
+        (recorded_fee, recorded_value, recorded_change),
+        (expected_fee, receiver_value, change)
+    );
 }
