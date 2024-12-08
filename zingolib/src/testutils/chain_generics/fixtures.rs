@@ -132,7 +132,7 @@ where
             .unwrap();
         assert_eq!(
             (recorded_fee, recorded_value, recorded_change),
-            (MARGINAL_FEE.into_u64() * 4, 104_000, recorded_change)
+            (MARGINAL_FEE.into_u64() * 4, recorded_value, recorded_change)
         );
 
         let (recorded_fee, recorded_value) =
@@ -141,7 +141,7 @@ where
                 .unwrap();
         assert_eq!(
             (recorded_fee, recorded_value),
-            (MARGINAL_FEE.into_u64() * 3, 104_000 - recorded_fee)
+            (MARGINAL_FEE.into_u64() * 3, 100_000 - recorded_fee)
         );
 
         let (recorded_fee, recorded_value, recorded_change) =
@@ -155,7 +155,7 @@ where
             .unwrap();
         assert_eq!(
             (recorded_fee, recorded_value, recorded_change),
-            (MARGINAL_FEE.into_u64() * 2, 104_000, recorded_change)
+            (MARGINAL_FEE.into_u64() * 2, 50_000, recorded_change)
         );
     }
 }
@@ -193,7 +193,11 @@ where
         .unwrap();
     assert_eq!(
         (recorded_fee, recorded_value, recorded_change),
-        (11 * MARGINAL_FEE.into_u64(), 39_000, recorded_change)
+        (
+            11 * MARGINAL_FEE.into_u64(),
+            recorded_value,
+            recorded_change
+        )
     );
 
     // combine the only valid sapling note with the only valid orchard note to send
@@ -281,8 +285,6 @@ where
     let expected_fee_for_transaction_2 = (expected_inputs_for_transaction_2
         + expected_orchard_contribution_for_transaction_2)
         * MARGINAL_FEE.into_u64();
-    let expected_debit_from_transaction_2 =
-        expected_fee_for_transaction_2 + expected_value_from_transaction_2;
 
     // the second client selects notes to cover the transaction.
     let (recorded_fee, recorded_value, recorded_change) =
@@ -304,7 +306,7 @@ where
         (
             expected_fee_for_transaction_2,
             expected_value_from_transaction_2,
-            expected_value_from_transaction_1 - expected_debit_from_transaction_2
+            0
         )
     );
 
