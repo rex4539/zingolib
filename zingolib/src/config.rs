@@ -71,21 +71,28 @@ pub fn load_clientconfig(
     monitor_mempool: bool,
 ) -> std::io::Result<ZingoConfig> {
     use std::net::ToSocketAddrs;
-    match format!(
-        "{}:{}",
-        lightwallet_uri.host().unwrap(),
-        lightwallet_uri.port().unwrap()
-    )
-    .to_socket_addrs()
-    {
-        Ok(_) => {
-            info!("Connected to {}", lightwallet_uri);
-        }
-        Err(e) => {
-            info!("Couldn't resolve server: {}", e);
+
+    let host = lightwallet_uri.host();
+    let port = lightwallet_uri.port();
+
+    if host.is_none() || port.is_none() {
+        info!("Using offline mode");
+    } else {
+        match format!(
+            "{}:{}",
+            lightwallet_uri.host().unwrap(),
+            lightwallet_uri.port().unwrap()
+        )
+        .to_socket_addrs()
+        {
+            Ok(_) => {
+                info!("Connected to {}", lightwallet_uri);
+            }
+            Err(e) => {
+                info!("Couldn't resolve server: {}", e);
+            }
         }
     }
-    info!("Connected to {}", lightwallet_uri);
 
     // Create a Light Client Config
     let config = ZingoConfig {
@@ -105,18 +112,23 @@ pub fn load_clientconfig(
 /// TODO: Add Doc Comment Here!
 pub fn construct_lightwalletd_uri(server: Option<String>) -> http::Uri {
     match server {
-        Some(s) => {
-            let mut s = if s.starts_with("http") {
-                s
-            } else {
-                "http://".to_string() + &s
-            };
-            let uri: http::Uri = s.parse().unwrap();
-            if uri.port().is_none() {
-                s += ":9067";
+        Some(s) => match s.is_empty() {
+            true => {
+                return http::Uri::default();
             }
-            s
-        }
+            false => {
+                let mut s = if s.starts_with("http") {
+                    s
+                } else {
+                    "http://".to_string() + &s
+                };
+                let uri: http::Uri = s.parse().unwrap();
+                if uri.port().is_none() {
+                    s += ":9067";
+                }
+                s
+            }
+        },
         None => DEFAULT_LIGHTWALLETD_SERVER.to_string(),
     }
     .parse()
@@ -732,6 +744,30 @@ impl ActivationHeights {
 }
 
 mod tests {
+
+    /// Validate that the load_clientconfig function creates a valid config from an empty uri
+    #[tokio::test]
+    async fn test_load_clientconfig() {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Ring to work as a default");
+        tracing_subscriber::fmt().init();
+
+        let valid_uri = crate::config::construct_lightwalletd_uri(Some("".to_string()));
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+
+        let temp_path = temp_dir.path().to_path_buf();
+
+        let valid_config = crate::config::load_clientconfig(
+            valid_uri.clone(),
+            Some(temp_path),
+            crate::config::ChainType::Mainnet,
+            true,
+        );
+
+        assert_eq!(valid_config.is_ok(), true);
+    }
 
     #[tokio::test]
     async fn test_load_clientconfig_serverless() {
