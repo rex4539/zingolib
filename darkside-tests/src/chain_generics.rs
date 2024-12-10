@@ -147,7 +147,7 @@ pub(crate) mod conduct_chain {
                         //trees
                         let transaction = zcash_primitives::transaction::Transaction::read(
                             raw_tx.data.as_slice(),
-                            zcash_primitives::consensus::BranchId::Nu5,
+                            zcash_primitives::consensus::BranchId::Nu6,
                         )
                         .unwrap();
                         for output in transaction
