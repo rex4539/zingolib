@@ -132,7 +132,7 @@ impl GrpcConnector {
                         let uri = Uri::builder()
                             .scheme(scheme.clone())
                             .authority(authority.clone())
-                            //here. The Request's uri contains the path to the GRPC sever and
+                            //here. The Request's uri contains the path to the GRPC server and
                             //the method being called
                             .path_and_query(path_and_query)
                             .build()
@@ -158,7 +158,7 @@ impl GrpcConnector {
                         let uri = Uri::builder()
                             .scheme(scheme.clone())
                             .authority(authority.clone())
-                            //here. The Request's uri contains the path to the GRPC sever and
+                            //here. The Request's uri contains the path to the GRPC server and
                             //the method being called
                             .path_and_query(path_and_query)
                             .build()

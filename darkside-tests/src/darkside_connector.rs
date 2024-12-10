@@ -47,7 +47,7 @@ impl DarksideConnector {
                     let uri = Uri::builder()
                         .scheme(uri.scheme().unwrap().clone())
                         .authority(uri.authority().unwrap().clone())
-                        //here. The Request's uri contains the path to the GRPC sever and
+                        //here. The Request's uri contains the path to the GRPC server and
                         //the method being called
                         .path_and_query(req.uri().path_and_query().unwrap().clone())
                         .build()
