@@ -5,15 +5,17 @@ use std::time::Duration;
 
 use crate::client::{self, FetchRequest};
 use crate::error::SyncError;
-use crate::primitives::{Locator, OutPointMap, OutputId};
+use crate::keys::transparent::TransparentAddressId;
+use crate::primitives::{Locator, NullifierMap, OutPointMap, OutputId};
 use crate::scan::error::{ContinuityError, ScanError};
 use crate::scan::task::{Scanner, ScannerState};
-use crate::scan::transactions::scan_transactions;
+use crate::scan::transactions::{scan_transaction, scan_transactions};
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{
     SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
 };
 
+use zcash_client_backend::proto::service::RawTransaction;
 use zcash_client_backend::{
     data_api::scanning::{ScanPriority, ScanRange},
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
@@ -23,6 +25,7 @@ use zcash_primitives::consensus::{self, BlockHeight};
 
 use tokio::sync::mpsc;
 use zcash_primitives::zip32::AccountId;
+use zingo_status::confirmation_status::ConfirmationStatus;
 
 pub(crate) mod state;
 pub(crate) mod transparent;
@@ -90,6 +93,14 @@ where
     );
     scanner.spawn_workers();
 
+    // setup the initial mempool stream
+    let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+        .await
+        .unwrap();
+
+    // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
+    // TODO: invalidate any pending transactions after eviction height (40 below best chain height?)
+
     let mut interval = tokio::time::interval(Duration::from_millis(30));
     loop {
         tokio::select! {
@@ -107,7 +118,22 @@ where
                 .unwrap();
             }
 
-            _ = interval.tick() => {
+            mempool_stream_response = mempool_stream.message() => {
+                process_mempool_stream_response(
+                    consensus_parameters,
+                    fetch_request_sender.clone(),
+                    &ufvks,
+                    wallet,
+                    mempool_stream_response,
+                    &mut mempool_stream)
+                .await;
+
+                // reset interval to ensure all mempool transactions have been scanned before sync completes.
+                // if a full interval passes without receiving a transaction from the mempool we can safely finish sync.
+                interval.reset();
+            }
+
+            _update_scanner = interval.tick() => {
                 scanner.update(wallet).await;
 
                 if sync_complete(&scanner, &scan_results_receiver, wallet) {
@@ -200,6 +226,102 @@ where
     }
 
     Ok(())
+}
+
+async fn process_mempool_stream_response<W>(
+    consensus_parameters: &impl consensus::Parameters,
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    wallet: &mut W,
+    mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
+    mempool_stream: &mut tonic::Streaming<RawTransaction>,
+) where
+    W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints,
+{
+    match mempool_stream_response.unwrap() {
+        Some(raw_transaction) => {
+            let block_height =
+                BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
+            let transaction = zcash_primitives::transaction::Transaction::read(
+                &raw_transaction.data[..],
+                consensus::BranchId::for_height(consensus_parameters, block_height),
+            )
+            .unwrap();
+
+            tracing::info!(
+                "mempool received txid {} at height {}",
+                transaction.txid(),
+                block_height
+            );
+
+            if let Some(tx) = wallet
+                .get_wallet_transactions()
+                .unwrap()
+                .get(&transaction.txid())
+            {
+                if tx.confirmation_status().is_confirmed() {
+                    return;
+                }
+            }
+
+            let confirmation_status = ConfirmationStatus::Mempool(block_height);
+            let mut nullifiers = NullifierMap::new();
+            let mut outpoints = OutPointMap::new();
+            let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
+                .get_transparent_addresses()
+                .unwrap()
+                .iter()
+                .map(|(id, address)| (address.clone(), *id))
+                .collect();
+            let mempool_transaction = scan_transaction(
+                consensus_parameters,
+                ufvks,
+                transaction,
+                confirmation_status,
+                &DecryptedNoteData::new(),
+                &mut nullifiers,
+                &mut outpoints,
+                &transparent_addresses,
+            )
+            .unwrap();
+
+            // only add to wallet if tx is relavent
+            if mempool_transaction.transparent_coins().is_empty()
+                && mempool_transaction.sapling_notes().is_empty()
+                && mempool_transaction.orchard_notes().is_empty()
+                && mempool_transaction.outgoing_orchard_notes().is_empty()
+                && mempool_transaction.outgoing_sapling_notes().is_empty()
+            {
+                return;
+            }
+
+            // TODO: there is an edge case where txs sent to the mempool that do not return change or create outgoing notes
+            // will not show up
+            wallet
+                .insert_wallet_transaction(mempool_transaction)
+                .unwrap();
+            wallet.append_nullifiers(nullifiers).unwrap();
+            wallet.append_outpoints(outpoints).unwrap();
+            detect_shielded_spends(
+                consensus_parameters,
+                wallet,
+                fetch_request_sender.clone(),
+                ufvks,
+            )
+            .await
+            .unwrap();
+            detect_transparent_spends(wallet).unwrap();
+
+            // TODO: consider logic for pending spent being set back to None when txs are evicted / never make it on chain
+            // similar logic to truncate
+        }
+        None => {
+            // A block was mined, setup a new mempool stream until the next block is mined.
+            *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+                .await
+                .unwrap();
+        }
+    }
 }
 
 /// Removes all wallet data above the given `truncate_height`.
@@ -317,7 +439,6 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.sapling_notes_mut())
-        .filter(|note| note.spending_transaction().is_none())
         .for_each(|note| {
             if let Some((_, txid)) = note
                 .nullifier()
@@ -329,7 +450,6 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.orchard_notes_mut())
-        .filter(|note| note.spending_transaction().is_none())
         .for_each(|note| {
             if let Some((_, txid)) = note
                 .nullifier()
@@ -364,7 +484,6 @@ where
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.transparent_coins_mut())
-        .filter(|coin| coin.spending_transaction().is_none())
         .for_each(|coin| {
             if let Some((_, txid)) = transparent_spend_locators.get(&coin.output_id()) {
                 coin.set_spending_transaction(Some(*txid));
@@ -396,7 +515,7 @@ where
         .get_wallet_transactions()
         .unwrap()
         .values()
-        .map(|tx| tx.block_height())
+        .filter_map(|tx| tx.confirmation_status().get_confirmed_height())
         .collect::<Vec<_>>();
     wallet.get_wallet_blocks_mut().unwrap().retain(|height, _| {
         *height >= scan_range.block_range().end - 1
