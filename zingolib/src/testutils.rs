@@ -22,6 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 use zcash_address::unified::Fvk;
+use zcash_client_backend::{PoolType, ShieldedProtocol};
 
 use crate::config::ZingoConfig;
 use crate::lightclient::LightClient;
@@ -1627,4 +1628,21 @@ pub async fn check_proxy_server_works() {
 /// TODO: Add Doc Comment Here!
 pub fn port_to_localhost_uri(port: impl std::fmt::Display) -> http::Uri {
     format!("http://localhost:{port}").parse().unwrap()
+}
+
+/// a quick and dirty way to proptest across protocols.
+pub fn int_to_shieldedprotocol(int: i32) -> ShieldedProtocol {
+    match int {
+        1 => ShieldedProtocol::Sapling,
+        2 => ShieldedProtocol::Orchard,
+        _ => panic!("invalid protocol"),
+    }
+}
+
+/// a quick and dirty way to proptest across pools.
+pub fn int_to_pooltype(int: i32) -> PoolType {
+    match int {
+        0 => PoolType::Transparent,
+        n => PoolType::Shielded(int_to_shieldedprotocol(n)),
+    }
 }

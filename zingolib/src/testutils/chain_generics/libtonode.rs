@@ -67,10 +67,7 @@ impl ConductChain for LibtonodeEnvironment {
         );
     }
 
-    fn get_chain_height(&mut self) -> u32 {
-        self.scenario_builder
-            .regtest_manager
-            .get_current_height()
-            .unwrap()
+    fn lightserver_uri(&self) -> Option<http::Uri> {
+        Some(self.scenario_builder.client_builder.server_id.clone())
     }
 }

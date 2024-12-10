@@ -58,6 +58,8 @@ pub mod send_with_proposal {
     pub enum BroadcastCachedTransactionsError {
         #[error("Cant broadcast: {0:?}")]
         Cache(#[from] TransactionCacheError),
+        #[error("Transaction not recorded. Call record_created_transactions first: {0:?}")]
+        Unrecorded(TxId),
         #[error("Couldnt fetch server height: {0:?}")]
         Height(String),
         #[error("Broadcast failed: {0:?}")]
@@ -214,10 +216,12 @@ pub mod send_with_proposal {
                 .cached_raw_transactions
                 .clone();
             let mut txids = vec![];
-            for (txid, raw_tx) in calculated_tx_cache {
+            for (mut txid, raw_tx) in calculated_tx_cache {
                 let mut spend_status = None;
-                // only send the txid if its status is Calculated. when we do, change its status to Transmitted.
-                if let Some(transaction_record) = tx_map.transaction_records_by_id.get_mut(&txid) {
+                if let Some(&mut ref mut transaction_record) =
+                    tx_map.transaction_records_by_id.get_mut(&txid)
+                {
+                    // only send the txid if its status is Calculated. when we do, change its status to Transmitted.
                     if matches!(transaction_record.status, ConfirmationStatus::Calculated(_)) {
                         match crate::grpc_connector::send_transaction(
                             self.get_server_uri(),
@@ -226,22 +230,61 @@ pub mod send_with_proposal {
                         .await
                         {
                             Ok(serverz_txid_string) => {
-                                txids.push(crate::utils::txid::compare_txid_to_string(
-                                    txid,
-                                    serverz_txid_string,
-                                    self.wallet.transaction_context.config.accept_server_txids,
-                                ));
-                                transaction_record.status =
+                                let new_status =
                                     ConfirmationStatus::Transmitted(current_height + 1);
 
-                                spend_status =
-                                    Some((transaction_record.txid, transaction_record.status));
+                                transaction_record.status = new_status;
+
+                                match crate::utils::conversion::txid_from_hex_encoded_str(
+                                    serverz_txid_string.as_str(),
+                                ) {
+                                    Ok(reported_txid) => {
+                                        if txid != reported_txid {
+                                            println!(
+                                                "served txid {} does not match calulated txid {}",
+                                                reported_txid, txid,
+                                            );
+                                            // during darkside tests, the server may generate a new txid.
+                                            // If this option is enabled, the LightClient will replace outgoing TxId records with the TxId picked by the server. necessary for darkside.
+                                            #[cfg(feature = "darkside_tests")]
+                                            {
+                                                // now we reconfigure the tx_map to align with the server
+                                                // switch the TransactionRecord to the new txid
+                                                if let Some(mut transaction_record) =
+                                                    tx_map.transaction_records_by_id.remove(&txid)
+                                                {
+                                                    transaction_record.txid = reported_txid;
+                                                    tx_map
+                                                        .transaction_records_by_id
+                                                        .insert(reported_txid, transaction_record);
+                                                }
+                                                txid = reported_txid;
+                                            }
+                                            #[cfg(not(feature = "darkside_tests"))]
+                                            {
+                                                // did the server generate a new txid? is this related to the rebroadcast bug?
+                                                // crash
+                                                todo!();
+                                            }
+                                        };
+                                    }
+                                    Err(e) => {
+                                        println!("server returned invalid txid {}", e);
+                                        todo!();
+                                    }
+                                }
+
+                                spend_status = Some((txid, new_status));
+
+                                txids.push(txid);
                             }
                             Err(server_err) => {
                                 return Err(BroadcastCachedTransactionsError::Broadcast(server_err))
                             }
                         };
                     }
+                } else {
+                    return Err(BroadcastCachedTransactionsError::Unrecorded(txid));
                 }
                 if let Some(s) = spend_status {
                     tx_map
@@ -409,7 +452,8 @@ pub mod send_with_proposal {
                     )],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
 
             #[ignore = "live testnet: testnet relies on NU6"]
@@ -470,7 +514,8 @@ pub mod send_with_proposal {
                     vec![(&client, target_pool, 10_000, None)],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
 
             /// requires 1 confirmation: expect 3 minute runtime
@@ -502,7 +547,8 @@ pub mod send_with_proposal {
                     vec![(&client, target_pool, 400_000, None)],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             }
 
             /// requires 2 confirmations: expect 6 minute runtime
@@ -522,7 +568,8 @@ pub mod send_with_proposal {
                     vec![(&client, target_pool, 400_000, None)],
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
 
                 with_assertions::assure_propose_shield_bump_sync(
                     &mut LiveChain::setup().await,
