@@ -389,15 +389,15 @@ where
     W: SyncBlocks + SyncTransactions + SyncNullifiers,
 {
     let (sapling_nullifiers, orchard_nullifiers) =
-        collect_derived_nullifiers(wallet.get_wallet_transactions().unwrap()).unwrap();
+        collect_derived_nullifiers(wallet.get_wallet_transactions().unwrap());
 
     let (sapling_spend_locators, orchard_spend_locators) = detect_shielded_spends(
         wallet.get_nullifiers_mut().unwrap(),
         sapling_nullifiers,
         orchard_nullifiers,
-    )
-    .unwrap();
+    );
 
+    // in the edge case where a spending transaction received no change, scan the transactions that evaded trial decryption
     scan_located_transactions(
         fetch_request_sender,
         consensus_parameters,
@@ -415,8 +415,7 @@ where
         wallet.get_wallet_transactions_mut().unwrap(),
         sapling_spend_locators,
         orchard_spend_locators,
-    )
-    .unwrap();
+    );
 
     Ok(())
 }
@@ -424,13 +423,10 @@ where
 /// Collects the derived nullifiers from each note in the wallet
 fn collect_derived_nullifiers(
     wallet_transactions: &HashMap<TxId, WalletTransaction>,
-) -> Result<
-    (
-        Vec<sapling_crypto::Nullifier>,
-        Vec<orchard::note::Nullifier>,
-    ),
-    (),
-> {
+) -> (
+    Vec<sapling_crypto::Nullifier>,
+    Vec<orchard::note::Nullifier>,
+) {
     let sapling_nullifiers = wallet_transactions
         .values()
         .flat_map(|tx| tx.sapling_notes())
@@ -442,34 +438,31 @@ fn collect_derived_nullifiers(
         .flat_map(|note| note.nullifier())
         .collect::<Vec<_>>();
 
-    Ok((sapling_nullifiers, orchard_nullifiers))
+    (sapling_nullifiers, orchard_nullifiers)
 }
 
+/// Check if any wallet note's derived nullifiers match a nullifier in the nullifier map (nullifiers from transaction's
+/// shielded inputs).
 fn detect_shielded_spends(
     nullifier_map: &mut NullifierMap,
-    sapling_nullifiers: Vec<sapling_crypto::Nullifier>,
-    orchard_nullifiers: Vec<orchard::note::Nullifier>,
-) -> Result<
-    (
-        BTreeMap<sapling_crypto::Nullifier, Locator>,
-        BTreeMap<orchard::note::Nullifier, Locator>,
-    ),
-    (),
-> {
-    let sapling_spend_locators = sapling_nullifiers
+    sapling_derived_nullifiers: Vec<sapling_crypto::Nullifier>,
+    orchard_derived_nullifiers: Vec<orchard::note::Nullifier>,
+) -> (
+    BTreeMap<sapling_crypto::Nullifier, Locator>,
+    BTreeMap<orchard::note::Nullifier, Locator>,
+) {
+    let sapling_spend_locators = sapling_derived_nullifiers
         .iter()
         .flat_map(|nf| nullifier_map.sapling_mut().remove_entry(nf))
         .collect();
-    let orchard_spend_locators = orchard_nullifiers
+    let orchard_spend_locators = orchard_derived_nullifiers
         .iter()
         .flat_map(|nf| nullifier_map.orchard_mut().remove_entry(nf))
         .collect();
 
-    Ok((sapling_spend_locators, orchard_spend_locators))
+    (sapling_spend_locators, orchard_spend_locators)
 }
 
-// in the edge case where a spending transaction received no change, scan the transactions that evaded trial decryption
-///
 async fn scan_located_transactions<L, P, W>(
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     consensus_parameters: &P,
@@ -522,7 +515,7 @@ fn update_spent_notes(
     wallet_transactions: &mut HashMap<TxId, WalletTransaction>,
     sapling_spend_locators: BTreeMap<sapling_crypto::Nullifier, Locator>,
     orchard_spend_locators: BTreeMap<orchard::note::Nullifier, Locator>,
-) -> Result<(), ()> {
+) {
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.sapling_notes_mut())
@@ -545,29 +538,55 @@ fn update_spent_notes(
                 note.set_spending_transaction(Some(*txid));
             }
         });
-
-    Ok(())
 }
 
 fn update_transparent_spends<W>(wallet: &mut W) -> Result<(), ()>
 where
     W: SyncBlocks + SyncTransactions + SyncOutPoints,
 {
-    // locate spends
-    let wallet_transactions = wallet.get_wallet_transactions().unwrap();
-    let transparent_output_ids = wallet_transactions
+    let transparent_output_ids =
+        collect_transparent_output_ids(wallet.get_wallet_transactions().unwrap());
+
+    let transparent_spend_locators =
+        detect_transparent_spends(wallet.get_outpoints_mut().unwrap(), transparent_output_ids);
+
+    update_spent_coins(
+        wallet.get_wallet_transactions_mut().unwrap(),
+        transparent_spend_locators,
+    );
+
+    Ok(())
+}
+
+/// Collects the output ids from each coin in the wallet
+fn collect_transparent_output_ids(
+    wallet_transactions: &HashMap<TxId, WalletTransaction>,
+) -> Vec<OutputId> {
+    wallet_transactions
         .values()
         .flat_map(|tx| tx.transparent_coins())
         .map(|coin| coin.output_id())
-        .collect::<Vec<_>>();
-    let outpoint_map = wallet.get_outpoints_mut().unwrap();
-    let transparent_spend_locators: BTreeMap<OutputId, Locator> = transparent_output_ids
+        .collect()
+}
+
+/// Check if any wallet coin's output id match an outpoint in the outpoint map (outpoints from a transaction's transparent
+/// inputs).
+fn detect_transparent_spends(
+    outpoint_map: &mut OutPointMap,
+    transparent_output_ids: Vec<OutputId>,
+) -> BTreeMap<OutputId, Locator> {
+    transparent_output_ids
         .iter()
         .flat_map(|output_id| outpoint_map.inner_mut().remove_entry(output_id))
-        .collect();
+        .collect()
+}
 
-    // add spending transaction for all spent coins
-    let wallet_transactions = wallet.get_wallet_transactions_mut().unwrap();
+/// Update the spending transaction for all coins where the output id matches the output id in the spend locator map.
+/// The items in the spend locator map are taken directly from the outpoint map during spend detection.
+fn update_spent_coins(
+    wallet_transactions: &mut HashMap<TxId, WalletTransaction>,
+    transparent_spend_locators: BTreeMap<OutputId, (BlockHeight, TxId)>,
+) {
     wallet_transactions
         .values_mut()
         .flat_map(|tx| tx.transparent_coins_mut())
@@ -576,8 +595,6 @@ where
                 coin.set_spending_transaction(Some(*txid));
             }
         });
-
-    Ok(())
 }
 
 // TODO: replace this function with a filter on the data added to wallet
