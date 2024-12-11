@@ -83,7 +83,7 @@ thiserror = { workspace = true }
 tokio =  { workspace = true, features = ["full"] }
 tonic = { workspace = true }
 tracing-subscriber = { workspace = true }
-bech32 = "0.11.0"
+bech32 = { workspace = true }
 
 [dev-dependencies]
 portpicker = { workspace = true }
