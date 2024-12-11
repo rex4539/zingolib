@@ -143,8 +143,6 @@ fn reset_scan_ranges(sync_state: &mut SyncState) -> Result<(), ()> {
 /// Splits out the highest or lowest `VERIFY_BLOCK_RANGE_SIZE` blocks from the scan range containing the given `block height`
 /// and sets it's priority to `Verify`.
 /// Returns a clone of the scan range to be verified.
-///
-/// Panics if the scan range containing the given block height is not of priority `Scanned`
 pub(super) fn set_verify_scan_range(
     sync_state: &mut SyncState,
     block_height: BlockHeight,
@@ -167,13 +165,20 @@ pub(super) fn set_verify_scan_range(
             end: scan_range.block_range().start + VERIFY_BLOCK_RANGE_SIZE,
         },
     };
+
     let split_ranges =
         split_out_scan_range(scan_range, block_range_to_verify, ScanPriority::Verify);
 
-    let scan_range_to_verify = split_ranges
-        .last()
-        .expect("vec should always be non-empty")
-        .clone();
+    let scan_range_to_verify = match verify_end {
+        VerifyEnd::VerifyHighest => split_ranges
+            .last()
+            .expect("vec should always be non-empty")
+            .clone(),
+        VerifyEnd::VerifyLowest => split_ranges
+            .first()
+            .expect("vec should always be non-empty")
+            .clone(),
+    };
 
     sync_state
         .scan_ranges_mut()
