@@ -30,10 +30,11 @@ use crate::{
     client::{self, FetchRequest},
     keys::{self, transparent::TransparentAddressId, KeyId},
     primitives::{
-        NullifierMap, OrchardNote, OutPointMap, OutgoingNote, OutgoingOrchardNote,
+        Locator, NullifierMap, OrchardNote, OutPointMap, OutgoingNote, OutgoingOrchardNote,
         OutgoingSaplingNote, OutputId, SaplingNote, SyncOutgoingNotes, TransparentCoin,
         WalletBlock, WalletNote, WalletTransaction,
     },
+    traits::{SyncBlocks, SyncNullifiers, SyncTransactions},
     utils,
 };
 
@@ -515,4 +516,59 @@ fn collect_outpoints<A: zcash_primitives::transaction::components::transparent::
                 (block_height, txid),
             );
         });
+}
+
+/// For each `locator`, fetch the transaction and then scan and append to the wallet transactions.
+///
+/// This is not intended to be used outside of the context of processing scan results of a scanned range.
+/// This function will panic if the wallet block for a given locator does not exist in the wallet.
+pub(crate) async fn scan_located_transactions<L, P, W>(
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    consensus_parameters: &P,
+    wallet: &mut W,
+    ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
+    locators: L,
+) -> Result<(), ()>
+where
+    L: Iterator<Item = Locator>,
+    P: consensus::Parameters,
+    W: SyncBlocks + SyncTransactions + SyncNullifiers,
+{
+    let wallet_transactions = wallet.get_wallet_transactions().unwrap();
+    let wallet_txids = wallet_transactions.keys().copied().collect::<HashSet<_>>();
+    let mut spending_txids = HashSet::new();
+    let mut wallet_blocks = BTreeMap::new();
+    for (block_height, txid) in locators {
+        // skip if transaction already exists in the wallet
+        if wallet_txids.contains(&txid) {
+            continue;
+        }
+
+        spending_txids.insert(txid);
+        wallet_blocks.insert(
+            block_height,
+            wallet.get_wallet_block(block_height).expect(
+                "wallet block should be in the wallet due to the context of this functions purpose",
+            ),
+        );
+    }
+
+    let mut outpoint_map = OutPointMap::new(); // dummy outpoint map
+    let spending_transactions = scan_transactions(
+        fetch_request_sender,
+        consensus_parameters,
+        ufvks,
+        spending_txids,
+        DecryptedNoteData::new(),
+        &wallet_blocks,
+        &mut outpoint_map,
+        HashMap::new(), // no need to scan transparent bundles as all relevant txs will not be evaded during scanning
+    )
+    .await
+    .unwrap();
+    wallet
+        .extend_wallet_transactions(spending_transactions)
+        .unwrap();
+
+    Ok(())
 }
