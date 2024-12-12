@@ -173,11 +173,6 @@ where
     .await
     .unwrap();
 
-    let (sapling_shards, orchard_shards) = futures::join!(
-        client::get_subtree_roots(fetch_request_sender.clone(), 0, 0, 0),
-        client::get_subtree_roots(fetch_request_sender.clone(), 0, 1, 0)
-    );
-
     let scan_data = scan_compact_blocks(compact_blocks, parameters, ufvks, initial_scan_data)?;
 
     let ScanData {

@@ -43,6 +43,7 @@ pub enum FetchRequest {
     ),
     /// Get a stream of mempool transactions until a new block is mined.
     MempoolStream(oneshot::Sender<tonic::Streaming<RawTransaction>>),
+    /// Get a stream of shards.
     GetSubtreeRoots(
         oneshot::Sender<tonic::Streaming<SubtreeRoot>>,
         u32,
@@ -82,6 +83,10 @@ pub async fn get_compact_block_range(
     Ok(compact_blocks)
 }
 
+/// Gets the stream of shards (subtree roots)
+/// from the server.
+///
+/// Requires [`crate::client::fetch::fetch`] to be running concurrently, connected via the `fetch_request` channel.
 pub async fn get_subtree_roots(
     fetch_request_sender: UnboundedSender<FetchRequest>,
     start_index: u32,

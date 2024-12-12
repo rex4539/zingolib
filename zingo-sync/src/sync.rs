@@ -15,9 +15,14 @@ use crate::traits::{
     SyncBlocks, SyncNullifiers, SyncOutPoints, SyncShardTrees, SyncTransactions, SyncWallet,
 };
 
-use zcash_client_backend::proto::service::RawTransaction;
+use futures::StreamExt;
+use shardtree::{store::ShardStore, LocatedPrunableTree, RetentionFlags};
+use zcash_client_backend::{data_api::SAPLING_SHARD_HEIGHT, proto::service::RawTransaction};
 use zcash_client_backend::{
-    data_api::scanning::{ScanPriority, ScanRange},
+    data_api::{
+        scanning::{ScanPriority, ScanRange},
+        ORCHARD_SHARD_HEIGHT,
+    },
     proto::service::compact_tx_streamer_client::CompactTxStreamerClient,
 };
 use zcash_keys::keys::UnifiedFullViewingKey;
@@ -149,6 +154,64 @@ where
             }
         }
     }
+
+    let (sapling_shards, orchard_shards) = futures::join!(
+        client::get_subtree_roots(fetch_request_sender.clone(), 0, 0, 0),
+        client::get_subtree_roots(fetch_request_sender.clone(), 0, 1, 0)
+    );
+
+    let sapshards = sapling_shards
+        .unwrap()
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let trees = wallet.get_shard_trees_mut().unwrap();
+    sapshards
+        .into_iter()
+        .enumerate()
+        .for_each(|(index, saproot)| {
+            let node =
+                sapling_crypto::Node::from_bytes(saproot.root_hash.try_into().unwrap()).unwrap();
+            let shard = LocatedPrunableTree::with_root_value(
+                incrementalmerkletree::Address::from_parts(
+                    incrementalmerkletree::Level::new(SAPLING_SHARD_HEIGHT),
+                    index as u64,
+                ),
+                (node, RetentionFlags::EPHEMERAL),
+            );
+            match trees.sapling_mut().store_mut().put_shard(shard) {
+                Ok(()) => (),
+            }
+        });
+    let orcshards = orchard_shards
+        .unwrap()
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let trees = wallet.get_shard_trees_mut().unwrap();
+    orcshards
+        .into_iter()
+        .enumerate()
+        .for_each(|(index, orcroot)| {
+            let node = orchard::tree::MerkleHashOrchard::from_bytes(
+                &orcroot.root_hash.try_into().unwrap(),
+            )
+            .unwrap();
+            let shard = LocatedPrunableTree::with_root_value(
+                incrementalmerkletree::Address::from_parts(
+                    incrementalmerkletree::Level::new(ORCHARD_SHARD_HEIGHT),
+                    index as u64,
+                ),
+                (node, RetentionFlags::EPHEMERAL),
+            );
+            match trees.orchard_mut().store_mut().put_shard(shard) {
+                Ok(()) => (),
+            }
+        });
 
     drop(scanner);
     drop(fetch_request_sender);
