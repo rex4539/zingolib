@@ -8,7 +8,7 @@ use zcash_client_backend::{
     data_api::chain::ChainState,
     proto::{
         compact_formats::CompactBlock,
-        service::{BlockId, GetAddressUtxosReply, RawTransaction, TreeState},
+        service::{BlockId, GetAddressUtxosReply, RawTransaction, SubtreeRoot, TreeState},
     },
 };
 use zcash_primitives::{
@@ -43,6 +43,12 @@ pub enum FetchRequest {
     ),
     /// Get a stream of mempool transactions until a new block is mined.
     MempoolStream(oneshot::Sender<tonic::Streaming<RawTransaction>>),
+    GetSubtreeRoots(
+        oneshot::Sender<tonic::Streaming<SubtreeRoot>>,
+        u32,
+        i32,
+        u32,
+    ),
 }
 
 /// Gets the height of the blockchain from the server.
@@ -74,6 +80,25 @@ pub async fn get_compact_block_range(
     let compact_blocks = reply_receiver.await.unwrap();
 
     Ok(compact_blocks)
+}
+
+pub async fn get_subtree_roots(
+    fetch_request_sender: UnboundedSender<FetchRequest>,
+    start_index: u32,
+    shielded_protocol: i32,
+    max_entries: u32,
+) -> Result<tonic::Streaming<SubtreeRoot>, ()> {
+    let (reply_sender, reply_receiver) = oneshot::channel();
+    fetch_request_sender
+        .send(FetchRequest::GetSubtreeRoots(
+            reply_sender,
+            start_index,
+            shielded_protocol,
+            max_entries,
+        ))
+        .unwrap();
+    let shards = reply_receiver.await.unwrap();
+    Ok(shards)
 }
 
 /// Gets the frontiers for a specified block height.
