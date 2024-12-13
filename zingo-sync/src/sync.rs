@@ -380,10 +380,11 @@ where
 {
     let ScanResults {
         nullifiers,
+        outpoints,
         wallet_blocks,
         wallet_transactions,
-        shard_tree_data,
-        outpoints,
+        sapling_located_tree_data,
+        orchard_located_tree_data,
     } = scan_results;
 
     wallet.append_wallet_blocks(wallet_blocks).unwrap();
@@ -392,7 +393,9 @@ where
         .unwrap();
     wallet.append_nullifiers(nullifiers).unwrap();
     wallet.append_outpoints(outpoints).unwrap();
-    wallet.update_shard_trees(shard_tree_data).unwrap();
+    wallet
+        .update_shard_trees(sapling_located_tree_data, orchard_located_tree_data)
+        .unwrap();
     // TODO: add trait to save wallet data to persistance for in-memory wallets
 
     Ok(())

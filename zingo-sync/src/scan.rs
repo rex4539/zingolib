@@ -3,10 +3,14 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
 };
 
+use orchard::tree::MerkleHashOrchard;
 use tokio::sync::mpsc;
 
 use incrementalmerkletree::Position;
-use zcash_client_backend::{data_api::scanning::ScanRange, proto::compact_formats::CompactBlock};
+use zcash_client_backend::{
+    data_api::{scanning::ScanRange, ORCHARD_SHARD_HEIGHT},
+    proto::compact_formats::CompactBlock,
+};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::{
     consensus::{BlockHeight, NetworkUpgrade, Parameters},
@@ -18,7 +22,7 @@ use crate::{
     client::{self, FetchRequest},
     keys::transparent::TransparentAddressId,
     primitives::{Locator, NullifierMap, OutPointMap, OutputId, WalletBlock, WalletTransaction},
-    witness::ShardTreeData,
+    witness::{self, LocatedTreeData, ShardTreeData},
 };
 
 use self::{
@@ -124,7 +128,8 @@ pub(crate) struct ScanResults {
     pub(crate) outpoints: OutPointMap,
     pub(crate) wallet_blocks: BTreeMap<BlockHeight, WalletBlock>,
     pub(crate) wallet_transactions: HashMap<TxId, WalletTransaction>,
-    pub(crate) shard_tree_data: ShardTreeData,
+    pub(crate) sapling_located_tree_data: Vec<LocatedTreeData<sapling_crypto::Node>>,
+    pub(crate) orchard_located_tree_data: Vec<LocatedTreeData<MerkleHashOrchard>>,
 }
 
 pub(crate) struct DecryptedNoteData {
@@ -213,11 +218,47 @@ where
     .await
     .unwrap();
 
+    let ShardTreeData {
+        sapling_initial_position,
+        orchard_initial_position,
+        sapling_leaves_and_retentions,
+        orchard_leaves_and_retentions,
+    } = shard_tree_data;
+
+    let sapling_located_tree_data = witness::build_located_trees(
+        sapling_initial_position,
+        sapling_leaves_and_retentions,
+        incrementalmerkletree::Level::from(sapling_crypto::NOTE_COMMITMENT_TREE_DEPTH / 2),
+    )
+    .unwrap();
+    // let sapling_located_tree_data = tokio::task::spawn_blocking(move || {
+    //     witness::build_located_trees(
+    //         sapling_initial_position,
+    //         sapling_leaves_and_retentions,
+    //         incrementalmerkletree::Level::from(sapling_crypto::NOTE_COMMITMENT_TREE_DEPTH / 2),
+    //     )
+    //     .unwrap()
+    // })
+    // .await
+    // .unwrap();
+    // let orchard_located_tree_data = tokio::task::spawn_blocking(move || {
+    //     witness::build_located_trees(
+    //         orchard_initial_position,
+    //         orchard_leaves_and_retentions,
+    //         incrementalmerkletree::Level::from(orchard::NOTE_COMMITMENT_TREE_DEPTH as u8 / 2),
+    //     )
+    //     .unwrap()
+    // })
+    // .await
+    // .unwrap();
+    let orchard_located_tree_data = Vec::new();
+
     Ok(ScanResults {
         nullifiers,
         outpoints,
         wallet_blocks,
         wallet_transactions,
-        shard_tree_data,
+        sapling_located_tree_data,
+        orchard_located_tree_data,
     })
 }

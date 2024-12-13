@@ -72,7 +72,7 @@ pub struct LocatedTreeData<H> {
     pub checkpoints: BTreeMap<BlockHeight, Position>,
 }
 
-fn create_located_trees<H>(
+pub(crate) fn build_located_trees<H>(
     initial_position: Position,
     leaves_and_retentions: Vec<(H, Retention<BlockHeight>)>,
     located_tree_level: incrementalmerkletree::Level,
@@ -80,12 +80,6 @@ fn create_located_trees<H>(
 where
     H: Copy + PartialEq + incrementalmerkletree::Hashable + Sync + Send,
 {
-    // let ShardTreeData {
-    //     sapling_initial_position,
-    //     orchard_initial_position,
-    //     sapling_leaves_and_retentions,
-    //     orchard_leaves_and_retentions,
-    // } = shard_tree_data;
     //TODO: Play with numbers. Is it more efficient to
     // build larger trees to allow for more pruning to
     // happen in parallel before insertion?
@@ -106,15 +100,16 @@ where
                 let tree = LocatedPrunableTree::from_iter(
                     start_position..(start_position + chunk.len() as u64),
                     located_tree_level,
-                    // incrementalmerkletree::Level::from(SAPLING_SHARD_HEIGHT),
                     chunk.iter().copied(),
                 );
+                tracing::info!("SENDING");
                 sender.send(tree).unwrap();
             })
         }
     });
 
     let mut located_tree_data = Vec::new();
+    tracing::info!("RECEIVING");
     for tree in receiver.iter() {
         let tree = tree.unwrap();
         located_tree_data.push(LocatedTreeData {
