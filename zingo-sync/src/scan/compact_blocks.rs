@@ -158,6 +158,7 @@ where
 
 // checks height and hash continuity of a batch of compact blocks.
 // takes the last wallet compact block of the adjacent lower scan range, if available.
+// TODO: remove option and revisit scanner flow to use the last block of previously scanned batch to check continuity
 fn check_continuity(
     compact_blocks: &[CompactBlock],
     previous_compact_block: Option<&WalletBlock>,

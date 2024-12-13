@@ -185,10 +185,13 @@ where
             ScannerState::Scan => {
                 // create scan tasks until all ranges are scanned or currently scanning
                 if let Some(worker) = self.idle_worker() {
+                    tracing::info!("idle worker... creating scan task");
                     if let Some(scan_task) = sync::state::create_scan_task(wallet).unwrap() {
                         worker.add_scan_task(scan_task).unwrap();
                     } else {
-                        self.state.shutdown();
+                        if wallet.get_sync_state().unwrap().scan_complete() {
+                            self.state.shutdown();
+                        }
                     }
                 }
             }
@@ -255,9 +258,14 @@ where
         let consensus_parameters = self.consensus_parameters.clone();
         let ufvks = self.ufvks.clone();
 
+        let id = self.id;
+
         let handle = tokio::spawn(async move {
             while let Some(scan_task) = scan_task_receiver.recv().await {
-                is_scanning.store(true, atomic::Ordering::Release);
+                tracing::info!("TASK RECEIVED: {:#?}", &scan_task);
+                is_scanning.store(true, atomic::Ordering::SeqCst);
+                tracing::info!("WORKER {} SCANNING", id);
+                // is_scanning.store(true, atomic::Ordering::Release);
 
                 let scan_results = scan(
                     fetch_request_sender.clone(),
@@ -274,7 +282,8 @@ where
                     .send((scan_task.scan_range, scan_results))
                     .expect("receiver should never be dropped before sender!");
 
-                is_scanning.store(false, atomic::Ordering::Release);
+                is_scanning.store(false, atomic::Ordering::SeqCst);
+                // is_scanning.store(false, atomic::Ordering::Release);
             }
         });
 
@@ -285,7 +294,8 @@ where
     }
 
     fn is_scanning(&self) -> bool {
-        self.is_scanning.load(atomic::Ordering::Acquire)
+        self.is_scanning.load(atomic::Ordering::SeqCst)
+        // self.is_scanning.load(atomic::Ordering::Acquire)
     }
 
     fn add_scan_task(&self, scan_task: ScanTask) -> Result<(), ()> {

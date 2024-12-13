@@ -1,17 +1,20 @@
 //! Module for stucts and types associated with witness construction
 
+use std::collections::BTreeMap;
+
 use getset::{Getters, MutGetters};
 use incrementalmerkletree::{Position, Retention};
 use orchard::tree::MerkleHashOrchard;
-use sapling_crypto::Node;
-use shardtree::{store::memory::MemoryShardStore, ShardTree};
+use shardtree::{store::memory::MemoryShardStore, LocatedPrunableTree, ShardTree};
+use zcash_client_backend::data_api::{ORCHARD_SHARD_HEIGHT, SAPLING_SHARD_HEIGHT};
 use zcash_primitives::consensus::BlockHeight;
 
 const NOTE_COMMITMENT_TREE_DEPTH: u8 = 32;
 const SHARD_HEIGHT: u8 = 16;
 const MAX_CHECKPOINTS: usize = 100;
+const LOCATED_TREE_SIZE: usize = 128;
 
-type SaplingShardStore = MemoryShardStore<Node, BlockHeight>;
+type SaplingShardStore = MemoryShardStore<sapling_crypto::Node, BlockHeight>;
 type OrchardShardStore = MemoryShardStore<MerkleHashOrchard, BlockHeight>;
 
 /// Shard tree wallet data struct
@@ -41,10 +44,10 @@ impl Default for ShardTrees {
 }
 
 /// Required data for updating [`shardtree::ShardTree`]
-pub struct ShardTreeData {
+pub(crate) struct ShardTreeData {
     pub(crate) sapling_initial_position: Position,
     pub(crate) orchard_initial_position: Position,
-    pub(crate) sapling_leaves_and_retentions: Vec<(Node, Retention<BlockHeight>)>,
+    pub(crate) sapling_leaves_and_retentions: Vec<(sapling_crypto::Node, Retention<BlockHeight>)>,
     pub(crate) orchard_leaves_and_retentions: Vec<(MerkleHashOrchard, Retention<BlockHeight>)>,
 }
 
@@ -58,4 +61,67 @@ impl ShardTreeData {
             orchard_leaves_and_retentions: Vec::new(),
         }
     }
+}
+
+// TODO: add more batch insertion results as they become relavent
+/// TODO
+pub struct LocatedTreeData<H> {
+    /// TODO
+    pub subtree: LocatedPrunableTree<H>,
+    /// TODO
+    pub checkpoints: BTreeMap<BlockHeight, Position>,
+}
+
+fn create_located_trees<H>(
+    initial_position: Position,
+    leaves_and_retentions: Vec<(H, Retention<BlockHeight>)>,
+    located_tree_level: incrementalmerkletree::Level,
+) -> Result<Vec<LocatedTreeData<H>>, ()>
+where
+    H: Copy + PartialEq + incrementalmerkletree::Hashable + Sync + Send,
+{
+    // let ShardTreeData {
+    //     sapling_initial_position,
+    //     orchard_initial_position,
+    //     sapling_leaves_and_retentions,
+    //     orchard_leaves_and_retentions,
+    // } = shard_tree_data;
+    //TODO: Play with numbers. Is it more efficient to
+    // build larger trees to allow for more pruning to
+    // happen in parallel before insertion?
+    // Is it better to build smaller trees so that more
+    // trees can be built in parallel at the same time?
+    // Is inserting trees more efficient if trees are
+    // a power of 2 size? Is it more efficient if they
+    // are 'aligned' so that the initial_position is
+    // a multiple of tree size? All unanswered questions
+    // that want to be benchmarked.
+
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    rayon::scope_fifo(|scope| {
+        for (i, chunk) in leaves_and_retentions.chunks(LOCATED_TREE_SIZE).enumerate() {
+            let sender = sender.clone();
+            scope.spawn_fifo(move |_scope| {
+                let start_position = initial_position + ((i * LOCATED_TREE_SIZE) as u64);
+                let tree = LocatedPrunableTree::from_iter(
+                    start_position..(start_position + chunk.len() as u64),
+                    located_tree_level,
+                    // incrementalmerkletree::Level::from(SAPLING_SHARD_HEIGHT),
+                    chunk.iter().copied(),
+                );
+                sender.send(tree).unwrap();
+            })
+        }
+    });
+
+    let mut located_tree_data = Vec::new();
+    for tree in receiver.iter() {
+        let tree = tree.unwrap();
+        located_tree_data.push(LocatedTreeData {
+            subtree: tree.subtree,
+            checkpoints: tree.checkpoints,
+        });
+    }
+
+    Ok(located_tree_data)
 }

@@ -173,7 +173,19 @@ where
     .await
     .unwrap();
 
-    let scan_data = scan_compact_blocks(compact_blocks, parameters, ufvks, initial_scan_data)?;
+    let consensus_parameters_clone = parameters.clone();
+    let ufvks_clone = ufvks.clone();
+    let scan_data = tokio::task::spawn_blocking(move || {
+        scan_compact_blocks(
+            compact_blocks,
+            &consensus_parameters_clone,
+            &ufvks_clone,
+            initial_scan_data,
+        )
+    })
+    .await
+    .unwrap()?;
+    // let scan_data = scan_compact_blocks(compact_blocks, parameters, ufvks, initial_scan_data)?;
 
     let ScanData {
         nullifiers,
