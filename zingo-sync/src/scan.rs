@@ -40,7 +40,7 @@ struct InitialScanData {
 impl InitialScanData {
     async fn new<P>(
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
-        parameters: &P,
+        consensus_parameters: &P,
         first_block: &CompactBlock,
         previous_wallet_block: Option<WalletBlock>,
     ) -> Result<Self, ()>
@@ -84,7 +84,7 @@ impl InitialScanData {
                         .unwrap(),
                 )
             } else {
-                let sapling_activation_height = parameters
+                let sapling_activation_height = consensus_parameters
                     .activation_height(NetworkUpgrade::Sapling)
                     .expect("should have some sapling activation height");
 
