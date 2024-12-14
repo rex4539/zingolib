@@ -187,10 +187,8 @@ where
                 if let Some(worker) = self.idle_worker() {
                     if let Some(scan_task) = sync::state::create_scan_task(wallet).unwrap() {
                         worker.add_scan_task(scan_task).unwrap();
-                    } else {
-                        if wallet.get_sync_state().unwrap().scan_complete() {
-                            self.state.shutdown();
-                        }
+                    } else if wallet.get_sync_state().unwrap().scan_complete() {
+                        self.state.shutdown();
                     }
                 }
             }

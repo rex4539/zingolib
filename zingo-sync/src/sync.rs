@@ -255,7 +255,7 @@ async fn process_mempool_stream_response<W>(
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints,
 {
     // TODO: replace this unwrap_or_else with proper error handling
-    match mempool_stream_response.unwrap_or_else(|_| None) {
+    match mempool_stream_response.unwrap_or(None) {
         Some(raw_transaction) => {
             let block_height =
                 BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
