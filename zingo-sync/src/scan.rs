@@ -7,10 +7,7 @@ use orchard::tree::MerkleHashOrchard;
 use tokio::sync::mpsc;
 
 use incrementalmerkletree::Position;
-use zcash_client_backend::{
-    data_api::{scanning::ScanRange, ORCHARD_SHARD_HEIGHT},
-    proto::compact_formats::CompactBlock,
-};
+use zcash_client_backend::{data_api::scanning::ScanRange, proto::compact_formats::CompactBlock};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_primitives::{
     consensus::{BlockHeight, NetworkUpgrade, Parameters},
@@ -22,7 +19,7 @@ use crate::{
     client::{self, FetchRequest},
     keys::transparent::TransparentAddressId,
     primitives::{Locator, NullifierMap, OutPointMap, OutputId, WalletBlock, WalletTransaction},
-    witness::{self, LocatedTreeData, ShardTreeData},
+    witness::{self, LocatedTreeData, WitnessData},
 };
 
 use self::{
@@ -120,7 +117,7 @@ struct ScanData {
     wallet_blocks: BTreeMap<BlockHeight, WalletBlock>,
     relevant_txids: HashSet<TxId>,
     decrypted_note_data: DecryptedNoteData,
-    shard_tree_data: ShardTreeData,
+    witness_data: WitnessData,
 }
 
 pub(crate) struct ScanResults {
@@ -128,8 +125,8 @@ pub(crate) struct ScanResults {
     pub(crate) outpoints: OutPointMap,
     pub(crate) wallet_blocks: BTreeMap<BlockHeight, WalletBlock>,
     pub(crate) wallet_transactions: HashMap<TxId, WalletTransaction>,
-    pub(crate) sapling_located_tree_data: Vec<LocatedTreeData<sapling_crypto::Node>>,
-    pub(crate) orchard_located_tree_data: Vec<LocatedTreeData<MerkleHashOrchard>>,
+    pub(crate) sapling_located_trees: Vec<LocatedTreeData<sapling_crypto::Node>>,
+    pub(crate) orchard_located_trees: Vec<LocatedTreeData<MerkleHashOrchard>>,
 }
 
 pub(crate) struct DecryptedNoteData {
@@ -190,14 +187,13 @@ where
     })
     .await
     .unwrap()?;
-    // let scan_data = scan_compact_blocks(compact_blocks, parameters, ufvks, initial_scan_data)?;
 
     let ScanData {
         nullifiers,
         wallet_blocks,
         mut relevant_txids,
         decrypted_note_data,
-        shard_tree_data,
+        witness_data,
     } = scan_data;
 
     locators.into_iter().map(|(_, txid)| txid).for_each(|txid| {
@@ -218,47 +214,32 @@ where
     .await
     .unwrap();
 
-    let ShardTreeData {
+    let WitnessData {
         sapling_initial_position,
         orchard_initial_position,
         sapling_leaves_and_retentions,
         orchard_leaves_and_retentions,
-    } = shard_tree_data;
+    } = witness_data;
 
-    let sapling_located_tree_data = witness::build_located_trees(
-        sapling_initial_position,
-        sapling_leaves_and_retentions,
-        incrementalmerkletree::Level::from(sapling_crypto::NOTE_COMMITMENT_TREE_DEPTH / 2),
-    )
+    let sapling_located_trees = tokio::task::spawn_blocking(move || {
+        witness::build_located_trees(sapling_initial_position, sapling_leaves_and_retentions)
+            .unwrap()
+    })
+    .await
     .unwrap();
-    // let sapling_located_tree_data = tokio::task::spawn_blocking(move || {
-    //     witness::build_located_trees(
-    //         sapling_initial_position,
-    //         sapling_leaves_and_retentions,
-    //         incrementalmerkletree::Level::from(sapling_crypto::NOTE_COMMITMENT_TREE_DEPTH / 2),
-    //     )
-    //     .unwrap()
-    // })
-    // .await
-    // .unwrap();
-    // let orchard_located_tree_data = tokio::task::spawn_blocking(move || {
-    //     witness::build_located_trees(
-    //         orchard_initial_position,
-    //         orchard_leaves_and_retentions,
-    //         incrementalmerkletree::Level::from(orchard::NOTE_COMMITMENT_TREE_DEPTH as u8 / 2),
-    //     )
-    //     .unwrap()
-    // })
-    // .await
-    // .unwrap();
-    let orchard_located_tree_data = Vec::new();
+    let orchard_located_trees = tokio::task::spawn_blocking(move || {
+        witness::build_located_trees(orchard_initial_position, orchard_leaves_and_retentions)
+            .unwrap()
+    })
+    .await
+    .unwrap();
 
     Ok(ScanResults {
         nullifiers,
         outpoints,
         wallet_blocks,
         wallet_transactions,
-        sapling_located_tree_data,
-        orchard_located_tree_data,
+        sapling_located_trees,
+        orchard_located_trees,
     })
 }

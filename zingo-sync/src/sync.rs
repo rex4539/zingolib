@@ -383,8 +383,8 @@ where
         outpoints,
         wallet_blocks,
         wallet_transactions,
-        sapling_located_tree_data,
-        orchard_located_tree_data,
+        sapling_located_trees,
+        orchard_located_trees,
     } = scan_results;
 
     wallet.append_wallet_blocks(wallet_blocks).unwrap();
@@ -394,7 +394,7 @@ where
     wallet.append_nullifiers(nullifiers).unwrap();
     wallet.append_outpoints(outpoints).unwrap();
     wallet
-        .update_shard_trees(sapling_located_tree_data, orchard_located_tree_data)
+        .update_shard_trees(sapling_located_trees, orchard_located_trees)
         .unwrap();
     // TODO: add trait to save wallet data to persistance for in-memory wallets
 

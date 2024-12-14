@@ -6,7 +6,6 @@ use getset::{Getters, MutGetters};
 use incrementalmerkletree::{Position, Retention};
 use orchard::tree::MerkleHashOrchard;
 use shardtree::{store::memory::MemoryShardStore, LocatedPrunableTree, ShardTree};
-use zcash_client_backend::data_api::{ORCHARD_SHARD_HEIGHT, SAPLING_SHARD_HEIGHT};
 use zcash_primitives::consensus::BlockHeight;
 
 const NOTE_COMMITMENT_TREE_DEPTH: u8 = 32;
@@ -44,17 +43,17 @@ impl Default for ShardTrees {
 }
 
 /// Required data for updating [`shardtree::ShardTree`]
-pub(crate) struct ShardTreeData {
+pub(crate) struct WitnessData {
     pub(crate) sapling_initial_position: Position,
     pub(crate) orchard_initial_position: Position,
     pub(crate) sapling_leaves_and_retentions: Vec<(sapling_crypto::Node, Retention<BlockHeight>)>,
     pub(crate) orchard_leaves_and_retentions: Vec<(MerkleHashOrchard, Retention<BlockHeight>)>,
 }
 
-impl ShardTreeData {
+impl WitnessData {
     /// Creates new ShardTreeData
     pub fn new(sapling_initial_position: Position, orchard_initial_position: Position) -> Self {
-        ShardTreeData {
+        WitnessData {
             sapling_initial_position,
             orchard_initial_position,
             sapling_leaves_and_retentions: Vec::new(),
@@ -63,19 +62,17 @@ impl ShardTreeData {
     }
 }
 
-// TODO: add more batch insertion results as they become relavent
-/// TODO
+/// Located prunable tree data built from nodes and retentions during scanning for insertion into the shard store.
 pub struct LocatedTreeData<H> {
-    /// TODO
+    /// Located prunable tree
     pub subtree: LocatedPrunableTree<H>,
-    /// TODO
+    /// Checkpoints
     pub checkpoints: BTreeMap<BlockHeight, Position>,
 }
 
 pub(crate) fn build_located_trees<H>(
     initial_position: Position,
     leaves_and_retentions: Vec<(H, Retention<BlockHeight>)>,
-    located_tree_level: incrementalmerkletree::Level,
 ) -> Result<Vec<LocatedTreeData<H>>, ()>
 where
     H: Copy + PartialEq + incrementalmerkletree::Hashable + Sync + Send,
@@ -99,17 +96,16 @@ where
                 let start_position = initial_position + ((i * LOCATED_TREE_SIZE) as u64);
                 let tree = LocatedPrunableTree::from_iter(
                     start_position..(start_position + chunk.len() as u64),
-                    located_tree_level,
+                    incrementalmerkletree::Level::from(SHARD_HEIGHT),
                     chunk.iter().copied(),
                 );
-                tracing::info!("SENDING");
                 sender.send(tree).unwrap();
             })
         }
     });
+    drop(sender);
 
     let mut located_tree_data = Vec::new();
-    tracing::info!("RECEIVING");
     for tree in receiver.iter() {
         let tree = tree.unwrap();
         located_tree_data.push(LocatedTreeData {

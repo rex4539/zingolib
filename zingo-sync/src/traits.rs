@@ -16,7 +16,7 @@ use zcash_primitives::zip32::AccountId;
 
 use crate::keys::transparent::TransparentAddressId;
 use crate::primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock, WalletTransaction};
-use crate::witness::{LocatedTreeData, ShardTreeData, ShardTrees};
+use crate::witness::{LocatedTreeData, ShardTrees, WitnessData};
 
 // TODO: clean up interface and move many default impls out of traits. consider merging to a simplified SyncWallet interface.
 
@@ -232,18 +232,18 @@ pub trait SyncShardTrees: SyncWallet {
     /// Update wallet shard trees with new shard tree data
     fn update_shard_trees(
         &mut self,
-        sapling_located_tree_data: Vec<LocatedTreeData<sapling_crypto::Node>>,
-        orchard_located_tree_data: Vec<LocatedTreeData<MerkleHashOrchard>>,
+        sapling_located_trees: Vec<LocatedTreeData<sapling_crypto::Node>>,
+        orchard_located_trees: Vec<LocatedTreeData<MerkleHashOrchard>>,
     ) -> Result<(), Self::Error> {
         let shard_trees = self.get_shard_trees_mut()?;
 
-        for tree in sapling_located_tree_data.into_iter() {
+        for tree in sapling_located_trees.into_iter() {
             shard_trees
                 .sapling_mut()
                 .insert_tree(tree.subtree, tree.checkpoints)
                 .unwrap();
         }
-        for tree in orchard_located_tree_data.into_iter() {
+        for tree in orchard_located_trees.into_iter() {
             shard_trees
                 .orchard_mut()
                 .insert_tree(tree.subtree, tree.checkpoints)
