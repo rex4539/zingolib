@@ -295,12 +295,16 @@ async fn get_taddress_txs(
     Ok(transactions)
 }
 
+/// Call `GetMempoolStream` client gPRC
+///
+/// Clones the CompactTxStreamerClient to avoid blocking on other gRPC calls
 async fn get_mempool_stream(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
 ) -> Result<tonic::Streaming<RawTransaction>, ()> {
     let request = tonic::Request::new(Empty {});
 
     Ok(client
+        .clone()
         .get_mempool_stream(request)
         .await
         .unwrap()
