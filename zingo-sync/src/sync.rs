@@ -38,7 +38,7 @@ const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond th
 
 /// Syncs a wallet to the latest state of the blockchain
 pub async fn sync<P, W>(
-    client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>, // TODO: change underlying service for generic
+    mut client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>, // TODO: change underlying service for generic
     consensus_parameters: &P,
     wallet: &mut W,
 ) -> Result<(), SyncError>
@@ -52,7 +52,7 @@ where
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
     let fetcher_handle = tokio::spawn(client::fetch::fetch(
         fetch_request_receiver,
-        client,
+        client.clone(),
         consensus_parameters.clone(),
     ));
 
@@ -100,7 +100,7 @@ where
     scanner.spawn_workers();
 
     // setup the initial mempool stream
-    let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+    let mut mempool_stream = client::get_mempool_transaction_stream(&mut client)
         .await
         .unwrap();
 
@@ -128,7 +128,7 @@ where
             mempool_stream_response = mempool_stream.message() => {
                 process_mempool_stream_response(
                     consensus_parameters,
-                    fetch_request_sender.clone(),
+                    &mut client,
                     &ufvks,
                     wallet,
                     mempool_stream_response,
@@ -246,7 +246,7 @@ where
 /// If the response is `None`, a block was mined. Setup a new mempool stream until the next block is mined.
 async fn process_mempool_stream_response<W>(
     consensus_parameters: &impl consensus::Parameters,
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     wallet: &mut W,
     mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
@@ -346,7 +346,7 @@ async fn process_mempool_stream_response<W>(
             // similar logic to truncate
         }
         None => {
-            *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+            *mempool_stream = client::get_mempool_transaction_stream(client)
                 .await
                 .unwrap();
             tokio::time::sleep(Duration::from_millis(1000)).await;
