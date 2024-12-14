@@ -450,7 +450,7 @@ async fn mempool_monitor(
         }
 
         let mempool_stream_response = mempool_stream.message().await;
-        match mempool_stream_response.unwrap_or_else(|_| None) {
+        match mempool_stream_response.unwrap_or(None) {
             Some(raw_transaction) => {
                 mempool_transaction_sender
                     .send(raw_transaction)
