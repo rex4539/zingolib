@@ -54,7 +54,7 @@ where
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
     let fetcher_handle = tokio::spawn(client::fetch::fetch(
         fetch_request_receiver,
-        client,
+        client.clone(),
         consensus_parameters.clone(),
     ));
 
@@ -72,6 +72,16 @@ where
         truncate_wallet_data(wallet, chain_height).unwrap();
     }
     let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+
+    // create channel for receiving mempool transactions and launch mempool monitor
+    let (mempool_transaction_sender, mut mempool_transaction_receiver) = mpsc::channel(10);
+    let shutdown_mempool = Arc::new(AtomicBool::new(false));
+    let shutdown_mempool_clone = shutdown_mempool.clone();
+    let mempool_handle = tokio::spawn(mempool_monitor(
+        client,
+        mempool_transaction_sender,
+        shutdown_mempool_clone,
+    ));
 
     transparent::update_addresses_and_locators(
         consensus_parameters,
@@ -100,17 +110,6 @@ where
         ufvks.clone(),
     );
     scanner.spawn_workers();
-
-    // create channel for receiving mempool transactions and launch mempool monitor
-    let (mempool_transaction_sender, mut mempool_transaction_receiver) = mpsc::channel(10);
-    let shutdown_mempool = Arc::new(AtomicBool::new(false));
-    let shutdown_mempool_clone = shutdown_mempool.clone();
-    let fetch_request_sender_clone = fetch_request_sender.clone();
-    let mempool_handle = tokio::spawn(mempool_monitor(
-        fetch_request_sender_clone,
-        mempool_transaction_sender,
-        shutdown_mempool_clone,
-    ));
 
     // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
     // TODO: invalidate any pending transactions after eviction height (40 below best chain height?)
@@ -438,11 +437,11 @@ where
 /// If there is some raw transaction, send to be scanned.
 /// If the response is `None` (a block was mined) or a timeout error occured, setup a new mempool stream.
 async fn mempool_monitor(
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
+    mut client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
     mempool_transaction_sender: mpsc::Sender<RawTransaction>,
     shutdown_mempool: Arc<AtomicBool>,
 ) -> Result<(), ()> {
-    let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+    let mut mempool_stream = client::get_mempool_transaction_stream(&mut client)
         .await
         .unwrap();
     loop {
@@ -459,10 +458,9 @@ async fn mempool_monitor(
                     .unwrap();
             }
             None => {
-                mempool_stream =
-                    client::get_mempool_transaction_stream(fetch_request_sender.clone())
-                        .await
-                        .unwrap();
+                mempool_stream = client::get_mempool_transaction_stream(&mut client)
+                    .await
+                    .unwrap();
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
         }
