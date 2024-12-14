@@ -185,7 +185,6 @@ where
             ScannerState::Scan => {
                 // create scan tasks until all ranges are scanned or currently scanning
                 if let Some(worker) = self.idle_worker() {
-                    tracing::info!("idle worker... creating scan task");
                     if let Some(scan_task) = sync::state::create_scan_task(wallet).unwrap() {
                         worker.add_scan_task(scan_task).unwrap();
                     } else {
@@ -216,7 +215,7 @@ struct ScanWorker<P> {
     handle: Option<JoinHandle<()>>,
     is_scanning: Arc<AtomicBool>,
     consensus_parameters: P,
-    scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
+    scan_task_sender: Option<mpsc::Sender<ScanTask>>,
     scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
     fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
@@ -229,7 +228,7 @@ where
     fn new(
         id: usize,
         consensus_parameters: P,
-        scan_task_sender: Option<mpsc::UnboundedSender<ScanTask>>,
+        scan_task_sender: Option<mpsc::Sender<ScanTask>>,
         scan_results_sender: mpsc::UnboundedSender<(ScanRange, Result<ScanResults, ScanError>)>,
         fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
         ufvks: HashMap<AccountId, UnifiedFullViewingKey>,
@@ -250,7 +249,7 @@ where
     ///
     /// Waits for a scan task and then calls [`crate::scan::scan`] on the given range.
     fn run(&mut self) -> Result<(), ()> {
-        let (scan_task_sender, mut scan_task_receiver) = mpsc::unbounded_channel::<ScanTask>();
+        let (scan_task_sender, mut scan_task_receiver) = mpsc::channel::<ScanTask>(1);
 
         let is_scanning = self.is_scanning.clone();
         let scan_results_sender = self.scan_results_sender.clone();
@@ -260,8 +259,6 @@ where
 
         let handle = tokio::spawn(async move {
             while let Some(scan_task) = scan_task_receiver.recv().await {
-                is_scanning.store(true, atomic::Ordering::Release);
-
                 let scan_results = scan(
                     fetch_request_sender.clone(),
                     &consensus_parameters,
@@ -296,8 +293,9 @@ where
         self.scan_task_sender
             .clone()
             .unwrap()
-            .send(scan_task)
-            .unwrap();
+            .try_send(scan_task)
+            .expect("worker should never be sent multiple tasks at one time");
+        self.is_scanning.store(true, atomic::Ordering::Release);
 
         Ok(())
     }

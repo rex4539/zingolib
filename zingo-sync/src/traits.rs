@@ -3,20 +3,15 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 
-use incrementalmerkletree::Level;
 use orchard::tree::MerkleHashOrchard;
-use shardtree::LocatedPrunableTree;
-use zcash_client_backend::{
-    data_api::{ORCHARD_SHARD_HEIGHT, SAPLING_SHARD_HEIGHT},
-    keys::UnifiedFullViewingKey,
-};
+use zcash_client_backend::keys::UnifiedFullViewingKey;
 use zcash_primitives::consensus::BlockHeight;
 use zcash_primitives::transaction::TxId;
 use zcash_primitives::zip32::AccountId;
 
 use crate::keys::transparent::TransparentAddressId;
 use crate::primitives::{NullifierMap, OutPointMap, SyncState, WalletBlock, WalletTransaction};
-use crate::witness::{LocatedTreeData, ShardTrees, WitnessData};
+use crate::witness::{LocatedTreeData, ShardTrees};
 
 // TODO: clean up interface and move many default impls out of traits. consider merging to a simplified SyncWallet interface.
 

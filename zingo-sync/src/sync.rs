@@ -71,15 +71,15 @@ where
     }
     let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
 
-    // transparent::update_addresses_and_locators(
-    //     consensus_parameters,
-    //     wallet,
-    //     fetch_request_sender.clone(),
-    //     &ufvks,
-    //     wallet_height,
-    //     chain_height,
-    // )
-    // .await;
+    transparent::update_addresses_and_locators(
+        consensus_parameters,
+        wallet,
+        fetch_request_sender.clone(),
+        &ufvks,
+        wallet_height,
+        chain_height,
+    )
+    .await;
 
     state::update_scan_ranges(
         wallet_height,
@@ -99,10 +99,10 @@ where
     );
     scanner.spawn_workers();
 
-    // // setup the initial mempool stream
-    // let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
-    //     .await
-    //     .unwrap();
+    // setup the initial mempool stream
+    let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
+        .await
+        .unwrap();
 
     // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
     // TODO: invalidate any pending transactions after eviction height (40 below best chain height?)
@@ -125,20 +125,16 @@ where
                 .unwrap();
             }
 
-            // mempool_stream_response = mempool_stream.message() => {
-            //     process_mempool_stream_response(
-            //         consensus_parameters,
-            //         fetch_request_sender.clone(),
-            //         &ufvks,
-            //         wallet,
-            //         mempool_stream_response,
-            //         &mut mempool_stream)
-            //     .await;
-
-            //     // reset interval to ensure all mempool transactions have been scanned before sync completes.
-            //     // if a full interval passes without receiving a transaction from the mempool we can safely finish sync.
-            //     interval.reset();
-            // }
+            mempool_stream_response = mempool_stream.message() => {
+                process_mempool_stream_response(
+                    consensus_parameters,
+                    fetch_request_sender.clone(),
+                    &ufvks,
+                    wallet,
+                    mempool_stream_response,
+                    &mut mempool_stream)
+                .await;
+            }
 
             _update_scanner = interval.tick() => {
                 scanner.update(wallet).await;
@@ -353,7 +349,7 @@ async fn process_mempool_stream_response<W>(
             *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
                 .await
                 .unwrap();
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(1000)).await;
         }
     }
 }
