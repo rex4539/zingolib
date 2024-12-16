@@ -372,6 +372,7 @@ fn select_scan_range(sync_state: &mut SyncState) -> Option<ScanRange> {
         })
         .expect("scan range should exist");
 
+    // TODO: batch by shards
     let batch_block_range = Range {
         start: selected_scan_range.block_range().start,
         end: selected_scan_range.block_range().start + BATCH_SIZE,
@@ -403,6 +404,7 @@ where
     W: SyncWallet + SyncBlocks,
 {
     if let Some(scan_range) = select_scan_range(wallet.get_sync_state_mut().unwrap()) {
+        // TODO: disallow scanning without previous wallet block
         let previous_wallet_block = wallet
             .get_wallet_block(scan_range.block_range().start - 1)
             .ok();

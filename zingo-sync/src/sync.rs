@@ -10,7 +10,7 @@ use crate::error::SyncError;
 use crate::keys::transparent::TransparentAddressId;
 use crate::primitives::{NullifierMap, OutPointMap};
 use crate::scan::error::{ContinuityError, ScanError};
-use crate::scan::task::{Scanner, ScannerState};
+use crate::scan::task::Scanner;
 use crate::scan::transactions::scan_transaction;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{
@@ -127,7 +127,6 @@ where
                     &ufvks,
                     scan_range,
                     scan_results,
-                    scanner.state_mut(),
                 )
                 .await
                 .unwrap();
@@ -190,7 +189,6 @@ async fn process_scan_results<P, W>(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     scan_results: Result<ScanResults, ScanError>,
-    scanner_state: &mut ScannerState,
 ) -> Result<(), SyncError>
 where
     P: consensus::Parameters,
@@ -198,10 +196,6 @@ where
 {
     match scan_results {
         Ok(results) => {
-            if scan_range.priority() == ScanPriority::Verify {
-                scanner_state.verify();
-            }
-
             update_wallet_data(wallet, results).unwrap();
             spend::update_transparent_spends(wallet).unwrap();
             spend::update_shielded_spends(
