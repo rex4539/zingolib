@@ -194,7 +194,7 @@ where
             }
             ScannerState::Shutdown => {
                 // shutdown mempool
-                shutdown_mempool.store(true, atomic::Ordering::Relaxed);
+                shutdown_mempool.store(true, atomic::Ordering::Release);
 
                 // shutdown idle workers
                 while let Some(worker) = self.idle_worker() {

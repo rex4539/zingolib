@@ -33,8 +33,9 @@ pub(crate) mod spend;
 pub(crate) mod state;
 pub(crate) mod transparent;
 
+// TODO: move parameters to config module
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
-const BATCH_SIZE: u32 = 1_000;
+const BATCH_SIZE: u32 = 5_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
 const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond this window
 
@@ -445,7 +446,7 @@ async fn mempool_monitor(
         .await
         .unwrap();
     loop {
-        if shutdown_mempool.load(atomic::Ordering::Relaxed) {
+        if shutdown_mempool.load(atomic::Ordering::Acquire) {
             break;
         }
 
