@@ -53,11 +53,16 @@ where
 
     // create channel for sending fetch requests and launch fetcher task
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
-    let fetcher_handle = tokio::spawn(client::fetch::fetch(
-        fetch_request_receiver,
-        client.clone(),
-        consensus_parameters.clone(),
-    ));
+    let client_clone = client.clone();
+    let consensus_parameters_clone = consensus_parameters.clone();
+    let fetcher_handle = tokio::spawn(async move {
+        client::fetch::fetch(
+            fetch_request_receiver,
+            client_clone,
+            consensus_parameters_clone,
+        )
+        .await
+    });
 
     let wallet_height = state::get_wallet_height(consensus_parameters, wallet).unwrap();
     let chain_height = client::get_chain_height(fetch_request_sender.clone())
@@ -78,11 +83,9 @@ where
     let (mempool_transaction_sender, mut mempool_transaction_receiver) = mpsc::channel(10);
     let shutdown_mempool = Arc::new(AtomicBool::new(false));
     let shutdown_mempool_clone = shutdown_mempool.clone();
-    let mempool_handle = tokio::spawn(mempool_monitor(
-        client,
-        mempool_transaction_sender,
-        shutdown_mempool_clone,
-    ));
+    let mempool_handle = tokio::spawn(async move {
+        mempool_monitor(client, mempool_transaction_sender, shutdown_mempool_clone).await
+    });
 
     transparent::update_addresses_and_locators(
         consensus_parameters,
