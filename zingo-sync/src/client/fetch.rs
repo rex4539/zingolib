@@ -113,6 +113,11 @@ async fn fetch_from_server(
             sender.send(compact_blocks).unwrap();
         }
         FetchRequest::GetSubtreeRoots(sender, start_index, shielded_protocol, max_entries) => {
+            tracing::info!(
+                "Fetching subtree roots. start index: {}. shielded protocol: {}",
+                start_index,
+                shielded_protocol
+            );
             let shards = get_subtree_roots(client, start_index, shielded_protocol, max_entries)
                 .await
                 .unwrap();
