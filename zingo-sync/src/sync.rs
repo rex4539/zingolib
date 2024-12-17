@@ -190,8 +190,11 @@ async fn fetch_shards_for_sbs<W>(
 
     let trees = wallet.get_shard_trees_mut().unwrap();
 
-    update_tree_with_shards(sapling_shards, trees.sapling_mut()).await;
-    update_tree_with_shards(orchard_shards, trees.orchard_mut()).await;
+    let (sapling_tree, orchard_tree) = trees.both_mut();
+    futures::join!(
+        update_tree_with_shards(sapling_shards, sapling_tree),
+        update_tree_with_shards(orchard_shards, orchard_tree)
+    );
 }
 
 async fn update_tree_with_shards<S, const DEPTH: u8, const SHARD_HEIGHT: u8>(
