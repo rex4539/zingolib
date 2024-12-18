@@ -152,7 +152,7 @@ where
     /// If verification is still in progress, do not create scan tasks.
     /// If there is an idle worker, create a new scan task and add to worker.
     /// If there are no more range available to scan, shutdown the idle workers.
-    pub(crate) async fn update<W>(&mut self, wallet: &mut W)
+    pub(crate) async fn update<W>(&mut self, wallet: &mut W, shutdown_mempool: Arc<AtomicBool>)
     where
         W: SyncWallet + SyncBlocks,
     {
@@ -193,6 +193,9 @@ where
                 }
             }
             ScannerState::Shutdown => {
+                // shutdown mempool
+                shutdown_mempool.store(true, atomic::Ordering::Relaxed);
+
                 // shutdown idle workers
                 while let Some(worker) = self.idle_worker() {
                     self.shutdown_worker(worker.id)
