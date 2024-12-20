@@ -685,6 +685,7 @@ pub mod scenarios {
                 &mut self,
                 mine_to_pool: Option<PoolType>,
                 regtest_network: &crate::config::RegtestNetwork,
+                lightwalletd_feature: bool,
             ) {
                 let mine_to_address = match mine_to_pool {
                     Some(PoolType::Shielded(ShieldedProtocol::Orchard)) => {
@@ -696,8 +697,11 @@ pub mod scenarios {
                     Some(PoolType::Transparent) => Some(REG_T_ADDR_FROM_ABANDONART),
                     None => None,
                 };
-                self.test_env
-                    .create_zcash_conf(mine_to_address, regtest_network);
+                self.test_env.create_zcash_conf(
+                    mine_to_address,
+                    regtest_network,
+                    lightwalletd_feature,
+                );
                 self.test_env.create_lightwalletd_conf();
             }
 
@@ -744,6 +748,7 @@ pub mod scenarios {
                 sb.configure_scenario(
                     Some(PoolType::Shielded(ShieldedProtocol::Sapling)),
                     regtest_network,
+                    false,
                 );
                 sb.launch_scenario(false).await;
                 sb
@@ -755,13 +760,14 @@ pub mod scenarios {
                 zingo_wallet_dir: Option<PathBuf>,
                 set_lightwalletd_port: Option<portpicker::Port>,
                 regtest_network: &crate::config::RegtestNetwork,
+                lightwalletd_feature: bool,
             ) -> Self {
                 let mut sb = if let Some(conf) = zingo_wallet_dir {
                     ScenarioBuilder::build_scenario(Some(conf), set_lightwalletd_port)
                 } else {
                     ScenarioBuilder::build_scenario(None, set_lightwalletd_port)
                 };
-                sb.configure_scenario(mine_to_pool, regtest_network);
+                sb.configure_scenario(mine_to_pool, regtest_network, lightwalletd_feature);
                 sb.launch_scenario(true).await;
                 sb
             }
@@ -888,16 +894,19 @@ pub mod scenarios {
                 &self,
                 mine_to_address: Option<&str>,
                 regtest_network: &crate::config::RegtestNetwork,
+                lightwalletd_feature: bool,
             ) -> PathBuf {
                 let config = match mine_to_address {
                     Some(address) => crate::testvectors::config_template_fillers::zcashd::funded(
                         address,
                         &self.zcashd_rpcservice_port,
                         regtest_network,
+                        lightwalletd_feature,
                     ),
                     None => crate::testvectors::config_template_fillers::zcashd::basic(
                         &self.zcashd_rpcservice_port,
                         regtest_network,
+                        lightwalletd_feature,
                         "",
                     ),
                 };
@@ -954,10 +963,16 @@ pub mod scenarios {
     /// TODO: Add Doc Comment Here!
     pub async fn unfunded_client(
         regtest_network: crate::config::RegtestNetwork,
+        lightwalletd_feature: bool,
     ) -> (RegtestManager, ChildProcessHandler, LightClient) {
-        let mut scenario_builder =
-            setup::ScenarioBuilder::build_configure_launch(None, None, None, &regtest_network)
-                .await;
+        let mut scenario_builder = setup::ScenarioBuilder::build_configure_launch(
+            None,
+            None,
+            None,
+            &regtest_network,
+            lightwalletd_feature,
+        )
+        .await;
         (
             scenario_builder.regtest_manager,
             scenario_builder.child_process_handler.unwrap(),
@@ -971,7 +986,7 @@ pub mod scenarios {
     /// TODO: Add Doc Comment Here!
     pub async fn unfunded_client_default() -> (RegtestManager, ChildProcessHandler, LightClient) {
         let regtest_network = crate::config::RegtestNetwork::all_upgrades_active();
-        unfunded_client(regtest_network).await
+        unfunded_client(regtest_network, true).await
     }
 
     /// Many scenarios need to start with spendable funds.  This setup provides
@@ -987,12 +1002,14 @@ pub mod scenarios {
     pub async fn faucet(
         mine_to_pool: PoolType,
         regtest_network: crate::config::RegtestNetwork,
+        lightwalletd_feature: bool,
     ) -> (RegtestManager, ChildProcessHandler, LightClient) {
         let mut sb = setup::ScenarioBuilder::build_configure_launch(
             Some(mine_to_pool),
             None,
             None,
             &regtest_network,
+            lightwalletd_feature,
         )
         .await;
         let faucet = sb.client_builder.build_faucet(false, regtest_network).await;
@@ -1010,6 +1027,7 @@ pub mod scenarios {
         faucet(
             PoolType::Shielded(ShieldedProtocol::Orchard),
             regtest_network,
+            true,
         )
         .await
     }
@@ -1018,6 +1036,7 @@ pub mod scenarios {
     pub async fn faucet_recipient(
         mine_to_pool: PoolType,
         regtest_network: crate::config::RegtestNetwork,
+        lightwalletd_feature: bool,
     ) -> (
         RegtestManager,
         ChildProcessHandler,
@@ -1029,6 +1048,7 @@ pub mod scenarios {
             None,
             None,
             &regtest_network,
+            lightwalletd_feature,
         )
         .await;
         let faucet = sb.client_builder.build_faucet(false, regtest_network).await;
@@ -1062,6 +1082,7 @@ pub mod scenarios {
         faucet_recipient(
             PoolType::Shielded(ShieldedProtocol::Orchard),
             regtest_network,
+            true,
         )
         .await
     }
@@ -1073,6 +1094,7 @@ pub mod scenarios {
         transparent_funds: Option<u64>,
         mine_to_pool: PoolType,
         regtest_network: crate::config::RegtestNetwork,
+        lightwalletd_feature: bool,
     ) -> (
         RegtestManager,
         ChildProcessHandler,
@@ -1083,7 +1105,7 @@ pub mod scenarios {
         Option<String>,
     ) {
         let (regtest_manager, child_process_handler, faucet, recipient) =
-            faucet_recipient(mine_to_pool, regtest_network).await;
+            faucet_recipient(mine_to_pool, regtest_network, lightwalletd_feature).await;
         increase_height_and_wait_for_client(&regtest_manager, &faucet, 1)
             .await
             .unwrap();
@@ -1173,6 +1195,7 @@ pub mod scenarios {
             None,
             PoolType::Shielded(ShieldedProtocol::Orchard),
             regtest_network,
+            true,
         )
         .await;
         (
@@ -1188,12 +1211,14 @@ pub mod scenarios {
     pub async fn custom_clients(
         mine_to_pool: PoolType,
         regtest_network: crate::config::RegtestNetwork,
+        lightwalletd_feature: bool,
     ) -> (RegtestManager, ChildProcessHandler, ClientBuilder) {
         let sb = setup::ScenarioBuilder::build_configure_launch(
             Some(mine_to_pool),
             None,
             None,
             &regtest_network,
+            lightwalletd_feature,
         )
         .await;
         (
@@ -1214,6 +1239,7 @@ pub mod scenarios {
         let (regtest_manager, cph, client_builder) = custom_clients(
             PoolType::Shielded(ShieldedProtocol::Orchard),
             regtest_network,
+            true,
         )
         .await;
         (regtest_manager, cph, client_builder, regtest_network)
@@ -1227,6 +1253,7 @@ pub mod scenarios {
             None,
             Some(20_000),
             &regtest_network,
+            true,
         )
         .await;
         (
@@ -1243,6 +1270,7 @@ pub mod scenarios {
             None,
             Some(20_000),
             &regtest_network,
+            true,
         )
         .await;
         let faucet = scenario_builder
@@ -1280,6 +1308,7 @@ pub mod scenarios {
             None,
             Some(20_000),
             &regtest_network,
+            true,
         )
         .await;
         let faucet = scenario_builder
@@ -1348,6 +1377,7 @@ pub mod scenarios {
             None,
             Some(20_000),
             &regtest_network,
+            true,
         )
         .await;
         let faucet = scenario_builder
@@ -1398,6 +1428,7 @@ pub mod scenarios {
             None,
             Some(20_000),
             &regtest_network,
+            true,
         )
         .await;
         let faucet = scenario_builder

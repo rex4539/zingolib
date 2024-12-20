@@ -109,6 +109,8 @@ where
     // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
     // TODO: invalidate any pending transactions after eviction height (40 below best chain height?)
 
+    update_subtree_roots(fetch_request_sender.clone(), wallet).await;
+
     let mut interval = tokio::time::interval(Duration::from_millis(30));
     loop {
         tokio::select! {
@@ -152,8 +154,6 @@ where
         }
     }
 
-    fetch_shards_for_sbs(&fetch_request_sender, wallet).await;
-
     drop(scanner);
     drop(fetch_request_sender);
     fetcher_handle.await.unwrap().unwrap();
@@ -161,8 +161,8 @@ where
     Ok(())
 }
 
-async fn fetch_shards_for_sbs<W>(
-    fetch_request_sender: &mpsc::UnboundedSender<FetchRequest>,
+async fn update_subtree_roots<W>(
+    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     wallet: &mut W,
 ) where
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints + SyncShardTrees,
@@ -185,7 +185,7 @@ async fn fetch_shards_for_sbs<W>(
         .len() as u32;
     let (sapling_shards, orchard_shards) = futures::join!(
         client::get_subtree_roots(fetch_request_sender.clone(), sapling_start_index, 0, 0),
-        client::get_subtree_roots(fetch_request_sender.clone(), orchard_start_index, 1, 0)
+        client::get_subtree_roots(fetch_request_sender, orchard_start_index, 1, 0)
     );
 
     let trees = wallet.get_shard_trees_mut().unwrap();
@@ -228,9 +228,7 @@ async fn update_tree_with_shards<S, const DEPTH: u8, const SHARD_HEIGHT: u8>(
                 ),
                 (node, RetentionFlags::EPHEMERAL),
             );
-            match tree.store_mut().put_shard(shard) {
-                Ok(()) => (),
-            }
+            tree.store_mut().put_shard(shard).unwrap();
         });
 }
 
