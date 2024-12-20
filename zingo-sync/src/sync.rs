@@ -10,7 +10,7 @@ use crate::error::SyncError;
 use crate::keys::transparent::TransparentAddressId;
 use crate::primitives::{NullifierMap, OutPointMap};
 use crate::scan::error::{ContinuityError, ScanError};
-use crate::scan::task::{Scanner, ScannerState};
+use crate::scan::task::Scanner;
 use crate::scan::transactions::scan_transaction;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{
@@ -33,8 +33,9 @@ pub(crate) mod spend;
 pub(crate) mod state;
 pub(crate) mod transparent;
 
+// TODO: move parameters to config module
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
-const BATCH_SIZE: u32 = 1_000;
+const BATCH_SIZE: u32 = 5_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
 const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond this window
 
@@ -52,11 +53,16 @@ where
 
     // create channel for sending fetch requests and launch fetcher task
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
-    let fetcher_handle = tokio::spawn(client::fetch::fetch(
-        fetch_request_receiver,
-        client.clone(),
-        consensus_parameters.clone(),
-    ));
+    let client_clone = client.clone();
+    let consensus_parameters_clone = consensus_parameters.clone();
+    let fetcher_handle = tokio::spawn(async move {
+        client::fetch::fetch(
+            fetch_request_receiver,
+            client_clone,
+            consensus_parameters_clone,
+        )
+        .await
+    });
 
     let wallet_height = state::get_wallet_height(consensus_parameters, wallet).unwrap();
     let chain_height = client::get_chain_height(fetch_request_sender.clone())
@@ -77,11 +83,9 @@ where
     let (mempool_transaction_sender, mut mempool_transaction_receiver) = mpsc::channel(10);
     let shutdown_mempool = Arc::new(AtomicBool::new(false));
     let shutdown_mempool_clone = shutdown_mempool.clone();
-    let mempool_handle = tokio::spawn(mempool_monitor(
-        client,
-        mempool_transaction_sender,
-        shutdown_mempool_clone,
-    ));
+    let mempool_handle = tokio::spawn(async move {
+        mempool_monitor(client, mempool_transaction_sender, shutdown_mempool_clone).await
+    });
 
     transparent::update_addresses_and_locators(
         consensus_parameters,
@@ -126,7 +130,6 @@ where
                     &ufvks,
                     scan_range,
                     scan_results,
-                    scanner.state_mut(),
                 )
                 .await
                 .unwrap();
@@ -189,7 +192,6 @@ async fn process_scan_results<P, W>(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     scan_results: Result<ScanResults, ScanError>,
-    scanner_state: &mut ScannerState,
 ) -> Result<(), SyncError>
 where
     P: consensus::Parameters,
@@ -197,10 +199,6 @@ where
 {
     match scan_results {
         Ok(results) => {
-            if scan_range.priority() == ScanPriority::Verify {
-                scanner_state.verify();
-            }
-
             update_wallet_data(wallet, results).unwrap();
             spend::update_transparent_spends(wallet).unwrap();
             spend::update_shielded_spends(
@@ -445,7 +443,7 @@ async fn mempool_monitor(
         .await
         .unwrap();
     loop {
-        if shutdown_mempool.load(atomic::Ordering::Relaxed) {
+        if shutdown_mempool.load(atomic::Ordering::Acquire) {
             break;
         }
 

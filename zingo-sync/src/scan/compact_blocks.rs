@@ -30,6 +30,9 @@ use super::{
 
 mod runners;
 
+// TODO: move parameters to config module
+const TRIAL_DECRYPT_TASK_SIZE: usize = 500;
+
 pub(crate) fn scan_compact_blocks<P>(
     compact_blocks: Vec<CompactBlock>,
     parameters: &P,
@@ -147,7 +150,7 @@ fn trial_decrypt<P>(
 where
     P: Parameters + Send + 'static,
 {
-    let mut runners = BatchRunners::<(), ()>::for_keys(100, scanning_keys);
+    let mut runners = BatchRunners::<(), ()>::for_keys(TRIAL_DECRYPT_TASK_SIZE, scanning_keys);
     for block in compact_blocks {
         runners.add_block(parameters, block.clone()).unwrap();
     }

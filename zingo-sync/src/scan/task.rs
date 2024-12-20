@@ -37,17 +37,11 @@ pub(crate) enum ScannerState {
 }
 
 impl ScannerState {
-    pub(crate) fn verify(&mut self) {
-        if let ScannerState::Verification = *self {
-            *self = ScannerState::Scan
-        } else {
-            panic!(
-                "ScanState is not Verification variant. Verification should only complete once!"
-            );
-        }
+    fn verified(&mut self) {
+        *self = ScannerState::Scan
     }
 
-    fn shutdown(&mut self) {
+    fn scan_completed(&mut self) {
         *self = ScannerState::Shutdown
     }
 }
@@ -84,10 +78,6 @@ where
             fetch_request_sender,
             ufvks,
         }
-    }
-
-    pub(crate) fn state_mut(&mut self) -> &mut ScannerState {
-        &mut self.state
     }
 
     pub(crate) fn worker_poolsize(&self) -> usize {
@@ -158,21 +148,27 @@ where
     {
         match self.state {
             ScannerState::Verification => {
-                if !wallet
-                    .get_sync_state()
-                    .unwrap()
+                let sync_state = wallet.get_sync_state().unwrap();
+                if !sync_state
                     .scan_ranges()
                     .iter()
                     .any(|scan_range| scan_range.priority() == ScanPriority::Verify)
                 {
-                    // under these conditions the `Verify` scan range is currently being scanned.
-                    // the reason why the logic looks for no `Verify` ranges in the sync state is because it is set to `Ignored`
-                    // during scanning.
-                    // if we were to continue to add new tasks and a re-org had occured the sync state would be unrecoverable.
-                    return;
+                    if sync_state
+                        .scan_ranges()
+                        .iter()
+                        .any(|scan_range| scan_range.priority() == ScanPriority::Ignored)
+                    {
+                        // the last scan ranges with `Verify` priority are currently being scanned.
+                        return;
+                    } else {
+                        // verification complete
+                        self.state.verified();
+                        return;
+                    }
                 }
 
-                // scan the range with `Verify` priority
+                // scan ranges with `Verify` priority
                 if let Some(worker) = self.idle_worker() {
                     let scan_task = sync::state::create_scan_task(wallet)
                         .unwrap()
@@ -188,13 +184,13 @@ where
                     if let Some(scan_task) = sync::state::create_scan_task(wallet).unwrap() {
                         worker.add_scan_task(scan_task).unwrap();
                     } else if wallet.get_sync_state().unwrap().scan_complete() {
-                        self.state.shutdown();
+                        self.state.scan_completed();
                     }
                 }
             }
             ScannerState::Shutdown => {
                 // shutdown mempool
-                shutdown_mempool.store(true, atomic::Ordering::Relaxed);
+                shutdown_mempool.store(true, atomic::Ordering::Release);
 
                 // shutdown idle workers
                 while let Some(worker) = self.idle_worker() {
