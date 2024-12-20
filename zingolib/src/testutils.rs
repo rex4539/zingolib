@@ -890,12 +890,12 @@ pub mod scenarios {
                 regtest_network: &crate::config::RegtestNetwork,
             ) -> PathBuf {
                 let config = match mine_to_address {
-                    Some(address) => crate::testvectors::config_template_fillers::zcashd::funded(
+                    Some(address) => crate::config_templaters::zcashd::funded(
                         address,
                         &self.zcashd_rpcservice_port,
                         regtest_network,
                     ),
-                    None => crate::testvectors::config_template_fillers::zcashd::basic(
+                    None => crate::config_templaters::zcashd::basic(
                         &self.zcashd_rpcservice_port,
                         regtest_network,
                         "",
@@ -908,7 +908,7 @@ pub mod scenarios {
             pub(crate) fn create_lightwalletd_conf(&self) -> PathBuf {
                 self.write_contents_and_return_path(
                     "lightwalletd",
-                    crate::testvectors::config_template_fillers::lightwalletd::basic(
+                    crate::config_templaters::lightwalletd::basic(
                         &self.lightwalletd_rpcservice_port,
                     ),
                 )

@@ -17,12 +17,12 @@ pub mod lightclient;
 pub mod utils;
 pub mod wallet;
 
+#[cfg(any(test, feature = "testvectors"))]
+pub mod config_templaters;
 #[cfg(any(test, feature = "test-elevation"))]
 pub mod mocks;
 #[cfg(any(test, feature = "test-elevation"))]
 pub mod testutils;
-#[cfg(any(test, feature = "testvectors"))]
-pub mod testvectors;
 
 // This line includes the generated `git_description()` function directly into this scope.
 include!(concat!(env!("OUT_DIR"), "/git_description.rs"));
