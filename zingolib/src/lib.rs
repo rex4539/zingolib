@@ -17,7 +17,7 @@ pub mod lightclient;
 pub mod utils;
 pub mod wallet;
 
-#[cfg(any(test, feature = "testvectors"))]
+#[cfg(feature = "testvectors")]
 pub mod config_templaters;
 #[cfg(any(test, feature = "test-elevation"))]
 pub mod mocks;
