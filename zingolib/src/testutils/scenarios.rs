@@ -19,6 +19,7 @@ use crate::testutils::{increase_height_and_wait_for_client, lightclient};
 use setup::ClientBuilder;
 use testvectors::{seeds::HOSPITAL_MUSEUM_SEED, BASE_HEIGHT};
 use zcash_client_backend::{PoolType, ShieldedProtocol};
+mod config_templaters;
 
 /// TODO: Add Doc Comment Here!
 pub mod setup {
@@ -281,12 +282,12 @@ pub mod setup {
             regtest_network: &crate::config::RegtestNetwork,
         ) -> PathBuf {
             let config = match mine_to_address {
-                Some(address) => crate::config_templaters::zcashd::funded(
+                Some(address) => super::config_templaters::zcashd::funded(
                     address,
                     &self.zcashd_rpcservice_port,
                     regtest_network,
                 ),
-                None => crate::config_templaters::zcashd::basic(
+                None => super::config_templaters::zcashd::basic(
                     &self.zcashd_rpcservice_port,
                     regtest_network,
                     "",
@@ -299,7 +300,7 @@ pub mod setup {
         pub(crate) fn create_lightwalletd_conf(&self) -> PathBuf {
             self.write_contents_and_return_path(
                 "lightwalletd",
-                crate::config_templaters::lightwalletd::basic(&self.lightwalletd_rpcservice_port),
+                super::config_templaters::lightwalletd::basic(&self.lightwalletd_rpcservice_port),
             )
         }
 
