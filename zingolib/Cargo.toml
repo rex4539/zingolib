@@ -23,6 +23,7 @@ zingo-memo = { path = "../zingo-memo" }
 zingo-status = { path = "../zingo-status" }
 zingo-netutils = { path = "../zingo-netutils" }
 zingo-sync = { path = "../zingo-sync", optional = true }
+testvectors = { path = "../testvectors" }
 
 orchard = { workspace = true }
 shardtree = { workspace = true, features = ["legacy-api"] }

@@ -12,6 +12,7 @@ zingolib = { path = "../zingolib", features = ["darkside_tests", "testvectors"] 
 zingo-sync = { path = "../zingo-sync" }
 zingo-netutils = { path = "../zingo-netutils" }
 zingo-status = { path = "../zingo-status" }
+testvectors = { path = "../testvectors" }
 
 tokio = { workspace = true, features = ["full"] }
 json = { workspace = true }

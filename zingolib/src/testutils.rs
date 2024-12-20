@@ -622,14 +622,14 @@ pub mod scenarios {
     use crate::get_base_address_macro;
     use crate::lightclient::LightClient;
     use crate::testutils::increase_height_and_wait_for_client;
-    use crate::testvectors::{seeds::HOSPITAL_MUSEUM_SEED, BASE_HEIGHT};
     use setup::ClientBuilder;
+    use testvectors::{seeds::HOSPITAL_MUSEUM_SEED, BASE_HEIGHT};
     use zcash_client_backend::{PoolType, ShieldedProtocol};
 
     /// TODO: Add Doc Comment Here!
     pub mod setup {
         use super::BASE_HEIGHT;
-        use crate::testvectors::{
+        use testvectors::{
             seeds, REG_O_ADDR_FROM_ABANDONART, REG_T_ADDR_FROM_ABANDONART,
             REG_Z_ADDR_FROM_ABANDONART,
         };
