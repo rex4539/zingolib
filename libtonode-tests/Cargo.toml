@@ -13,6 +13,7 @@ zingolib = { path = "../zingolib", features = ["deprecations", "test-elevation",
 zingo-status = { path = "../zingo-status" }
 zingo-netutils = { path = "../zingo-netutils" }
 zingo-sync = { path = "../zingo-sync" }
+testvectors = { path = "../testvectors" }
 
 bip0039.workspace = true
 zcash_primitives = { workspace = true }

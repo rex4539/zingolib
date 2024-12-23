@@ -19,8 +19,8 @@ use zingolib::wallet::keys::unified::UnifiedKeyStore;
 use zingolib::wallet::propose::ProposeSendError;
 use zingolib::{check_client_balances, get_base_address_macro, get_otd, validate_otds};
 
+use testvectors::{block_rewards, seeds::HOSPITAL_MUSEUM_SEED, BASE_HEIGHT};
 use zingolib::config::{ChainType, RegtestNetwork, MAX_REORG};
-use zingolib::testvectors::{block_rewards, seeds::HOSPITAL_MUSEUM_SEED, BASE_HEIGHT};
 use zingolib::{
     lightclient::{LightClient, PoolBalances},
     utils,
@@ -1290,6 +1290,7 @@ mod fast {
 mod slow {
     use bip0039::Mnemonic;
     use orchard::note_encryption::OrchardDomain;
+    use testvectors::TEST_TXID;
     use zcash_client_backend::{PoolType, ShieldedProtocol};
     use zcash_primitives::{
         consensus::NetworkConstants, memo::Memo, transaction::fees::zip317::MARGINAL_FEE,
@@ -1299,7 +1300,6 @@ mod slow {
         assert_transaction_summary_equality, assert_transaction_summary_exists,
         lightclient::{from_inputs, get_fees_paid_by_client},
     };
-    use zingolib::testvectors::TEST_TXID;
     use zingolib::{
         lightclient::send::send_with_proposal::QuickSendError,
         wallet::{
@@ -1683,11 +1683,8 @@ mod slow {
 
             watch_client.do_rescan().await.unwrap();
             assert!(matches!(
-                from_inputs::quick_send(
-                    &watch_client,
-                    vec![(zingolib::testvectors::EXT_TADDR, 1000, None)]
-                )
-                .await,
+                from_inputs::quick_send(&watch_client, vec![(testvectors::EXT_TADDR, 1000, None)])
+                    .await,
                 Err(QuickSendError::ProposeSend(ProposeSendError::Proposal(
                     zcash_client_backend::data_api::error::Error::DataSource(
                         TxMapTraitError::NoSpendCapability
@@ -1725,12 +1722,10 @@ mod slow {
 
         // 4. We can't spend the funds, as they're transparent. We need to shield first
         let sent_value = 20_000;
-        let sent_transaction_error = from_inputs::quick_send(
-            &recipient,
-            vec![(zingolib::testvectors::EXT_TADDR, sent_value, None)],
-        )
-        .await
-        .unwrap_err();
+        let sent_transaction_error =
+            from_inputs::quick_send(&recipient, vec![(testvectors::EXT_TADDR, sent_value, None)])
+                .await
+                .unwrap_err();
         assert!(matches!(
             sent_transaction_error,
             QuickSendError::ProposeSend(ProposeSendError::Proposal(
