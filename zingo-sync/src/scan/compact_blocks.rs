@@ -18,7 +18,7 @@ use zcash_primitives::{
 use crate::{
     keys::{KeyId, ScanningKeyOps, ScanningKeys},
     primitives::{NullifierMap, OutputId, WalletBlock},
-    witness::ShardTreeData,
+    witness::WitnessData,
 };
 
 use self::runners::{BatchRunners, DecryptedOutput};
@@ -29,6 +29,9 @@ use super::{
 };
 
 mod runners;
+
+// TODO: move parameters to config module
+const TRIAL_DECRYPT_TASK_SIZE: usize = 500;
 
 pub(crate) fn scan_compact_blocks<P>(
     compact_blocks: Vec<CompactBlock>,
@@ -48,7 +51,7 @@ where
     let mut nullifiers = NullifierMap::new();
     let mut relevant_txids: HashSet<TxId> = HashSet::new();
     let mut decrypted_note_data = DecryptedNoteData::new();
-    let mut shard_tree_data = ShardTreeData::new(
+    let mut witness_data = WitnessData::new(
         Position::from(u64::from(initial_scan_data.sapling_initial_tree_size)),
         Position::from(u64::from(initial_scan_data.orchard_initial_tree_size)),
     );
@@ -77,7 +80,7 @@ where
 
             collect_nullifiers(&mut nullifiers, block.height(), transaction).unwrap();
 
-            shard_tree_data.sapling_leaves_and_retentions.extend(
+            witness_data.sapling_leaves_and_retentions.extend(
                 calculate_sapling_leaves_and_retentions(
                     &transaction.outputs,
                     block.height(),
@@ -86,7 +89,7 @@ where
                 )
                 .unwrap(),
             );
-            shard_tree_data.orchard_leaves_and_retentions.extend(
+            witness_data.orchard_leaves_and_retentions.extend(
                 calculate_orchard_leaves_and_retentions(
                     &transaction.actions,
                     block.height(),
@@ -135,7 +138,7 @@ where
         wallet_blocks,
         relevant_txids,
         decrypted_note_data,
-        shard_tree_data,
+        witness_data,
     })
 }
 
@@ -147,7 +150,7 @@ fn trial_decrypt<P>(
 where
     P: Parameters + Send + 'static,
 {
-    let mut runners = BatchRunners::<(), ()>::for_keys(100, scanning_keys);
+    let mut runners = BatchRunners::<(), ()>::for_keys(TRIAL_DECRYPT_TASK_SIZE, scanning_keys);
     for block in compact_blocks {
         runners.add_block(parameters, block.clone()).unwrap();
     }
@@ -158,6 +161,7 @@ where
 
 // checks height and hash continuity of a batch of compact blocks.
 // takes the last wallet compact block of the adjacent lower scan range, if available.
+// TODO: remove option and revisit scanner flow to use the last block of previously scanned batch to check continuity
 fn check_continuity(
     compact_blocks: &[CompactBlock],
     previous_compact_block: Option<&WalletBlock>,

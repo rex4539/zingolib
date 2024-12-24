@@ -1,4 +1,5 @@
 use tempfile::TempDir;
+use testvectors::seeds::HOSPITAL_MUSEUM_SEED;
 use zingo_netutils::GrpcConnector;
 use zingo_sync::sync::sync;
 use zingolib::{
@@ -6,7 +7,6 @@ use zingolib::{
     get_base_address_macro,
     lightclient::LightClient,
     testutils::{lightclient::from_inputs, scenarios},
-    testvectors::seeds::HOSPITAL_MUSEUM_SEED,
     wallet::WalletBase,
 };
 
@@ -31,7 +31,7 @@ async fn sync_mainnet_test() {
     let mut lightclient = LightClient::create_from_wallet_base_async(
         WalletBase::from_string(HOSPITAL_MUSEUM_SEED.to_string()),
         &config,
-        2_715_150,
+        2_650_318,
         true,
     )
     .await
@@ -43,8 +43,8 @@ async fn sync_mainnet_test() {
         .await
         .unwrap();
 
-    dbg!(lightclient.wallet.wallet_blocks);
-    dbg!(lightclient.wallet.nullifier_map);
+    // dbg!(lightclient.wallet.wallet_blocks);
+    // dbg!(lightclient.wallet.nullifier_map);
     dbg!(lightclient.wallet.sync_state);
 }
 

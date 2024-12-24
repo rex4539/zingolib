@@ -1,6 +1,8 @@
 //! Entrypoint for sync engine
 
 use std::collections::HashMap;
+use std::sync::atomic::{self, AtomicBool};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::client::{self, FetchRequest};
@@ -8,7 +10,7 @@ use crate::error::SyncError;
 use crate::keys::transparent::TransparentAddressId;
 use crate::primitives::{NullifierMap, OutPointMap};
 use crate::scan::error::{ContinuityError, ScanError};
-use crate::scan::task::{Scanner, ScannerState};
+use crate::scan::task::Scanner;
 use crate::scan::transactions::scan_transaction;
 use crate::scan::{DecryptedNoteData, ScanResults};
 use crate::traits::{
@@ -33,8 +35,9 @@ pub(crate) mod spend;
 pub(crate) mod state;
 pub(crate) mod transparent;
 
+// TODO: move parameters to config module
 // TODO; replace fixed batches with orchard shard ranges (block ranges containing all note commitments to an orchard shard or fragment of a shard)
-const BATCH_SIZE: u32 = 1_000;
+const BATCH_SIZE: u32 = 5_000;
 const VERIFY_BLOCK_RANGE_SIZE: u32 = 10;
 const MAX_VERIFICATION_WINDOW: u32 = 100; // TODO: fail if re-org goes beyond this window
 
@@ -52,11 +55,16 @@ where
 
     // create channel for sending fetch requests and launch fetcher task
     let (fetch_request_sender, fetch_request_receiver) = mpsc::unbounded_channel();
-    let fetcher_handle = tokio::spawn(client::fetch::fetch(
-        fetch_request_receiver,
-        client,
-        consensus_parameters.clone(),
-    ));
+    let client_clone = client.clone();
+    let consensus_parameters_clone = consensus_parameters.clone();
+    let fetcher_handle = tokio::spawn(async move {
+        client::fetch::fetch(
+            fetch_request_receiver,
+            client_clone,
+            consensus_parameters_clone,
+        )
+        .await
+    });
 
     let wallet_height = state::get_wallet_height(consensus_parameters, wallet).unwrap();
     let chain_height = client::get_chain_height(fetch_request_sender.clone())
@@ -72,6 +80,14 @@ where
         truncate_wallet_data(wallet, chain_height).unwrap();
     }
     let ufvks = wallet.get_unified_full_viewing_keys().unwrap();
+
+    // create channel for receiving mempool transactions and launch mempool monitor
+    let (mempool_transaction_sender, mut mempool_transaction_receiver) = mpsc::channel(10);
+    let shutdown_mempool = Arc::new(AtomicBool::new(false));
+    let shutdown_mempool_clone = shutdown_mempool.clone();
+    let mempool_handle = tokio::spawn(async move {
+        mempool_monitor(client, mempool_transaction_sender, shutdown_mempool_clone).await
+    });
 
     transparent::update_addresses_and_locators(
         consensus_parameters,
@@ -101,13 +117,9 @@ where
     );
     scanner.spawn_workers();
 
-    // setup the initial mempool stream
-    let mut mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
-        .await
-        .unwrap();
-
     // TODO: consider what happens when there is no verification range i.e. all ranges already scanned
     // TODO: invalidate any pending transactions after eviction height (40 below best chain height?)
+    // TODO: implement an option for continuous scanning where it doesnt exit when complete
 
     update_subtree_roots(fetch_request_sender.clone(), wallet).await;
 
@@ -122,29 +134,23 @@ where
                     &ufvks,
                     scan_range,
                     scan_results,
-                    scanner.state_mut(),
                 )
                 .await
                 .unwrap();
             }
 
-            mempool_stream_response = mempool_stream.message() => {
-                process_mempool_stream_response(
+            Some(raw_transaction) = mempool_transaction_receiver.recv() => {
+                process_mempool_transaction(
                     consensus_parameters,
-                    fetch_request_sender.clone(),
                     &ufvks,
                     wallet,
-                    mempool_stream_response,
-                    &mut mempool_stream)
+                    raw_transaction,
+                )
                 .await;
-
-                // reset interval to ensure all mempool transactions have been scanned before sync completes.
-                // if a full interval passes without receiving a transaction from the mempool we can safely finish sync.
-                interval.reset();
             }
 
             _update_scanner = interval.tick() => {
-                scanner.update(wallet).await;
+                scanner.update(wallet, shutdown_mempool.clone()).await;
 
                 if sync_complete(&scanner, &scan_results_receiver, wallet) {
                     tracing::info!("Sync complete.");
@@ -156,6 +162,7 @@ where
 
     drop(scanner);
     drop(fetch_request_sender);
+    mempool_handle.await.unwrap().unwrap();
     fetcher_handle.await.unwrap().unwrap();
 
     Ok(())
@@ -260,7 +267,6 @@ async fn process_scan_results<P, W>(
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     scan_range: ScanRange,
     scan_results: Result<ScanResults, ScanError>,
-    scanner_state: &mut ScannerState,
 ) -> Result<(), SyncError>
 where
     P: consensus::Parameters,
@@ -268,10 +274,6 @@ where
 {
     match scan_results {
         Ok(results) => {
-            if scan_range.priority() == ScanPriority::Verify {
-                scanner_state.verify();
-            }
-
             update_wallet_data(wallet, results).unwrap();
             spend::update_transparent_spends(wallet).unwrap();
             spend::update_shielded_spends(
@@ -318,116 +320,103 @@ where
     Ok(())
 }
 
-/// Processes mempool stream response.
+/// Processes mempool transaction.
 ///
-/// If there is some raw transaction, scan the transaction and add to the wallet if relavent.
-/// If the response is `None`, a block was mined. Setup a new mempool stream until the next block is mined.
-async fn process_mempool_stream_response<W>(
+/// Scan the transaction and add to the wallet if relavent.
+async fn process_mempool_transaction<W>(
     consensus_parameters: &impl consensus::Parameters,
-    fetch_request_sender: mpsc::UnboundedSender<FetchRequest>,
     ufvks: &HashMap<AccountId, UnifiedFullViewingKey>,
     wallet: &mut W,
-    mempool_stream_response: Result<Option<RawTransaction>, tonic::Status>,
-    mempool_stream: &mut tonic::Streaming<RawTransaction>,
+    raw_transaction: RawTransaction,
 ) where
     W: SyncWallet + SyncBlocks + SyncTransactions + SyncNullifiers + SyncOutPoints,
 {
-    match mempool_stream_response.unwrap() {
-        Some(raw_transaction) => {
-            let block_height =
-                BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
-            let transaction = zcash_primitives::transaction::Transaction::read(
-                &raw_transaction.data[..],
-                consensus::BranchId::for_height(consensus_parameters, block_height),
-            )
-            .unwrap();
+    let block_height = BlockHeight::from_u32(u32::try_from(raw_transaction.height).unwrap());
+    let transaction = zcash_primitives::transaction::Transaction::read(
+        &raw_transaction.data[..],
+        consensus::BranchId::for_height(consensus_parameters, block_height),
+    )
+    .unwrap();
 
-            tracing::info!(
-                "mempool received txid {} at height {}",
-                transaction.txid(),
-                block_height
-            );
+    tracing::info!(
+        "mempool received txid {} at height {}",
+        transaction.txid(),
+        block_height
+    );
 
-            if let Some(tx) = wallet
-                .get_wallet_transactions()
-                .unwrap()
-                .get(&transaction.txid())
-            {
-                if tx.confirmation_status().is_confirmed() {
-                    return;
-                }
-            }
-
-            let confirmation_status = ConfirmationStatus::Mempool(block_height);
-            let mut mempool_transaction_nullifiers = NullifierMap::new();
-            let mut mempool_transaction_outpoints = OutPointMap::new();
-            let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
-                .get_transparent_addresses()
-                .unwrap()
-                .iter()
-                .map(|(id, address)| (address.clone(), *id))
-                .collect();
-            let mempool_transaction = scan_transaction(
-                consensus_parameters,
-                ufvks,
-                transaction,
-                confirmation_status,
-                &DecryptedNoteData::new(),
-                &mut mempool_transaction_nullifiers,
-                &mut mempool_transaction_outpoints,
-                &transparent_addresses,
-            )
-            .unwrap();
-
-            let wallet_transactions = wallet.get_wallet_transactions().unwrap();
-            let transparent_output_ids = spend::collect_transparent_output_ids(wallet_transactions);
-            let transparent_spend_locators = spend::detect_transparent_spends(
-                &mut mempool_transaction_outpoints,
-                transparent_output_ids,
-            );
-            let (sapling_derived_nullifiers, orchard_derived_nullifiers) =
-                spend::collect_derived_nullifiers(wallet_transactions);
-            let (sapling_spend_locators, orchard_spend_locators) = spend::detect_shielded_spends(
-                &mut mempool_transaction_nullifiers,
-                sapling_derived_nullifiers,
-                orchard_derived_nullifiers,
-            );
-
-            // return if transaction is not relavent to the wallet
-            if mempool_transaction.transparent_coins().is_empty()
-                && mempool_transaction.sapling_notes().is_empty()
-                && mempool_transaction.orchard_notes().is_empty()
-                && mempool_transaction.outgoing_orchard_notes().is_empty()
-                && mempool_transaction.outgoing_sapling_notes().is_empty()
-                && transparent_spend_locators.is_empty()
-                && sapling_spend_locators.is_empty()
-                && orchard_spend_locators.is_empty()
-            {
-                return;
-            }
-
-            wallet
-                .insert_wallet_transaction(mempool_transaction)
-                .unwrap();
-            spend::update_spent_coins(
-                wallet.get_wallet_transactions_mut().unwrap(),
-                transparent_spend_locators,
-            );
-            spend::update_spent_notes(
-                wallet.get_wallet_transactions_mut().unwrap(),
-                sapling_spend_locators,
-                orchard_spend_locators,
-            );
-
-            // TODO: consider logic for pending spent being set back to None when txs are evicted / never make it on chain
-            // similar logic to truncate
-        }
-        None => {
-            *mempool_stream = client::get_mempool_transaction_stream(fetch_request_sender.clone())
-                .await
-                .unwrap();
+    if let Some(tx) = wallet
+        .get_wallet_transactions()
+        .unwrap()
+        .get(&transaction.txid())
+    {
+        if tx.confirmation_status().is_confirmed() {
+            return;
         }
     }
+
+    let confirmation_status = ConfirmationStatus::Mempool(block_height);
+    let mut mempool_transaction_nullifiers = NullifierMap::new();
+    let mut mempool_transaction_outpoints = OutPointMap::new();
+    let transparent_addresses: HashMap<String, TransparentAddressId> = wallet
+        .get_transparent_addresses()
+        .unwrap()
+        .iter()
+        .map(|(id, address)| (address.clone(), *id))
+        .collect();
+    let mempool_transaction = scan_transaction(
+        consensus_parameters,
+        ufvks,
+        transaction,
+        confirmation_status,
+        &DecryptedNoteData::new(),
+        &mut mempool_transaction_nullifiers,
+        &mut mempool_transaction_outpoints,
+        &transparent_addresses,
+    )
+    .unwrap();
+
+    let wallet_transactions = wallet.get_wallet_transactions().unwrap();
+    let transparent_output_ids = spend::collect_transparent_output_ids(wallet_transactions);
+    let transparent_spend_locators = spend::detect_transparent_spends(
+        &mut mempool_transaction_outpoints,
+        transparent_output_ids,
+    );
+    let (sapling_derived_nullifiers, orchard_derived_nullifiers) =
+        spend::collect_derived_nullifiers(wallet_transactions);
+    let (sapling_spend_locators, orchard_spend_locators) = spend::detect_shielded_spends(
+        &mut mempool_transaction_nullifiers,
+        sapling_derived_nullifiers,
+        orchard_derived_nullifiers,
+    );
+
+    // return if transaction is not relavent to the wallet
+    if mempool_transaction.transparent_coins().is_empty()
+        && mempool_transaction.sapling_notes().is_empty()
+        && mempool_transaction.orchard_notes().is_empty()
+        && mempool_transaction.outgoing_orchard_notes().is_empty()
+        && mempool_transaction.outgoing_sapling_notes().is_empty()
+        && transparent_spend_locators.is_empty()
+        && sapling_spend_locators.is_empty()
+        && orchard_spend_locators.is_empty()
+    {
+        return;
+    }
+
+    wallet
+        .insert_wallet_transaction(mempool_transaction)
+        .unwrap();
+    spend::update_spent_coins(
+        wallet.get_wallet_transactions_mut().unwrap(),
+        transparent_spend_locators,
+    );
+    spend::update_spent_notes(
+        wallet.get_wallet_transactions_mut().unwrap(),
+        sapling_spend_locators,
+        orchard_spend_locators,
+    );
+
+    // TODO: consider logic for pending spent being set back to None when txs are evicted / never make it on chain
+    // similar logic to truncate
 }
 
 /// Removes all wallet data above the given `truncate_height`.
@@ -452,10 +441,11 @@ where
 {
     let ScanResults {
         nullifiers,
+        outpoints,
         wallet_blocks,
         wallet_transactions,
-        shard_tree_data,
-        outpoints,
+        sapling_located_trees,
+        orchard_located_trees,
     } = scan_results;
 
     wallet.append_wallet_blocks(wallet_blocks).unwrap();
@@ -464,7 +454,9 @@ where
         .unwrap();
     wallet.append_nullifiers(nullifiers).unwrap();
     wallet.append_outpoints(outpoints).unwrap();
-    wallet.update_shard_trees(shard_tree_data).unwrap();
+    wallet
+        .update_shard_trees(sapling_located_trees, orchard_located_trees)
+        .unwrap();
     // TODO: add trait to save wallet data to persistance for in-memory wallets
 
     Ok(())
@@ -509,6 +501,43 @@ where
         .unwrap()
         .orchard_mut()
         .retain(|_, (height, _)| *height >= scan_range.block_range().end);
+
+    Ok(())
+}
+
+/// Sets up mempool stream.
+///
+/// If there is some raw transaction, send to be scanned.
+/// If the response is `None` (a block was mined) or a timeout error occured, setup a new mempool stream.
+async fn mempool_monitor(
+    mut client: CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
+    mempool_transaction_sender: mpsc::Sender<RawTransaction>,
+    shutdown_mempool: Arc<AtomicBool>,
+) -> Result<(), ()> {
+    let mut mempool_stream = client::get_mempool_transaction_stream(&mut client)
+        .await
+        .unwrap();
+    loop {
+        if shutdown_mempool.load(atomic::Ordering::Acquire) {
+            break;
+        }
+
+        let mempool_stream_response = mempool_stream.message().await;
+        match mempool_stream_response.unwrap_or(None) {
+            Some(raw_transaction) => {
+                mempool_transaction_sender
+                    .send(raw_transaction)
+                    .await
+                    .unwrap();
+            }
+            None => {
+                mempool_stream = client::get_mempool_transaction_stream(&mut client)
+                    .await
+                    .unwrap();
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+    }
 
     Ok(())
 }

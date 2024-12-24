@@ -157,12 +157,6 @@ async fn fetch_from_server(
                 .unwrap();
             sender.send(transactions).unwrap();
         }
-
-        FetchRequest::MempoolStream(sender) => {
-            tracing::info!("Fetching mempool stream");
-            let mempool_stream = get_mempool_stream(client).await.unwrap();
-            sender.send(mempool_stream).unwrap();
-        }
     }
 
     Ok(())
@@ -324,7 +318,10 @@ async fn get_taddress_txs(
     Ok(transactions)
 }
 
-async fn get_mempool_stream(
+/// Call `GetMempoolStream` client gPRC
+///
+/// This is not called from the fetch request framework and is intended to be called independently.
+pub(super) async fn get_mempool_stream(
     client: &mut CompactTxStreamerClient<zingo_netutils::UnderlyingService>,
 ) -> Result<tonic::Streaming<RawTransaction>, ()> {
     let request = tonic::Request::new(Empty {});
