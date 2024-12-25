@@ -273,7 +273,7 @@ async fn transaction_disappears_before_mempool() {
     {
         let sender = &primary;
         let proposal = &proposal;
-        let recipients = vec![&secondary];
+        let _recipients = vec![&secondary];
 
         let server_height_at_send = BlockHeight::from(
             grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
@@ -313,6 +313,12 @@ async fn transaction_disappears_before_mempool() {
             );
         }
 
+        environment
+            .get_connector()
+            .clear_incoming_transactions()
+            .await
+            .unwrap();
+
         environment.bump_chain().await;
         // chain scan shows the same
         sender.do_sync(false).await.unwrap();
@@ -346,37 +352,8 @@ async fn transaction_disappears_before_mempool() {
         for status in sender_confirmed_statuses {
             assert_eq!(
                 status,
-                ConfirmationStatus::Confirmed(server_height_at_send + 1)
+                ConfirmationStatus::Transmitted(server_height_at_send + 1)
             );
-        }
-
-        let mut recipients_confirmed_outputs = vec![];
-        for recipient in recipients {
-            recipient.do_sync(false).await.unwrap();
-
-            // check that each record has the status, returning the output value
-            let (recipient_confirmed_outputs, recipient_confirmed_statuses): (
-                Vec<u64>,
-                Vec<ConfirmationStatus>,
-            ) = testutils::assertions::for_each_proposed_record(
-                recipient,
-                proposal,
-                &txids,
-                |_records, record, _step| {
-                    (record.query_sum_value(OutputQuery::any()), record.status)
-                },
-            )
-            .await
-            .into_iter()
-            .map(|stepwise_result| stepwise_result.unwrap())
-            .collect();
-            for status in recipient_confirmed_statuses {
-                assert_eq!(
-                    status,
-                    ConfirmationStatus::Confirmed(server_height_at_send + 1)
-                );
-            }
-            recipients_confirmed_outputs.push(recipient_confirmed_outputs);
         }
     }
 }
