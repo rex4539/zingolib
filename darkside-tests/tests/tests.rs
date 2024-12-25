@@ -323,6 +323,12 @@ async fn transaction_disappears_before_mempool() {
         // chain scan shows the same
         sender.do_sync(false).await.unwrap();
 
+        sleep(std::time::Duration::from_millis(10_000)).await;
+
+        environment.bump_chain().await;
+        // chain scan shows the same
+        sender.do_sync(false).await.unwrap();
+
         // check that each record has the expected fee and status, returning the fee and outputs
         let (sender_confirmed_fees, (sender_confirmed_outputs, sender_confirmed_statuses)): (
             Vec<u64>,
