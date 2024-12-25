@@ -246,6 +246,11 @@ async fn sent_transaction_reorged_into_mempool() {
     );
 }
 
+/// this test demonstrates that
+/// when a transaction is dropped by lightwallet, zingolib does not proactively respond
+/// the test is set up to have a different result if proactive rebroadcast happens
+/// there is a further detail to understand: zingolib currently considers all recorded transactions to be un-contradictable. it cant imagine an alternate history without a transaction until the transaction is deleted. this can cause it to become deeply confused until it forgets about the contradicted transaction VIA a reboot.
+/// despite this test, there may be unexpected failure modes in network conditions
 #[tokio::test]
 async fn transaction_disappears_before_mempool() {
     std::env::set_var("RUST_BACKTRACE", "1");
@@ -273,7 +278,6 @@ async fn transaction_disappears_before_mempool() {
     {
         let sender = &primary;
         let proposal = &proposal;
-        let _recipients = vec![&secondary];
 
         let server_height_at_send = BlockHeight::from(
             grpc_connector::get_latest_block(environment.lightserver_uri().unwrap())
