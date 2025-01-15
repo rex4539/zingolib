@@ -723,7 +723,7 @@ impl Command for AddressCommand {
         indoc! {r#"
             List current addresses in the wallet, shielded excludes t-addresses.
             Usage:
-            addresses shielded
+            addresses [shielded|orchard]
 
         "#}
     }
@@ -733,12 +733,24 @@ impl Command for AddressCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
+        use crate::lightclient::describe::UAReceivers;
         match args.len() {
-            0 => RT.block_on(async move { lightclient.do_addresses(false).await.pretty(2) }),
+            0 => RT.block_on(
+                async move { lightclient.do_addresses(UAReceivers::All).await.pretty(2) },
+            ),
             1 => match args[0] {
-                "shielded" => {
-                    RT.block_on(async move { lightclient.do_addresses(true).await.pretty(2) })
-                }
+                "shielded" => RT.block_on(async move {
+                    lightclient
+                        .do_addresses(UAReceivers::Shielded)
+                        .await
+                        .pretty(2)
+                }),
+                "orchard" => RT.block_on(async move {
+                    lightclient
+                        .do_addresses(UAReceivers::Orchard)
+                        .await
+                        .pretty(2)
+                }),
                 _ => self.help().to_string(),
             },
             _ => self.help().to_string(),

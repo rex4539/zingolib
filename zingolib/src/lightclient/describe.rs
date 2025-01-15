@@ -39,6 +39,11 @@ pub enum ValueTransferRecordingError {
 fn some_sum(a: Option<u64>, b: Option<u64>) -> Option<u64> {
     a.xor(b).or_else(|| a.zip(b).map(|(v, u)| v + u))
 }
+pub enum UAReceivers {
+    Orchard,
+    Shielded,
+    All,
+}
 impl LightClient {
     /// Uses a query to select all notes across all transactions with specific properties and sum them
     pub async fn query_sum_value(&self, include_notes: OutputQuery) -> u64 {
@@ -53,18 +58,23 @@ impl LightClient {
 
     /// TODO: Add Doc Comment Here!
     // todo use helpers
-    pub async fn do_addresses(&self, shielded_only: bool) -> JsonValue {
+    pub async fn do_addresses(&self, subset: UAReceivers) -> JsonValue {
         let mut objectified_addresses = Vec::new();
         for address in self.wallet.wallet_capability().addresses().iter() {
-            let local_address = if shielded_only {
-                zcash_keys::address::UnifiedAddress::from_receivers(
+            let local_address = match subset {
+                UAReceivers::Orchard => zcash_keys::address::UnifiedAddress::from_receivers(
+                    address.orchard().copied(),
+                    None,
+                    None,
+                )
+                .expect("To create a new address."),
+                UAReceivers::Shielded => zcash_keys::address::UnifiedAddress::from_receivers(
                     address.orchard().copied(),
                     address.sapling().copied(),
                     None,
                 )
-                .expect("To create a new address.")
-            } else {
-                address.clone()
+                .expect("To create a new address."),
+                UAReceivers::All => address.clone(),
             };
             let encoded_ua = local_address.encode(&self.config.chain);
             let transparent = local_address
