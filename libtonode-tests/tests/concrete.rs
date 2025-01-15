@@ -1743,9 +1743,36 @@ mod slow {
     async fn compare_shielded_only_vs_default_do_addresses() {
         let (_regtest_manager, _cph, _faucet, recipient) =
             scenarios::faucet_recipient_default().await;
-        let all_addresses = recipient.do_addresses(false).await;
-        let only_shielded_addresses = recipient.do_addresses(true).await;
-        assert_eq!(all_addresses, only_shielded_addresses);
+        // All addresses
+        let all_addresses = recipient.do_addresses(false).await[0].clone();
+        assert_eq!(
+            all_addresses["address"],
+            "uregtest1wdukkmv5p5n824e8ytnc3m6m77v9vwwl7hcpj0wangf6z23f9x0fnaen625dxgn8cgp67vzw6swuar6uwp3nqywfvvkuqrhdjffxjfg644uthqazrtxhrgwac0a6ujzgwp8y9cwthjeayq8r0q6786yugzzyt9vevxn7peujlw8kp3vf6d8p4fvvpd8qd5p7xt2uagelmtf3vl6w3u8"
+        );
+        assert_eq!(all_addresses["receivers"].len(), 3usize);
+        assert_eq!(
+            all_addresses["receivers"]["transparent"],
+            "tmFLszfkjgim4zoUMAXpuohnFBAKy99rr2i"
+        );
+        // Only Shielded
+        let only_shielded_addresses = recipient.do_addresses(true).await[0].clone();
+        assert_eq!(
+            only_shielded_addresses["address"],
+            "uregtest1rm8kx0snrzfxw4z5uz34tdrg0slzu6ct94z479f8u95d3j46m4glj5xugensqwe5ume0zx8h9k0aprepyksffyyu8yd24cnvnmm2qh0sp5u93e4w2rjzpqjwd7fv32yfgql5yuqjs9l2kq60rchev3kv5j5p6u20ndgjmzs94vu50gy7"
+        );
+        assert_eq!(
+            only_shielded_addresses["receivers"]["transparent"],
+            JsonValue::Null
+        );
+        // Both
+        assert_eq!(
+            only_shielded_addresses["receivers"]["sapling"],
+            all_addresses["receivers"]["sapling"],
+        );
+        assert_eq!(
+            only_shielded_addresses["receivers"]["orchard"],
+            all_addresses["receivers"]["orchard"],
+        );
     }
 
     #[tokio::test]
