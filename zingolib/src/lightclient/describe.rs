@@ -60,14 +60,16 @@ impl LightClient {
             let transparent = address
                 .transparent()
                 .map(|taddr| address_from_pubkeyhash(&self.config, *taddr));
-            objectified_addresses.push(object! {
-        "address" => encoded_ua,
-        "receivers" => object!(
-            "transparent" => transparent,
-            "sapling" => address.sapling().map(|z_addr| encode_payment_address(self.config.chain.hrp_sapling_payment_address(), z_addr)),
-            "orchard_exists" => address.orchard().is_some(),
+            objectified_addresses.push(
+                object!{
+                    "address" => encoded_ua,
+                    "receivers" => object!(
+                        "transparent" => transparent,
+                        "sapling" => address.sapling().map(|z_addr| encode_payment_address(self.config.chain.hrp_sapling_payment_address(), z_addr)),
+                        "orchard_exists" => address.orchard().is_some()
+                    )
+                }
             )
-        })
         }
         JsonValue::Array(objectified_addresses)
     }
