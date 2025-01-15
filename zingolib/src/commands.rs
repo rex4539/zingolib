@@ -723,7 +723,7 @@ impl Command for AddressCommand {
         indoc! {r#"
             List current addresses in the wallet, shielded exludes t-addresses.
             Usage:
-            addresses true|false
+            addresses shielded
 
         "#}
     }
@@ -734,13 +734,10 @@ impl Command for AddressCommand {
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
         match args.len() {
-            0 => self.help().to_string(),
+            0 => RT.block_on(async move { lightclient.do_addresses(false).await.pretty(2) }),
             1 => match args[0] {
-                "true" => {
+                "shielded" => {
                     RT.block_on(async move { lightclient.do_addresses(true).await.pretty(2) })
-                }
-                "false" => {
-                    RT.block_on(async move { lightclient.do_addresses(false).await.pretty(2) })
                 }
                 _ => self.help().to_string(),
             },
