@@ -12,6 +12,7 @@ use zcash_client_backend::ShieldedProtocol::Orchard;
 use zcash_primitives::consensus::BlockHeight;
 use zingo_status::confirmation_status::ConfirmationStatus;
 use zingolib::config::RegtestNetwork;
+use zingolib::get_base_address_macro;
 use zingolib::grpc_connector;
 use zingolib::lightclient::LightClient;
 use zingolib::lightclient::PoolBalances;
