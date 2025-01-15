@@ -1747,10 +1747,6 @@ mod slow {
             scenarios::faucet_recipient_default().await;
         // All addresses
         let all_addresses = recipient.do_addresses(UAReceivers::All).await[0].clone();
-        assert_eq!(
-            all_addresses["address"],
-            "uregtest1wdukkmv5p5n824e8ytnc3m6m77v9vwwl7hcpj0wangf6z23f9x0fnaen625dxgn8cgp67vzw6swuar6uwp3nqywfvvkuqrhdjffxjfg644uthqazrtxhrgwac0a6ujzgwp8y9cwthjeayq8r0q6786yugzzyt9vevxn7peujlw8kp3vf6d8p4fvvpd8qd5p7xt2uagelmtf3vl6w3u8"
-        );
         assert_eq!(all_addresses["receivers"].len(), 3usize);
         assert_eq!(
             all_addresses["receivers"]["transparent"],
@@ -1759,10 +1755,6 @@ mod slow {
         // Only Shielded
         let only_shielded_addresses =
             recipient.do_addresses(UAReceivers::Shielded).await[0].clone();
-        assert_eq!(
-            only_shielded_addresses["address"],
-            "uregtest1rm8kx0snrzfxw4z5uz34tdrg0slzu6ct94z479f8u95d3j46m4glj5xugensqwe5ume0zx8h9k0aprepyksffyyu8yd24cnvnmm2qh0sp5u93e4w2rjzpqjwd7fv32yfgql5yuqjs9l2kq60rchev3kv5j5p6u20ndgjmzs94vu50gy7"
-        );
         assert_eq!(
             only_shielded_addresses["receivers"]["transparent"],
             JsonValue::Null
@@ -1775,6 +1767,35 @@ mod slow {
         assert_eq!(
             only_shielded_addresses["receivers"]["orchard"],
             all_addresses["receivers"]["orchard"],
+        );
+        let only_orchard_address = recipient.do_addresses(UAReceivers::Orchard).await[0].clone();
+        assert_eq!(
+            only_orchard_address["receivers"]["transparent"],
+            JsonValue::Null
+        );
+        assert_eq!(
+            only_orchard_address["receivers"]["sapling"],
+            JsonValue::Null
+        );
+
+        // Compare full UAs
+        let all_addresses_ua = all_addresses["address"].clone();
+        assert_eq!(all_addresses_ua.to_string().len(), 220usize);
+        assert_eq!(
+            all_addresses_ua,
+            "uregtest1wdukkmv5p5n824e8ytnc3m6m77v9vwwl7hcpj0wangf6z23f9x0fnaen625dxgn8cgp67vzw6swuar6uwp3nqywfvvkuqrhdjffxjfg644uthqazrtxhrgwac0a6ujzgwp8y9cwthjeayq8r0q6786yugzzyt9vevxn7peujlw8kp3vf6d8p4fvvpd8qd5p7xt2uagelmtf3vl6w3u8"
+        );
+        let only_shielded_addresses_ua = only_shielded_addresses["address"].clone();
+        assert_eq!(only_shielded_addresses_ua.to_string().len(), 185usize);
+        assert_eq!(
+            only_shielded_addresses_ua,
+            "uregtest1rm8kx0snrzfxw4z5uz34tdrg0slzu6ct94z479f8u95d3j46m4glj5xugensqwe5ume0zx8h9k0aprepyksffyyu8yd24cnvnmm2qh0sp5u93e4w2rjzpqjwd7fv32yfgql5yuqjs9l2kq60rchev3kv5j5p6u20ndgjmzs94vu50gy7"
+        );
+        let only_orchard_address_ua = only_orchard_address["address"].clone();
+        assert_eq!(only_orchard_address_ua.to_string().len(), 113usize);
+        assert_eq!(
+            only_orchard_address_ua,
+            "uregtest1ue949txhf9t2z6ldg8wc6s5t439t2hu55yh9l58gc23cmxthths836nxtpyvhpkrftsp2jnnp9eadtqy2nefxn04eyxeu8l0x5kk8ct9"
         );
     }
 
