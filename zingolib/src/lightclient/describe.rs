@@ -53,10 +53,10 @@ impl LightClient {
 
     /// TODO: Add Doc Comment Here!
     // todo use helpers
-    pub async fn do_addresses(&self, shielded: bool) -> JsonValue {
+    pub async fn do_addresses(&self, shielded_only: bool) -> JsonValue {
         let mut objectified_addresses = Vec::new();
         for address in self.wallet.wallet_capability().addresses().iter() {
-            let local_address = if shielded {
+            let local_address = if shielded_only {
                 zcash_keys::address::UnifiedAddress::from_receivers(
                     address.orchard().copied(),
                     address.sapling().copied(),
