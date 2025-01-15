@@ -75,8 +75,8 @@ impl LightClient {
                     "address" => encoded_ua,
                     "receivers" => object!(
                         "transparent" => transparent,
-                        "sapling" => address.sapling().map(|z_addr| encode_payment_address(self.config.chain.hrp_sapling_payment_address(), z_addr)),
-                        "orchard_exists" => address.orchard().is_some()
+                        "sapling" => local_address.sapling().map(|z_addr| encode_payment_address(self.config.chain.hrp_sapling_payment_address(), z_addr)),
+                        "orchard_exists" => local_address.orchard().is_some()
                     )
                 }
             )
