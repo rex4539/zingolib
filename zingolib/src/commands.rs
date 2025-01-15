@@ -721,9 +721,9 @@ struct AddressCommand {}
 impl Command for AddressCommand {
     fn help(&self) -> &'static str {
         indoc! {r#"
-            List current addresses in the wallet
+            List current addresses in the wallet, shielded exludes t-addresses.
             Usage:
-            address
+            address true|false
 
         "#}
     }
@@ -732,8 +732,20 @@ impl Command for AddressCommand {
         "List all addresses in the wallet"
     }
 
-    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        RT.block_on(async move { lightclient.do_addresses().await.pretty(2) })
+    fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
+        match args.len() {
+            0 => self.help().to_string(),
+            1 => match args[0] {
+                "true" => {
+                    RT.block_on(async move { lightclient.do_addresses(true).await.pretty(2) })
+                }
+                "false" => {
+                    RT.block_on(async move { lightclient.do_addresses(false).await.pretty(2) })
+                }
+                _ => self.help().to_string(),
+            },
+            _ => self.help().to_string(),
+        }
     }
 }
 

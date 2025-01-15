@@ -53,11 +53,21 @@ impl LightClient {
 
     /// TODO: Add Doc Comment Here!
     // todo use helpers
-    pub async fn do_addresses(&self) -> JsonValue {
+    pub async fn do_addresses(&self, shielded: bool) -> JsonValue {
         let mut objectified_addresses = Vec::new();
         for address in self.wallet.wallet_capability().addresses().iter() {
-            let encoded_ua = address.encode(&self.config.chain);
-            let transparent = address
+            let local_address = if shielded {
+                zcash_keys::address::UnifiedAddress::from_receivers(
+                    address.orchard().copied(),
+                    address.sapling().copied(),
+                    None,
+                )
+                .expect("To create a new address.")
+            } else {
+                address.clone()
+            };
+            let encoded_ua = local_address.encode(&self.config.chain);
+            let transparent = local_address
                 .transparent()
                 .map(|taddr| address_from_pubkeyhash(&self.config, *taddr));
             objectified_addresses.push(

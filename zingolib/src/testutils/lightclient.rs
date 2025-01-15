@@ -18,16 +18,17 @@ pub async fn new_client_from_save_buffer(
 /// calling \[0] on json may panic? not sure -fv
 pub async fn get_base_address(client: &LightClient, pooltype: PoolType) -> String {
     match pooltype {
-        PoolType::Transparent => client.do_addresses().await[0]["receivers"]["transparent"]
+        PoolType::Transparent => client.do_addresses(false).await[0]["receivers"]["transparent"]
             .clone()
             .to_string(),
-        PoolType::Shielded(ShieldedProtocol::Sapling) => client.do_addresses().await[0]
+        PoolType::Shielded(ShieldedProtocol::Sapling) => client.do_addresses(false).await[0]
             ["receivers"]["sapling"]
             .clone()
             .to_string(),
-        PoolType::Shielded(ShieldedProtocol::Orchard) => {
-            client.do_addresses().await[0]["address"].take().to_string()
-        }
+        PoolType::Shielded(ShieldedProtocol::Orchard) => client.do_addresses(false).await[0]
+            ["address"]
+            .take()
+            .to_string(),
     }
 }
 /// Get the total fees paid by a given client (assumes 1 capability per client).
