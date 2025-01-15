@@ -723,7 +723,7 @@ impl Command for AddressCommand {
         indoc! {r#"
             List current addresses in the wallet, shielded exludes t-addresses.
             Usage:
-            address true|false
+            addresses true|false
 
         "#}
     }
