@@ -1739,6 +1739,14 @@ mod slow {
             ))
         ));
     }
+    #[tokio::test]
+    async fn compare_shielded_only_vs_default_do_addresses() {
+        let (_regtest_manager, _cph, _faucet, recipient) =
+            scenarios::faucet_recipient_default().await;
+        let all_addresses = recipient.do_addresses(false).await;
+        let only_shielded_addresses = recipient.do_addresses(true).await;
+        assert_eq!(all_addresses, only_shielded_addresses);
+    }
 
     #[tokio::test]
     async fn sends_to_self_handle_balance_properly() {
