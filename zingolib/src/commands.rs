@@ -733,17 +733,23 @@ impl Command for AddressCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        use crate::lightclient::describe::UASubset;
+        use crate::lightclient::describe::UAReceivers;
         match args.len() {
-            0 => {
-                RT.block_on(async move { lightclient.do_addresses(UASubset::All).await.pretty(2) })
-            }
+            0 => RT.block_on(
+                async move { lightclient.do_addresses(UAReceivers::All).await.pretty(2) },
+            ),
             1 => match args[0] {
                 "shielded" => RT.block_on(async move {
-                    lightclient.do_addresses(UASubset::Shielded).await.pretty(2)
+                    lightclient
+                        .do_addresses(UAReceivers::Shielded)
+                        .await
+                        .pretty(2)
                 }),
                 "orchard" => RT.block_on(async move {
-                    lightclient.do_addresses(UASubset::Orchard).await.pretty(2)
+                    lightclient
+                        .do_addresses(UAReceivers::Orchard)
+                        .await
+                        .pretty(2)
                 }),
                 _ => self.help().to_string(),
             },
