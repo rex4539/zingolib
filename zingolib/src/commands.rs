@@ -721,7 +721,7 @@ struct AddressCommand {}
 impl Command for AddressCommand {
     fn help(&self) -> &'static str {
         indoc! {r#"
-            List current addresses in the wallet, shielded exludes t-addresses.
+            List current addresses in the wallet, shielded excludes t-addresses.
             Usage:
             addresses shielded
 
