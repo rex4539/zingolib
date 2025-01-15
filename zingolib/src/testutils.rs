@@ -250,7 +250,7 @@ pub async fn send_value_between_clients_and_sync(
 ) -> Result<String, String> {
     debug!(
         "recipient address is: {}",
-        &recipient.do_addresses().await[0]["address"]
+        &recipient.do_addresses(false).await[0]["address"]
     );
     let txid = lightclient::from_inputs::quick_send(
         sender,

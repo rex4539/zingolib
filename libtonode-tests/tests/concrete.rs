@@ -1022,7 +1022,7 @@ mod fast {
         for code in ["o", "zo", "z"] {
             recipient.do_new_address(code).await.unwrap();
         }
-        let addresses = recipient.do_addresses().await;
+        let addresses = recipient.do_addresses(false).await;
         let address_5000_nonememo_tuples = addresses
             .members()
             .map(|ua| (ua["address"].as_str().unwrap(), 5_000, None))
@@ -1085,7 +1085,7 @@ mod fast {
 
         //Verify that 1 increment of diversification with a tz receiver set produces uregtest1m8un60u... UA
         let new_address = recipient1.do_new_address("tzo").await.unwrap();
-        let ua_index_1 = recipient1.do_addresses().await[1].clone();
+        let ua_index_1 = recipient1.do_addresses(false).await[1].clone();
         let ua_address_index_1 = ua_index_1["address"].clone().to_string();
         assert_eq!(&new_address[0].to_string(), &ua_address_index_1);
         let sapling_index_1 = ua_index_1["receivers"]["sapling"].clone().to_string();
@@ -1718,7 +1718,7 @@ mod slow {
         let list = recipient.do_list_transactions().await;
         assert_eq!(list[0]["block_height"].as_u64().unwrap(), 4);
         assert_eq!(
-            recipient.do_addresses().await[0]["receivers"]["transparent"].to_string(),
+            recipient.do_addresses(false).await[0]["receivers"]["transparent"].to_string(),
             recipient_taddr
         );
         assert_eq!(list[0]["amount"].as_u64().unwrap(), value);
@@ -1738,6 +1738,41 @@ mod slow {
                 }
             ))
         ));
+    }
+    #[tokio::test]
+    async fn compare_shielded_only_vs_default_do_addresses() {
+        let (_regtest_manager, _cph, _faucet, recipient) =
+            scenarios::faucet_recipient_default().await;
+        // All addresses
+        let all_addresses = recipient.do_addresses(false).await[0].clone();
+        assert_eq!(
+            all_addresses["address"],
+            "uregtest1wdukkmv5p5n824e8ytnc3m6m77v9vwwl7hcpj0wangf6z23f9x0fnaen625dxgn8cgp67vzw6swuar6uwp3nqywfvvkuqrhdjffxjfg644uthqazrtxhrgwac0a6ujzgwp8y9cwthjeayq8r0q6786yugzzyt9vevxn7peujlw8kp3vf6d8p4fvvpd8qd5p7xt2uagelmtf3vl6w3u8"
+        );
+        assert_eq!(all_addresses["receivers"].len(), 3usize);
+        assert_eq!(
+            all_addresses["receivers"]["transparent"],
+            "tmFLszfkjgim4zoUMAXpuohnFBAKy99rr2i"
+        );
+        // Only Shielded
+        let only_shielded_addresses = recipient.do_addresses(true).await[0].clone();
+        assert_eq!(
+            only_shielded_addresses["address"],
+            "uregtest1rm8kx0snrzfxw4z5uz34tdrg0slzu6ct94z479f8u95d3j46m4glj5xugensqwe5ume0zx8h9k0aprepyksffyyu8yd24cnvnmm2qh0sp5u93e4w2rjzpqjwd7fv32yfgql5yuqjs9l2kq60rchev3kv5j5p6u20ndgjmzs94vu50gy7"
+        );
+        assert_eq!(
+            only_shielded_addresses["receivers"]["transparent"],
+            JsonValue::Null
+        );
+        // Both
+        assert_eq!(
+            only_shielded_addresses["receivers"]["sapling"],
+            all_addresses["receivers"]["sapling"],
+        );
+        assert_eq!(
+            only_shielded_addresses["receivers"]["orchard"],
+            all_addresses["receivers"]["orchard"],
+        );
     }
 
     #[tokio::test]
@@ -2493,7 +2528,7 @@ mod slow {
 
         // 3. Check the balance is correct, and we received the incoming transaction from ?outside?
         let b = recipient.do_balance().await;
-        let addresses = recipient.do_addresses().await;
+        let addresses = recipient.do_addresses(false).await;
         assert_eq!(b.sapling_balance.unwrap(), value);
         assert_eq!(b.unverified_sapling_balance.unwrap(), 0);
         assert_eq!(b.spendable_sapling_balance.unwrap(), value);
@@ -3132,7 +3167,7 @@ mod slow {
             .await;
         let seed_of_recipient_restored = {
             recipient_restored.do_sync(true).await.unwrap();
-            let restored_addresses = recipient_restored.do_addresses().await;
+            let restored_addresses = recipient_restored.do_addresses(false).await;
             assert_eq!(
                 &restored_addresses[0]["address"],
                 &original_recipient_address

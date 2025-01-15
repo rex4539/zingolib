@@ -53,21 +53,33 @@ impl LightClient {
 
     /// TODO: Add Doc Comment Here!
     // todo use helpers
-    pub async fn do_addresses(&self) -> JsonValue {
+    pub async fn do_addresses(&self, shielded_only: bool) -> JsonValue {
         let mut objectified_addresses = Vec::new();
         for address in self.wallet.wallet_capability().addresses().iter() {
-            let encoded_ua = address.encode(&self.config.chain);
-            let transparent = address
+            let local_address = if shielded_only {
+                zcash_keys::address::UnifiedAddress::from_receivers(
+                    address.orchard().copied(),
+                    address.sapling().copied(),
+                    None,
+                )
+                .expect("To create a new address.")
+            } else {
+                address.clone()
+            };
+            let encoded_ua = local_address.encode(&self.config.chain);
+            let transparent = local_address
                 .transparent()
                 .map(|taddr| address_from_pubkeyhash(&self.config, *taddr));
-            objectified_addresses.push(object! {
-        "address" => encoded_ua,
-        "receivers" => object!(
-            "transparent" => transparent,
-            "sapling" => address.sapling().map(|z_addr| encode_payment_address(self.config.chain.hrp_sapling_payment_address(), z_addr)),
-            "orchard_exists" => address.orchard().is_some(),
+            objectified_addresses.push(
+                object!{
+                    "address" => encoded_ua,
+                    "receivers" => object!(
+                        "transparent" => transparent,
+                        "sapling" => local_address.sapling().map(|z_addr| encode_payment_address(self.config.chain.hrp_sapling_payment_address(), z_addr)),
+                        "orchard_exists" => local_address.orchard().is_some()
+                    )
+                }
             )
-        })
         }
         JsonValue::Array(objectified_addresses)
     }
