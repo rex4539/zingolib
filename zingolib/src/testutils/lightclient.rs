@@ -25,14 +25,16 @@ pub async fn get_base_address(client: &LightClient, pooltype: PoolType) -> Strin
             ["transparent"]
             .clone()
             .to_string(),
-        PoolType::Shielded(ShieldedProtocol::Sapling) => client.do_addresses(UAReceivers::All).await
-            [0]["receivers"]["sapling"]
-            .clone()
-            .to_string(),
-        PoolType::Shielded(ShieldedProtocol::Orchard) => client.do_addresses(UAReceivers::All).await
-            [0]["address"]
-            .take()
-            .to_string(),
+        PoolType::Shielded(ShieldedProtocol::Sapling) => {
+            client.do_addresses(UAReceivers::All).await[0]["receivers"]["sapling"]
+                .clone()
+                .to_string()
+        }
+        PoolType::Shielded(ShieldedProtocol::Orchard) => {
+            client.do_addresses(UAReceivers::All).await[0]["address"]
+                .take()
+                .to_string()
+        }
     }
 }
 /// Get the total fees paid by a given client (assumes 1 capability per client).
