@@ -274,16 +274,16 @@ impl Command for ParseAddressCommand {
                 .to_string(),
                 Address::Unified(ua) => {
                     let mut receivers_available = vec![];
+                    if ua.orchard().is_some() {
+                        receivers_available.push("orchard")
+                    }
+                    if ua.sapling().is_some() {
+                        receivers_available.push("sapling")
+                    }
+                    if ua.transparent().is_some() {
+                        receivers_available.push("transparent")
+                    }
                     if args.len() == 1 {
-                        if ua.orchard().is_some() {
-                            receivers_available.push("orchard")
-                        }
-                        if ua.sapling().is_some() {
-                            receivers_available.push("sapling")
-                        }
-                        if ua.transparent().is_some() {
-                            receivers_available.push("transparent")
-                        }
                         object! {
                             "status" => "success",
                             "chain_name" => chain_name_string,
@@ -295,7 +295,6 @@ impl Command for ParseAddressCommand {
                         && args[1] == "only_orchard_ua"
                         && ua.orchard().is_some()
                     {
-                        receivers_available.push("orchard");
                         object! {
                             "status" => "success",
                             "chain_name" => chain_name_string,
