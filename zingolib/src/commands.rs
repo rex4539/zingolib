@@ -216,7 +216,7 @@ impl Command for ParseAddressCommand {
         indoc! {r#"
             Parse an address
             Usage:
-            parse_address [address]
+            parse_address <address>
 
             Example
             parse_address tmSwk8bjXdCgBvpS8Kybk5nUyE21QFcDqre
@@ -228,71 +228,91 @@ impl Command for ParseAddressCommand {
     }
 
     fn exec(&self, args: &[&str], _lightclient: &LightClient) -> String {
-        match args.len() {
-            1 => json::stringify_pretty(
-                [
-                    crate::config::ChainType::Mainnet,
-                    crate::config::ChainType::Testnet,
-                    crate::config::ChainType::Regtest(
-                        crate::config::RegtestNetwork::all_upgrades_active(),
-                    ),
-                ]
-                .iter()
-                .find_map(|chain| Address::decode(chain, args[0]).zip(Some(chain)))
-                .map_or(
-                    object! {
-                        "status" => "Invalid address",
-                        "chain_name" => json::JsonValue::Null,
-                        "address_kind" => json::JsonValue::Null,
-                    },
-                    |(recipient_address, chain_name)| {
-                        let chain_name_string = match chain_name {
-                            crate::config::ChainType::Mainnet => "main",
-                            crate::config::ChainType::Testnet => "test",
-                            crate::config::ChainType::Regtest(_) => "regtest",
-                        };
-                        match recipient_address {
-                            Address::Sapling(_) => object! {
-                                "status" => "success",
-                                "chain_name" => chain_name_string,
-                                "address_kind" => "sapling",
-                            },
-                            Address::Transparent(_) => object! {
-                                "status" => "success",
-                                "chain_name" => chain_name_string,
-                                "address_kind" => "transparent",
-                            },
-                            Address::Unified(ua) => {
-                                let mut receivers_available = vec![];
-                                if ua.orchard().is_some() {
-                                    receivers_available.push("orchard")
-                                }
-                                if ua.sapling().is_some() {
-                                    receivers_available.push("sapling")
-                                }
-                                if ua.transparent().is_some() {
-                                    receivers_available.push("transparent")
-                                }
-                                object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "unified",
-                                    "receivers_available" => receivers_available,
-                                }
-                            }
-                            Address::Tex(_) => {
-                                object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "tex",
-                                }
-                            }
-                        }
-                    },
+        if args.len() > 1 {
+            return self.help().to_string();
+        }
+        fn make_decoded_chain_pair(
+            address: &str,
+        ) -> Option<(
+            zcash_client_backend::address::Address,
+            crate::config::ChainType,
+        )> {
+            [
+                crate::config::ChainType::Mainnet,
+                crate::config::ChainType::Testnet,
+                crate::config::ChainType::Regtest(
+                    crate::config::RegtestNetwork::all_upgrades_active(),
                 ),
-                4,
-            ),
-            _ => self.help().to_string(),
+            ]
+            .iter()
+            .find_map(|chain| Address::decode(chain, address).zip(Some(*chain)))
+        }
+        if let Some((recipient_address, chain_name)) = make_decoded_chain_pair(args[0]) {
+            let chain_name_string = match chain_name {
+                crate::config::ChainType::Mainnet => "main",
+                crate::config::ChainType::Testnet => "test",
+                crate::config::ChainType::Regtest(_) => "regtest",
+            };
+            match recipient_address {
+                Address::Sapling(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "sapling",
+                }
+                .to_string(),
+                Address::Transparent(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "transparent",
+                }
+                .to_string(),
+                Address::Tex(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "tex",
+                }
+                .to_string(),
+                Address::Unified(ua) => {
+                    let mut receivers_available = vec![];
+                    if ua.orchard().is_some() {
+                        receivers_available.push("orchard")
+                    }
+                    if ua.sapling().is_some() {
+                        receivers_available.push("sapling")
+                    }
+                    if ua.transparent().is_some() {
+                        receivers_available.push("transparent")
+                    }
+                    if ua.orchard().is_some()
+                        && ua.sapling().is_some()
+                        && ua.transparent().is_some()
+                    {
+                        object! {
+                            "status" => "success",
+                            "chain_name" => chain_name_string,
+                            "address_kind" => "unified",
+                            "receivers_available" => receivers_available,
+                            "only_orchard_ua" => zcash_keys::address::UnifiedAddress::from_receivers(ua.orchard().cloned(), None, None).expect("To construct UA").encode(&chain_name),
+                        }
+                        .to_string()
+                    } else {
+                        object! {
+                            "status" => "success",
+                            "chain_name" => chain_name_string,
+                            "address_kind" => "unified",
+                            "receivers_available" => receivers_available,
+                        }
+                        .to_string()
+                    }
+                }
+            }
+        } else {
+            object! {
+                "status" => "Invalid address",
+                "chain_name" => json::JsonValue::Null,
+                "address_kind" => json::JsonValue::Null,
+            }
+            .to_string()
         }
     }
 }
