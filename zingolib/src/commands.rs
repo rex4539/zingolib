@@ -266,6 +266,12 @@ impl Command for ParseAddressCommand {
                     "address_kind" => "transparent",
                 }
                 .to_string(),
+                Address::Tex(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "tex",
+                }
+                .to_string(),
                 Address::Unified(ua) => {
                     let mut receivers_available = vec![];
                     if args.len() == 1 {
@@ -300,12 +306,6 @@ impl Command for ParseAddressCommand {
                         self.help().to_string()
                     }
                 }
-                Address::Tex(_) => object! {
-                    "status" => "success",
-                    "chain_name" => chain_name_string,
-                    "address_kind" => "tex",
-                }
-                .to_string(),
             }
         } else {
             object! {
