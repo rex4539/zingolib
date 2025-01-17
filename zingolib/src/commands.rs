@@ -228,7 +228,7 @@ impl Command for ParseAddressCommand {
     }
 
     fn exec(&self, args: &[&str], _lightclient: &LightClient) -> String {
-        if args.len() > 2 {
+        if args.len() > 1 {
             return self.help().to_string();
         }
         fn make_decoded_chain_pair(
