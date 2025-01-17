@@ -295,6 +295,7 @@ impl Command for ParseAddressCommand {
                         && args[1] == "only_orchard_ua"
                         && ua.orchard().is_some()
                     {
+                        receivers_available.push("orchard");
                         object! {
                             "status" => "success",
                             "chain_name" => chain_name_string,
