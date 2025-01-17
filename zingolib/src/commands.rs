@@ -216,7 +216,7 @@ impl Command for ParseAddressCommand {
         indoc! {r#"
             Parse an address
             Usage:
-            parse_address <address> [orchard]
+            parse_address <address> [only_orchard_ua]
 
             Example
             parse_address tmSwk8bjXdCgBvpS8Kybk5nUyE21QFcDqre
@@ -285,7 +285,7 @@ impl Command for ParseAddressCommand {
                             "receivers_available" => receivers_available,
                         }
                         .to_string()
-                    } else if args.len() == 2 {
+                    } else if args.len() == 2 && args[1] == "only_orchard_ua" {
                         if ua.orchard().is_some() {
                             receivers_available.push("orchard")
                         }
