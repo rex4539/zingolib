@@ -216,7 +216,7 @@ impl Command for ParseAddressCommand {
         indoc! {r#"
             Parse an address
             Usage:
-            parse_address <address> [only_orchard_ua]
+            parse_address <address>
 
             Example
             parse_address tmSwk8bjXdCgBvpS8Kybk5nUyE21QFcDqre
@@ -283,17 +283,9 @@ impl Command for ParseAddressCommand {
                     if ua.transparent().is_some() {
                         receivers_available.push("transparent")
                     }
-                    if args.len() == 1 {
-                        object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "unified",
-                            "receivers_available" => receivers_available,
-                        }
-                        .to_string()
-                    } else if args.len() == 2
-                        && args[1] == "only_orchard_ua"
-                        && ua.orchard().is_some()
+                    if ua.orchard().is_some()
+                        && ua.sapling().is_some()
+                        && ua.transparent().is_some()
                     {
                         object! {
                             "status" => "success",
@@ -304,7 +296,13 @@ impl Command for ParseAddressCommand {
                         }
                         .to_string()
                     } else {
-                        self.help().to_string()
+                        object! {
+                            "status" => "success",
+                            "chain_name" => chain_name_string,
+                            "address_kind" => "unified",
+                            "receivers_available" => receivers_available,
+                        }
+                        .to_string()
                     }
                 }
             }
