@@ -3,6 +3,7 @@
 
 use crate::data::proposal;
 use crate::wallet::keys::unified::UnifiedKeyStore;
+use crate::wallet::traits::Recipient as _;
 use crate::wallet::MemoDownloadOption;
 use crate::{lightclient::LightClient, wallet};
 use indoc::indoc;
@@ -291,15 +292,16 @@ impl Command for ParseAddressCommand {
                             "receivers_available" => receivers_available,
                         }
                         .to_string()
-                    } else if args.len() == 2 && args[1] == "only_orchard_ua" {
-                        if ua.orchard().is_some() {
-                            receivers_available.push("orchard")
-                        }
+                    } else if args.len() == 2
+                        && args[1] == "only_orchard_ua"
+                        && ua.orchard().is_some()
+                    {
                         object! {
                             "status" => "success",
                             "chain_name" => chain_name_string,
                             "address_kind" => "unified",
                             "receivers_available" => receivers_available,
+                            "only_orchard_ua" => ua.orchard().map(|oaddr| oaddr.b32encode_for_network(&chain_name)).expect("To unpack an orchard receiver."),
                         }
                         .to_string()
                     } else {
