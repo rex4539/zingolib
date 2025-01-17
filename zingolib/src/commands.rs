@@ -247,62 +247,73 @@ impl Command for ParseAddressCommand {
             .iter()
             .find_map(|chain| Address::decode(chain, address).zip(Some(*chain)))
         }
-        match args.len() {
-            1 => json::stringify_pretty(
-                make_decoded_chain_pair(args[0]).map_or(
-                    object! {
-                        "status" => "Invalid address",
-                        "chain_name" => json::JsonValue::Null,
-                        "address_kind" => json::JsonValue::Null,
-                    },
-                    |(recipient_address, chain_name)| {
-                        let chain_name_string = match chain_name {
-                            crate::config::ChainType::Mainnet => "main",
-                            crate::config::ChainType::Testnet => "test",
-                            crate::config::ChainType::Regtest(_) => "regtest",
-                        };
-                        match recipient_address {
-                            Address::Sapling(_) => object! {
-                                "status" => "success",
-                                "chain_name" => chain_name_string,
-                                "address_kind" => "sapling",
-                            },
-                            Address::Transparent(_) => object! {
-                                "status" => "success",
-                                "chain_name" => chain_name_string,
-                                "address_kind" => "transparent",
-                            },
-                            Address::Unified(ua) => {
-                                let mut receivers_available = vec![];
-                                if ua.orchard().is_some() {
-                                    receivers_available.push("orchard")
-                                }
-                                if ua.sapling().is_some() {
-                                    receivers_available.push("sapling")
-                                }
-                                if ua.transparent().is_some() {
-                                    receivers_available.push("transparent")
-                                }
-                                object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "unified",
-                                    "receivers_available" => receivers_available,
-                                }
-                            }
-                            Address::Tex(_) => {
-                                object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "tex",
-                                }
-                            }
+        if let Some((recipient_address, chain_name)) = make_decoded_chain_pair(args[0]) {
+            let chain_name_string = match chain_name {
+                crate::config::ChainType::Mainnet => "main",
+                crate::config::ChainType::Testnet => "test",
+                crate::config::ChainType::Regtest(_) => "regtest",
+            };
+            match recipient_address {
+                Address::Sapling(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "sapling",
+                }
+                .to_string(),
+                Address::Transparent(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "transparent",
+                }
+                .to_string(),
+                Address::Unified(ua) => {
+                    let mut receivers_available = vec![];
+                    if args.len() == 1 {
+                        if ua.orchard().is_some() {
+                            receivers_available.push("orchard")
                         }
-                    },
-                ),
-                4,
-            ),
-            _ => self.help().to_string(),
+                        if ua.sapling().is_some() {
+                            receivers_available.push("sapling")
+                        }
+                        if ua.transparent().is_some() {
+                            receivers_available.push("transparent")
+                        }
+                        object! {
+                            "status" => "success",
+                            "chain_name" => chain_name_string,
+                            "address_kind" => "unified",
+                            "receivers_available" => receivers_available,
+                        }
+                        .to_string()
+                    } else if args.len() == 2 {
+                        if ua.orchard().is_some() {
+                            receivers_available.push("orchard")
+                        }
+                        object! {
+                            "status" => "success",
+                            "chain_name" => chain_name_string,
+                            "address_kind" => "unified",
+                            "receivers_available" => receivers_available,
+                        }
+                        .to_string()
+                    } else {
+                        self.help().to_string()
+                    }
+                }
+                Address::Tex(_) => object! {
+                    "status" => "success",
+                    "chain_name" => chain_name_string,
+                    "address_kind" => "tex",
+                }
+                .to_string(),
+            }
+        } else {
+            object! {
+                "status" => "Invalid address",
+                "chain_name" => json::JsonValue::Null,
+                "address_kind" => json::JsonValue::Null,
+            }
+            .to_string()
         }
     }
 }
