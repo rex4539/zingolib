@@ -585,8 +585,9 @@ impl LightClient {
     /// TODO: doc comment
     pub async fn value_transfers_json_string(&self, recent_vts_to_retrieve: usize) -> String {
         let sorted_vts = self.sorted_value_transfers(true).await;
+        let total = sorted_vts.len();
         let subset = &sorted_vts.as_slice()[..recent_vts_to_retrieve];
-        json::JsonValue::from(subset).pretty(2)
+        object! {"value_transfers:"=> subset, "total" => total}.to_string()
     }
 
     /// Provides a list of transaction summaries related to this wallet in order of blockheight
