@@ -586,7 +586,8 @@ impl LightClient {
     pub async fn value_transfers_json_string(&self, recent_vts_to_retrieve: usize) -> String {
         let sorted_vts = self.sorted_value_transfers(true).await;
         let total = sorted_vts.len();
-        let subset = &sorted_vts.as_slice()[..recent_vts_to_retrieve];
+        let subset_len = recent_vts_to_retrieve.min(total);
+        let subset = &sorted_vts.as_slice()[..subset_len];
         object! {"value_transfers" => subset, "total" => total}.to_string()
     }
 
