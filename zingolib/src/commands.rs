@@ -228,7 +228,7 @@ impl Command for ParseAddressCommand {
     }
 
     fn exec(&self, args: &[&str], _lightclient: &LightClient) -> String {
-        if args.len() > 1 {
+        if args.len() > 1 || args.is_empty() {
             return self.help().to_string();
         }
         fn make_decoded_chain_pair(
@@ -274,19 +274,14 @@ impl Command for ParseAddressCommand {
                 .to_string(),
                 Address::Unified(ua) => {
                     let mut receivers_available = vec![];
-                    if ua.orchard().is_some() {
-                        receivers_available.push("orchard")
-                    }
                     if ua.sapling().is_some() {
                         receivers_available.push("sapling")
                     }
                     if ua.transparent().is_some() {
                         receivers_available.push("transparent")
                     }
-                    if ua.orchard().is_some()
-                        && ua.sapling().is_some()
-                        && ua.transparent().is_some()
-                    {
+                    if ua.orchard().is_some() {
+                        receivers_available.push("orchard");
                         object! {
                             "status" => "success",
                             "chain_name" => chain_name_string,
