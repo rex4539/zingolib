@@ -218,6 +218,7 @@ mod decrypt_transaction {
 
         /// This method records that receipt in the relevant receiving
         /// TransactionRecord in the TransactionRecordsById database.
+        #[allow(clippy::too_many_arguments)]
         async fn record_taddr_receipt(
             &self,
             transaction: &zcash_primitives::transaction::Transaction,
