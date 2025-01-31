@@ -207,7 +207,11 @@ impl TransparentOutput {
         let spend =
             spent_tuple.map(|(txid, height)| (txid, ConfirmationStatus::Confirmed(height.into())));
 
-        let is_coinbase = reader.read_u8()? != 0;
+        let is_coinbase = if version >= 5 {
+            reader.read_u8()? != 0
+        } else {
+            false
+        };
 
         Ok(TransparentOutput {
             address,
