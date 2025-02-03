@@ -1257,6 +1257,7 @@ mod fast {
             NonNegativeAmount::const_from_u64((block_rewards::CANOPY * 4) - expected_fee)
         )
     }
+    #[ignore = "requires 100 blocks to be generated. should become a zebrad test."]
     #[tokio::test]
     async fn mine_to_transparent_and_propose_shielding_with_div_addr() {
         let regtest_network = RegtestNetwork::all_upgrades_active();
