@@ -46,7 +46,7 @@ jobs:
           - { abi: x86_64, api-level: 34, target: default }
           - { abi: x86, api-level: 29, target: default }
       fail-fast: false
-    uses: ./.github/workflows/android-ubuntu-integration-test-ci.yaml
+    uses: zingolabs/zingo-mobile/.github/workflows/android-ubuntu-integration-test-ci.yaml@dev
     needs: [create-timestamp, android-build]
     with:
       timestamp: ${{ needs.create-timestamp.outputs.timestamp }}
