@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 # Zingo
-zingo-netutils = { path = "../zingo-netutils" }
-zingo-memo = { path = "../zingo-memo" }
-zingo-status = { path = "../zingo-status" }
+zingo-netutils = { workspace = true }
+zingo-memo = { workspace = true }
+zingo-status = { workspace = true }
 
 # Zcash
 zcash_client_backend.workspace = true
